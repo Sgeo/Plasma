@@ -159,6 +159,10 @@ plVirtualCam1::plVirtualCam1()
     fXPanLimit = 0;
     fZPanLimit = 0;
     fRetainedFY = 0.5f;
+
+	//Rift defaults
+	riftPOA.Set(0,0,0);
+	riftUp.Set(0,0,1);
     // create built-in drive mode camera
     fCameraDriveInterface = plDebugInputInterface::GetInstance();
     hsRefCnt_SafeRef( fCameraDriveInterface );
@@ -659,6 +663,32 @@ void plVirtualCam1::UnPanIfNeeded()
     }
 }
 
+//void plVirtualCam1::SetRiftOverrideX(float yaw){
+//
+//	if(fFirstPersonOverride){
+//		fY = yaw / 3.1415926f;
+//	}
+//}
+//
+//void plVirtualCam1::SetRiftOverrideY(float pitch){
+//	if(fFirstPersonOverride){
+//		fX = pitch / 3.1415926f;
+//	}
+//}
+
+
+void plVirtualCam1::SetRiftOverridePOA(hsVector3 viewVec){
+	riftPOA = hsPoint3(viewVec.fX, viewVec.fY, viewVec.fZ);
+}
+
+void plVirtualCam1::SetRiftOverrideUp(hsVector3 viewUp){
+	riftUp = viewUp;
+}
+
+void plVirtualCam1::SetRiftOverrideMatrix(hsMatrix44 viewMat){
+	riftMatrix = viewMat;
+}
+
 
 void plVirtualCam1::AdjustForInput()
 {
@@ -738,6 +768,7 @@ void plVirtualCam1::AdjustForInput()
     m = mZ * m;
 
     hsVector3 view = m.GetAxis(hsMatrix44::kView);
+
     fOutputPOA = fOutputPos + (view * 15);
 
 }
@@ -833,15 +864,31 @@ void plVirtualCam1::Output()
     }
     // construct output matrix
     hsVector3 abUp(0,0,1);
+
+	//Rift camera vector override
+	if(fFirstPersonOverride){
+		fOutputPOA = riftPOA;
+	}
+
     hsVector3 view(fOutputPos - fOutputPOA);
     view.Normalize();
     // Now passing in Up for up parameter to MakeCamera. Negates sense of up. mf_flip_up - mf
     hsVector3 up = (view % abUp) % view;
     if (GetCurrentCamera()->IsAnimated())
         up = -GetCurrentCamera()->GetTarget()->GetCoordinateInterface()->GetLocalToWorld().GetAxis(hsMatrix44::kView);
+
+	//Rift up vector override
+	if(fFirstPersonOverride){
+		up = riftUp;
+	}
     
     fOutputUp = up;
     targetMatrix.MakeCamera(&fOutputPos,&fOutputPOA, &up);
+
+	if(fFirstPersonOverride){
+		targetMatrix = riftMatrix;
+	}
+
     targetMatrix.GetInverse(&inverse);
     fPipe->SetWorldToCamera( targetMatrix, inverse );
     if (HasFlags(kSetFOV)) // are we changing the field of view?

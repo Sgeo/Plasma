@@ -160,6 +160,14 @@ public:
     bool HasFlags(int flag) { return fFlags.IsBitSet(flag); }
     void ClearFlags(int flag) { fFlags.ClearBit(flag); }
 
+	//Rift overrides
+	//void SetRiftOverrideX(float yaw);
+	//void SetRiftOverrideY(float pitch);
+	void SetRiftOverridePOA(hsVector3 viewVec);
+	void SetRiftOverrideUp(hsVector3 viewUp);
+	void SetRiftOverrideMatrix(hsMatrix44 viewMat);
+
+
     // console command stuff
     static void Next();
     static void Prev();
@@ -232,6 +240,11 @@ private:
     double              fUnPanEndTime;
     double              fInterpPanLimitTime;
     float               fRetainedFY;
+
+	//Rift overrides
+	hsPoint3 riftPOA;
+	hsVector3 riftUp;
+	hsMatrix44 riftMatrix;
 
     // built-in cameras
     plCameraModifier1*  fDriveCamera; // for driving around 

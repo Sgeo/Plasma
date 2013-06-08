@@ -1600,6 +1600,47 @@ bool plClient::StartInit()
         msg->Send();
     }
 
+	
+	//Rift init
+	YawInitial = 3.141592f;
+	EyePos = Vector3f(0.0f, 1.6f, -5.0f),
+    EyeYaw = YawInitial;
+	EyePitch = 0.0f;
+	EyeRoll = 0.0f;
+    LastSensorYaw = 0.0f;
+	UpVector = Vector3f(0.0f, 0.0f, 1.0f);
+	ForwardVector = Vector3f(0.0f, 1.0f, 0.0f);
+	RightVector = Vector3f(1.0f, 0.0f, 0.0f);
+
+	System::Init(Log::ConfigureDefaultLog(LogMask_All));
+
+	pManager = *DeviceManager::Create();
+	pHMD = *pManager->EnumerateDevices<HMDDevice>().CreateDevice();
+
+	std::stringstream riftConsole;
+	
+	fConsole->AddLine("-- Initializing Rift --");
+
+	if(pHMD){
+		pSensor = *pHMD->GetSensor();
+		fConsole->AddLine("- Found Rift -");
+	}
+
+	if (pSensor)
+		SFusion.AttachToSensor(pSensor);
+	
+	HMDInfo hmd;
+	if (pHMD->GetDeviceInfo(&hmd))
+	{
+		//char[32] MonitorName = hmd.DisplayDeviceName;
+		float EyeDistance = hmd.InterpupillaryDistance;	
+
+		riftConsole << "IPD: " << EyeDistance << std::endl;
+		//fConsole->AddLine(riftConsole.str().c_str());
+	}
+
+
+
     // 2nd half of plClient initialization occurs after
     // all network events have completed.  Async events:
     //
@@ -1826,6 +1867,50 @@ bool plClient::IUpdate()
     cameras->SetBCastFlag(plMessage::kBCastByExactType);
     plgDispatch::MsgSend(cameras);
     plProfile_EndTiming(CameraMsg);
+
+
+	//Rift update
+	std::stringstream riftConsole;
+	Quatf    hmdOrient = SFusion.GetOrientation();
+	float    yaw = 0.0f;
+
+	hmdOrient.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &EyePitch, &EyeRoll);
+
+	EyeYaw += (yaw - LastSensorYaw);
+	LastSensorYaw = yaw;
+
+	Matrix4f rollPitchYaw = Matrix4f::RotationY(EyeRoll) * Matrix4f::RotationX(-EyePitch) * Matrix4f::RotationZ(EyeYaw);
+    Vector3f up = rollPitchYaw.Transform(UpVector);
+    Vector3f forward = rollPitchYaw.Transform(ForwardVector);
+
+	hsMatrix44 convertMat;
+	
+	//Vector3f camPos(fNewCamera->GetCameraPos().fX, fNewCamera->GetCameraPos().fY, fNewCamera->GetCameraPos().fZ);
+	//Matrix4f viewMat = Matrix4f::LookAtLH(camPos, camPos + forward, up);
+	//viewMat.AxisConversion( WorldAxes(Axis_Right, Axis_In, Axis_Up ), WorldAxes(Axis_Left, Axis_In, Axis_Up));
+
+	//fNewCamera->SetRiftOverridePOA(hsVector3(forward.x, forward.y, forward.z ));
+	//fNewCamera->SetRiftOverrideUp(hsVector3(up.x, up.y, up.z));
+
+	/*for(int i = 0; i < 4; i++){
+		for(int j = 0; j < 4; j++){
+			convertMat.fMap[i][j] = viewMat.M[i][j];
+		}
+	}*/
+
+	const hsPoint3 camForward = fNewCamera->GetCameraPos() + hsVector3(forward.x, forward.y, forward.z);
+	const hsVector3 camUp = hsVector3(up.x, up.y, up.z);
+
+	convertMat.MakeCamera(&fNewCamera->GetCameraPos(), &camForward, &camUp);
+	fNewCamera->SetRiftOverrideMatrix(convertMat);
+
+	//fNewCamera->SetRiftOverrideY(yaw);
+	//fNewCamera->SetRiftOverrideX(EyePitch);
+
+	riftConsole << "Yaw: " << EyeYaw << " Pitch:" << EyePitch << " Roll:" << EyeRoll;
+	fConsole->AddLine(riftConsole.str().c_str());
+
+
 
     return false;
 }

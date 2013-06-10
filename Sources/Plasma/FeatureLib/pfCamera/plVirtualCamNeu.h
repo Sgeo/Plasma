@@ -47,6 +47,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsMatrix44.h"
 #include "hsBitVector.h"
 #include <vector>
+#include <sstream>
 
 class plPipeline;
 class plCameraModifier1;
@@ -166,6 +167,7 @@ public:
 	void SetRiftOverridePOA(hsVector3 viewVec);
 	void SetRiftOverrideUp(hsVector3 viewUp);
 	void SetRiftOverrideMatrix(hsMatrix44 viewMat);
+	void ForceCameraUpdate();
 
 
     // console command stuff

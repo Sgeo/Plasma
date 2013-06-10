@@ -687,6 +687,7 @@ void plVirtualCam1::SetRiftOverrideUp(hsVector3 viewUp){
 
 void plVirtualCam1::SetRiftOverrideMatrix(hsMatrix44 viewMat){
 	riftMatrix = viewMat;
+	
 }
 
 
@@ -867,7 +868,7 @@ void plVirtualCam1::Output()
 
 	//Rift camera vector override
 	if(fFirstPersonOverride){
-		fOutputPOA = riftPOA;
+		//fOutputPOA = riftPOA;
 	}
 
     hsVector3 view(fOutputPos - fOutputPOA);
@@ -879,18 +880,54 @@ void plVirtualCam1::Output()
 
 	//Rift up vector override
 	if(fFirstPersonOverride){
-		up = riftUp;
+		//up = riftUp;
 	}
     
     fOutputUp = up;
+	
     targetMatrix.MakeCamera(&fOutputPos,&fOutputPOA, &up);
 
+	// Rift
 	if(fFirstPersonOverride){
-		targetMatrix = riftMatrix;
+		//riftMatrix.MakeRotateMat
+		//targetMatrix.SetRotate();
+		//targetMatrix.MakeCamera(&fOutputPos, &riftPOA, &riftUp);
+		//targetMatrix.SetRotate(0, riftPOA.fX);
+		//targetMatrix.SetRotate(1, riftPOA.fY);
+		//targetMatrix.SetRotate(2, riftPOA.fZ);
+		//targetMatrix.
+		
+		//targetMatrix = targetMatrix.Rotate(2, riftPOA.fZ);
+		//targetMatrix = targetMatrix.Rotate(1, riftPOA.fX);
+		//targetMatrix = targetMatrix.Rotate(0, -riftPOA.fY);
+
+
+		//for(int i = 0; i < 3; i++){
+		//	for(int j = 0; j < 3; j++){
+		//		//targetMatrix.fMap[i][j] = riftMatrix.fMap[i][j];
+		//	}
+		//}
+
+		//targetMatrix.fMap[0][0] = riftMatrix.fMap[0][0];
+		//targetMatrix.fMap[1][1] = riftMatrix.fMap[1][1];
+		//targetMatrix.fMap[2][2] = riftMatrix.fMap[2][2];
+		//targetMatrix.fFlags
+		//targetMatrix = targetMatrix * riftMatrix;
+		//targetMatrix.SetTranslate(&fOutputPos);
+
+		
+		//fPipe->SetFOV(fFOVw,fFOVh);
+		//targetMatrix= riftMatrix;
+		
+		
 	}
 
+	//Set the camera view based on the rift orientation
+	targetMatrix.DecompRigid(fOutputPos, hsQuat(riftPOA.fX, riftPOA.fY, riftPOA.fZ, riftUp.fZ));
     targetMatrix.GetInverse(&inverse);
     fPipe->SetWorldToCamera( targetMatrix, inverse );
+
+
     if (HasFlags(kSetFOV)) // are we changing the field of view?
     {
         ClearFlags(kSetFOV);
@@ -904,12 +941,13 @@ void plVirtualCam1::Output()
         }   
 
     }
-/*  if (foutLog)
+    
+	if (foutLog)
     {
         fprintf(foutLog, "output pos %f %f %f\n", fOutputPos.fX,fOutputPos.fY,fOutputPos.fZ);
         fprintf(foutLog, "output poa %f %f %f\n", fOutputPOA.fX,fOutputPOA.fY,fOutputPOA.fZ);
         fprintf(foutLog, "\n");
-    }   */
+    }   
 }
 
 void plVirtualCam1::Init()

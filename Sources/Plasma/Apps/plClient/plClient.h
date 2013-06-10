@@ -194,6 +194,8 @@ protected:
 	Ptr<HMDDevice>		pHMD;
 	Ptr<SensorDevice>	pSensor;
 	SensorFusion		SFusion;
+	Util::Render::StereoConfig        SConfig;
+
 	Vector3f            EyePos;
     float               EyeYaw;         // Rotation around Y, CCW positive when looking at RHS (X,Z) plane.
     float               EyePitch;       // Pitch. If sensor is plugged in, only read from sensor.
@@ -324,6 +326,9 @@ public:
     void ResizeDisplayDevice(int Width, int Height, bool Windowed);
     void IDetectAudioVideoSettings();
     void IWriteDefaultGraphicsSettings(const plFileName& destFile);
+
+	//Rift functions
+	void CalculateRiftCameraOrientation(Quatf riftOrientation, Util::Render::StereoEyeParams eyeConfig);
 
     plAnimDebugList *fAnimDebugList;
 

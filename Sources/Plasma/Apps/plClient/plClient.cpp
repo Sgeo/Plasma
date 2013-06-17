@@ -1626,6 +1626,7 @@ bool plClient::StartInit()
 	SFusion.SetPredictionEnabled(true);
 
 	SConfig.SetFullViewport(Util::Render::Viewport(0,0, fPipeline->Width(), fPipeline->Height()));
+
 	SConfig.SetStereoMode(Util::Render::Stereo_LeftRight_Multipass);
 	SConfig.SetDistortionFitPointVP(-1.0f, 0.0f);
 
@@ -1637,11 +1638,17 @@ bool plClient::StartInit()
 
 		 OVR::HMDInfo HMDInfo;
          pHMD->GetDeviceInfo(&HMDInfo);
+	} else {
+		fConsole->AddLine("- No HMD found -");
 	}
 
-	if (pSensor)
+	if (pSensor){
 		SFusion.AttachToSensor(pSensor);
+		SFusion.SetPredictionEnabled(true);
+	}
 
+	//Setup post processing
+	fNewCamera->createDistortionPlate();
 
     return true;
 }
@@ -1962,8 +1969,8 @@ void plClient::CalculateRiftCameraOrientation(Quatf riftOrientation, Util::Rende
 	tester *= Matrix4f::RotationX(3.1415926 * 0.5);
 	tester *= Matrix4f::RotationY(3.1415926);
 	tester *= Matrix4f::RotationZ(3.1415926 * 0.5);
-	//tester *= Matrix4f::Translation(-camPos;
-	tester *= Matrix4f::Translation(-camPos) * eyeConfig.ViewAdjust;
+	tester *= Matrix4f::Translation(-camPos);
+	//tester *= Matrix4f::Translation(-camPos) * eyeConfig.ViewAdjust;
 	
 	hsMatrix44 testerAlt;
 	

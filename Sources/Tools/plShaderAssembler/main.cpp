@@ -90,6 +90,8 @@ int main(int argc, char* argv[])
             vs_WaveFixedFin7,
             vs_GrassShader,
             ps_GrassShader,
+			vs_RiftDistortAssembly,
+			ps_RiftDistortAssembly,
 
             kNumEnumNames
         };
@@ -137,7 +139,9 @@ int main(int argc, char* argv[])
             "vs_WaveDecEnv_7",
             "vs_WaveFixedFin7",
             "vs_GrassShader",
-            "ps_GrassShader"
+            "ps_GrassShader",
+			"vs_RiftDistortAssembly",
+			"ps_RiftDistortAssembly"
         };
 
         nameList = kEnumNames;

@@ -49,6 +49,11 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include <vector>
 #include <sstream>
 
+#include "plSurface/plShader.h"
+#include "plSurface/plLayer.h"
+#include "plMessage/plLayRefMsg.h"
+using namespace plShaderID;
+
 class plPipeline;
 class plCameraModifier1;
 class plCameraBrain1;
@@ -60,6 +65,7 @@ class plCameraProxy;
 class plSceneNode;
 class plDebugInputInterface;
 class plPlate;
+class plShader;
 
 #include "hsTemplates.h"
 
@@ -168,6 +174,7 @@ public:
 	void SetRiftOverrideUp(hsVector3 viewUp);
 	void SetRiftOverrideMatrix(hsMatrix44 viewMat);
 	void ForceCameraUpdate();
+	void createDistortionPlate();
 
 
     // console command stuff
@@ -247,6 +254,9 @@ private:
 	hsPoint3 riftPOA;
 	hsVector3 riftUp;
 	hsMatrix44 riftMatrix;
+	plPlate*            fRiftDistortionPlate;
+	plShader*			fRiftVertexShader;
+	plShader			*fRiftPixelShader;
 
     // built-in cameras
     plCameraModifier1*  fDriveCamera; // for driving around 

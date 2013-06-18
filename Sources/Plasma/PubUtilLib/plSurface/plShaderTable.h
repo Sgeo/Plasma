@@ -92,6 +92,8 @@ namespace plShaderID
             vs_WaveFixedFin7,
             vs_GrassShader,
             ps_GrassShader,
+			vs_RiftDistortAssembly,
+			ps_RiftDistortAssembly,
 
             kNumShaders
     };

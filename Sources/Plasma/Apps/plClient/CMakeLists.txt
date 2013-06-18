@@ -10,6 +10,11 @@ include_directories("../../PubUtilLib")
 if(Bink_SDK_AVAILABLE)
     include_directories(${Bink_INCLUDE_DIR})
 endif()
+
+if(LibOVR_FOUND)
+    include_directories(${LibOVR_INCLUDE_DIR})
+endif(LibOVR_FOUND)  
+
 include_directories(${OPENAL_INCLUDE_DIR})
 include_directories(${OPENSSL_INCLUDE_DIR})
 include_directories(${PYTHON_INCLUDE_DIR})
@@ -184,6 +189,11 @@ if (WIN32)
     target_link_libraries(plClient winmm)
     target_link_libraries(plClient strmiids)
 endif(WIN32)
+
+if(LibOVR_FOUND)
+    target_link_libraries(plClient ${LibOVR_LIBRARY})
+    target_link_libraries(plClient ${LibOVR_DEBUG_LIBRARY})
+endif()
 
 source_group("Source Files" FILES ${plClient_SOURCES})
 source_group("Header Files" FILES ${plClient_HEADERS})

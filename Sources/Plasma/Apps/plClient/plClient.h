@@ -54,14 +54,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsBitVector.h"
 #include "hsTemplates.h"
 
-//Rift includes
-#include "ovr.h"
-#include <iostream>		//Seriously, why is this not in here?
-#include <sstream>
-
-//Rift namespace
-using namespace OVR;
-
 #include "pnKeyedObject/hsKeyedObject.h"
 #include "pnKeyedObject/plUoid.h"
 #include "plScene/plRenderRequest.h"
@@ -188,24 +180,6 @@ protected:
 
     int fNumPostLoadMsgs;
     float fPostLoadMsgInc;
-
-	//Rift objects
-	Ptr<DeviceManager>  pManager;
-	Ptr<HMDDevice>		pHMD;
-	Ptr<SensorDevice>	pSensor;
-	SensorFusion		SFusion;
-	Util::Render::StereoConfig        SConfig;
-
-	Vector3f            EyePos;
-    float               EyeYaw;         // Rotation around Y, CCW positive when looking at RHS (X,Z) plane.
-    float               EyePitch;       // Pitch. If sensor is plugged in, only read from sensor.
-    float               EyeRoll;        // Roll, only accessible from Sensor.
-    float               LastSensorYaw;  // Stores previous Yaw value from to support computing delta.
-	float				YawInitial;
-	Vector3f			UpVector;
-	Vector3f			ForwardVector;
-	Vector3f			RightVector;
-
     
     void                    ICompleteInit ();
     void                    IOnAsyncInitComplete ();
@@ -326,9 +300,6 @@ public:
     void ResizeDisplayDevice(int Width, int Height, bool Windowed);
     void IDetectAudioVideoSettings();
     void IWriteDefaultGraphicsSettings(const plFileName& destFile);
-
-	//Rift functions
-	void CalculateRiftCameraOrientation(Quatf riftOrientation, Util::Render::StereoEyeParams eyeConfig);
 
     plAnimDebugList *fAnimDebugList;
 

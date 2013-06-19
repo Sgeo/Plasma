@@ -1,0 +1,211 @@
+/*==LICENSE==*
+
+CyanWorlds.com Engine - MMOG client, server and tools
+Copyright (C) 2011  Cyan Worlds, Inc.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+Additional permissions under GNU GPL version 3 section 7
+
+If you modify this Program, or any covered work, by linking or
+combining it with any of RAD Game Tools Bink SDK, Autodesk 3ds Max SDK,
+NVIDIA PhysX SDK, Microsoft DirectX SDK, OpenSSL library, Independent
+JPEG Group JPEG library, Microsoft Windows Media SDK, or Apple QuickTime SDK
+(or a modified version of those libraries),
+containing parts covered by the terms of the Bink SDK EULA, 3ds Max EULA,
+PhysX SDK EULA, DirectX SDK EULA, OpenSSL and SSLeay licenses, IJG
+JPEG Library README, Windows Media SDK EULA, or QuickTime SDK EULA, the
+licensors of this Program grant you additional
+permission to convey the resulting work. Corresponding Source for a
+non-source form of such a combination shall include the source code for
+the parts of OpenSSL and IJG JPEG Library used as well as that of the covered
+work.
+
+You can contact Cyan Worlds, Inc. by email legal@cyan.com
+ or by snail mail at:
+      Cyan Worlds, Inc.
+      14617 N Newport Hwy
+      Mead, WA   99021
+
+*==LICENSE==*/
+
+#include "pfRiftCamera.h"
+
+pfRiftCamera::pfRiftCamera(){
+	//Rift init
+	YawInitial = 3.141592f;
+	EyePos = Vector3f(0.0f, 1.6f, -5.0f),
+    EyeYaw = YawInitial;
+	EyePitch = 0.0f;
+	EyeRoll = 0.0f;
+    LastSensorYaw = 0.0f;
+	UpVector = Vector3f(0.0f, 0.0f, 1.0f);
+	ForwardVector = Vector3f(0.0f, 1.0f, 0.0f);
+	RightVector = Vector3f(1.0f, 0.0f, 0.0f);
+
+	System::Init(Log::ConfigureDefaultLog(LogMask_All));
+
+	pManager = *DeviceManager::Create();
+	pHMD = *pManager->EnumerateDevices<HMDDevice>().CreateDevice();
+	SFusion.SetPredictionEnabled(true);
+
+	//SConfig.SetFullViewport(Util::Render::Viewport(0,0, fPipeline->Width(), fPipeline->Height()));
+
+	SConfig.SetStereoMode(Util::Render::Stereo_LeftRight_Multipass);
+	SConfig.SetDistortionFitPointVP(-1.0f, 0.0f);
+
+	//fConsole->AddLine("-- Initializing Rift --");
+
+	if(pHMD){
+		pSensor = *pHMD->GetSensor();
+		//fConsole->AddLine("- Found Rift -");
+
+		 OVR::HMDInfo HMDInfo;
+         pHMD->GetDeviceInfo(&HMDInfo);
+	} else {
+		//fConsole->AddLine("- No HMD found -");
+	}
+
+	if (pSensor){
+		SFusion.AttachToSensor(pSensor);
+		SFusion.SetPredictionEnabled(true);
+	}
+
+	//Setup post processing
+	//fNewCamera->createDistortionPlate();
+}
+
+void pfRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
+	//Matrix4f hmdMat(hmdOrient);
+
+	Quatf riftOrientation = SFusion.GetOrientation();
+
+	Matrix4f tester = Matrix4f(riftOrientation.Inverted());
+	Vector3f camPos(camPosition.fX, camPosition.fY, camPosition.fZ);
+	//Vector3f poa(1, 0, 0);
+	
+	Vector3f upp(1, 0, 0);
+	
+	tester *= Matrix4f::RotationX(3.1415926 * 0.5);
+	tester *= Matrix4f::RotationY(3.1415926);
+	tester *= Matrix4f::RotationZ(3.1415926 * 0.5);
+	tester *= Matrix4f::Translation(-camPos);
+	//tester *= Matrix4f::Translation(-camPos) * eyeConfig.ViewAdjust;
+	
+	hsMatrix44 testerAlt;
+	
+	for(int i = 0; i < 4; i++){
+		for(int j = 0; j < 4; j++){
+			testerAlt.fMap[i][j] = tester.M[i][j];
+		}
+	}
+	
+	//std::stringstream riftCons;
+	//riftCons << riftOrientation.x << ", " << riftOrientation.y << ", " << riftOrientation.z << ", " << riftOrientation.w;
+	//fConsole->AddLine(riftCons.str().c_str());
+
+	fVirtualCam->SetRiftOverrideMatrix(testerAlt);
+	fVirtualCam->SetRiftOverridePOA(hsVector3(riftOrientation.x, riftOrientation.y, riftOrientation.z));
+	fVirtualCam->SetRiftOverrideUp(hsVector3(0, 0, riftOrientation.w));
+}
+
+
+
+//LEFTOVER TESTING CODE - Is this useful for richard?
+/*
+
+	//Rift update
+	/*std::stringstream riftConsole;
+	Quatf    hmdOrient = SFusion.GetOrientation();
+	float    yaw = 0.0f;
+
+	hmdOrient.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &EyePitch, &EyeRoll);
+
+	EyeYaw += (yaw - LastSensorYaw);
+	LastSensorYaw = yaw;
+
+	Matrix4f rollPitchYaw = Matrix4f::RotationY(EyeRoll) * Matrix4f::RotationX(-EyePitch) * Matrix4f::RotationZ(-EyeYaw);
+    Vector3f up = rollPitchYaw.Transform(UpVector);
+    Vector3f forward = rollPitchYaw.Transform(ForwardVector);
+
+	hsMatrix44 convertMat;
+	
+	Vector3f camPos(fNewCamera->GetCameraPos().fX, fNewCamera->GetCameraPos().fY, fNewCamera->GetCameraPos().fZ);
+	Matrix4f viewMat = Matrix4f::LookAtLH(camPos, camPos + forward, up);
+	viewMat.Scaling(-1.0f, 0.0f,0.0f);
+	//Matrix4f viewMat = Matrix4f::RotationY(EyeYaw) * Matrix4f::RotationX(-EyePitch) * Matrix4f::RotationZ(EyeRoll) * Matrix4f::Translation(camPos);
+
+
+	//Matrix4f orientMat = hmdOrient;
+	//orientMat.Translation(camPos);
+	//orientMat.AxisConversion( WorldAxes(Axis_Right, Axis_In, Axis_Up ), WorldAxes(Axis_Left, Axis_In, Axis_Up));
+
+	for(int i = 0; i < 4; i++){
+		for(int j = 0; j < 4; j++){
+			convertMat.fMap[i][j] = viewMat.M[i][j];
+		}
+	}
+
+	
+
+	//const hsPoint3 camForward = fNewCamera->GetCameraPos() + hsVector3(forward.x, forward.y, forward.z);
+	//const hsVector3 camUp = hsVector3(up.x, up.y, up.z);
+
+	//convertMat.MakeCamera(&fNewCamera->GetCameraPos(), &camForward, &camUp);
+	fNewCamera->SetRiftOverrideMatrix(convertMat);
+
+	//fNewCamera->SetRiftOverrideY(yaw);
+	//fNewCamera->SetRiftOverrideX(EyePitch);
+
+	//riftConsole << "Yaw: " << EyeYaw << " Pitch:" << EyePitch << " Roll:" << EyeRoll;
+	//fConsole->AddLine(riftConsole.str().c_str());
+	*/
+
+	/*Quatf    hmdOrient = SFusion.GetPredictedOrientation();
+
+    float    yaw = 0.0f;
+    hmdOrient.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &Player.EyePitch, &Player.EyeRoll);
+
+    Player.EyeYaw += (yaw - Player.LastSensorYaw);
+    Player.LastSensorYaw = yaw;
+	*/
+
+	/*
+    // NOTE: We can get a matrix from orientation as follows:
+    // Matrix4f hmdMat(hmdOrient);
+
+    // Test logic - assign quaternion result directly to view:
+    // Quatf hmdOrient = SFusion.GetOrientation();
+    // View = Matrix4f(hmdOrient.Inverted()) * Matrix4f::Translation(-EyePos);
+
+	//***** --- Working code here
+
+
+	//***************************
+
+
+	//fNewCamera->SetRiftOverrideMatrix(testerAlt);
+	//fNewCamera-
+	
+	//
+	//float yaw = 0;
+	//float pitch = 0;
+	//float roll = 0;
+	//hmdOrient.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &pitch, &roll);
+
+	//upp = tester.Transform(upp);
+	//fNewCamera->SetRiftOverrideUp(hsVector3(upp.x, upp.y, upp.z));
+	//fNewCamera->SetRiftOverridePOA(hsVector3(yaw, pitch, roll));
+
+*/

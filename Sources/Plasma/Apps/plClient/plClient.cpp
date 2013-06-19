@@ -156,6 +156,10 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "plTweak.h"
 
+//Rift includes
+#include "pfOculusRift/pfRiftCamera.h"
+
+
 #define MSG_LOADING_BAR
 
 // static hsVector3 gAbsDown(0,0,-1.f);
@@ -1607,48 +1611,6 @@ bool plClient::StartInit()
     //
     // Continue plClient init via IOnAsyncInitComplete().
 
-	
-	//Rift init
-	YawInitial = 3.141592f;
-	EyePos = Vector3f(0.0f, 1.6f, -5.0f),
-    EyeYaw = YawInitial;
-	EyePitch = 0.0f;
-	EyeRoll = 0.0f;
-    LastSensorYaw = 0.0f;
-	UpVector = Vector3f(0.0f, 0.0f, 1.0f);
-	ForwardVector = Vector3f(0.0f, 1.0f, 0.0f);
-	RightVector = Vector3f(1.0f, 0.0f, 0.0f);
-
-	System::Init(Log::ConfigureDefaultLog(LogMask_All));
-
-	pManager = *DeviceManager::Create();
-	pHMD = *pManager->EnumerateDevices<HMDDevice>().CreateDevice();
-	SFusion.SetPredictionEnabled(true);
-
-	SConfig.SetFullViewport(Util::Render::Viewport(0,0, fPipeline->Width(), fPipeline->Height()));
-
-	SConfig.SetStereoMode(Util::Render::Stereo_LeftRight_Multipass);
-	SConfig.SetDistortionFitPointVP(-1.0f, 0.0f);
-
-	fConsole->AddLine("-- Initializing Rift --");
-
-	if(pHMD){
-		pSensor = *pHMD->GetSensor();
-		fConsole->AddLine("- Found Rift -");
-
-		 OVR::HMDInfo HMDInfo;
-         pHMD->GetDeviceInfo(&HMDInfo);
-	} else {
-		fConsole->AddLine("- No HMD found -");
-	}
-
-	if (pSensor){
-		SFusion.AttachToSensor(pSensor);
-		SFusion.SetPredictionEnabled(true);
-	}
-
-	//Setup post processing
-	fNewCamera->createDistortionPlate();
 
     return true;
 }
@@ -1870,124 +1832,10 @@ bool plClient::IUpdate()
     plgDispatch::MsgSend(cameras);
     plProfile_EndTiming(CameraMsg);
 
-
-	//Rift update
-	/*std::stringstream riftConsole;
-	Quatf    hmdOrient = SFusion.GetOrientation();
-	float    yaw = 0.0f;
-
-	hmdOrient.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &EyePitch, &EyeRoll);
-
-	EyeYaw += (yaw - LastSensorYaw);
-	LastSensorYaw = yaw;
-
-	Matrix4f rollPitchYaw = Matrix4f::RotationY(EyeRoll) * Matrix4f::RotationX(-EyePitch) * Matrix4f::RotationZ(-EyeYaw);
-    Vector3f up = rollPitchYaw.Transform(UpVector);
-    Vector3f forward = rollPitchYaw.Transform(ForwardVector);
-
-	hsMatrix44 convertMat;
-	
-	Vector3f camPos(fNewCamera->GetCameraPos().fX, fNewCamera->GetCameraPos().fY, fNewCamera->GetCameraPos().fZ);
-	Matrix4f viewMat = Matrix4f::LookAtLH(camPos, camPos + forward, up);
-	viewMat.Scaling(-1.0f, 0.0f,0.0f);
-	//Matrix4f viewMat = Matrix4f::RotationY(EyeYaw) * Matrix4f::RotationX(-EyePitch) * Matrix4f::RotationZ(EyeRoll) * Matrix4f::Translation(camPos);
-
-
-	//Matrix4f orientMat = hmdOrient;
-	//orientMat.Translation(camPos);
-	//orientMat.AxisConversion( WorldAxes(Axis_Right, Axis_In, Axis_Up ), WorldAxes(Axis_Left, Axis_In, Axis_Up));
-
-	for(int i = 0; i < 4; i++){
-		for(int j = 0; j < 4; j++){
-			convertMat.fMap[i][j] = viewMat.M[i][j];
-		}
-	}
-
-	
-
-	//const hsPoint3 camForward = fNewCamera->GetCameraPos() + hsVector3(forward.x, forward.y, forward.z);
-	//const hsVector3 camUp = hsVector3(up.x, up.y, up.z);
-
-	//convertMat.MakeCamera(&fNewCamera->GetCameraPos(), &camForward, &camUp);
-	fNewCamera->SetRiftOverrideMatrix(convertMat);
-
-	//fNewCamera->SetRiftOverrideY(yaw);
-	//fNewCamera->SetRiftOverrideX(EyePitch);
-
-	//riftConsole << "Yaw: " << EyeYaw << " Pitch:" << EyePitch << " Roll:" << EyeRoll;
-	//fConsole->AddLine(riftConsole.str().c_str());
-	*/
-
-	/*Quatf    hmdOrient = SFusion.GetPredictedOrientation();
-
-    float    yaw = 0.0f;
-    hmdOrient.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &Player.EyePitch, &Player.EyeRoll);
-
-    Player.EyeYaw += (yaw - Player.LastSensorYaw);
-    Player.LastSensorYaw = yaw;
-	*/
-    // NOTE: We can get a matrix from orientation as follows:
-    // Matrix4f hmdMat(hmdOrient);
-
-    // Test logic - assign quaternion result directly to view:
-    // Quatf hmdOrient = SFusion.GetOrientation();
-    // View = Matrix4f(hmdOrient.Inverted()) * Matrix4f::Translation(-EyePos);
-
-	//***** --- Working code here
-
-
-	//***************************
-
-
-	//fNewCamera->SetRiftOverrideMatrix(testerAlt);
-	//fNewCamera-
-	
-	//
-	//float yaw = 0;
-	//float pitch = 0;
-	//float roll = 0;
-	//hmdOrient.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &pitch, &roll);
-
-	//upp = tester.Transform(upp);
-	//fNewCamera->SetRiftOverrideUp(hsVector3(upp.x, upp.y, upp.z));
-	//fNewCamera->SetRiftOverridePOA(hsVector3(yaw, pitch, roll));
-
-	CalculateRiftCameraOrientation( SFusion.GetOrientation(), SConfig.GetEyeRenderParams(Util::Render::StereoEye_Left) );
-
     return false;
 }
 
-void plClient::CalculateRiftCameraOrientation(Quatf riftOrientation, Util::Render::StereoEyeParams eyeConfig){
-	//Matrix4f hmdMat(hmdOrient);
 
-	Matrix4f tester = Matrix4f(riftOrientation.Inverted());
-	Vector3f camPos(fNewCamera->GetCameraPos().fX, fNewCamera->GetCameraPos().fY, fNewCamera->GetCameraPos().fZ);
-	//Vector3f poa(1, 0, 0);
-	
-	Vector3f upp(1, 0, 0);
-	
-	tester *= Matrix4f::RotationX(3.1415926 * 0.5);
-	tester *= Matrix4f::RotationY(3.1415926);
-	tester *= Matrix4f::RotationZ(3.1415926 * 0.5);
-	tester *= Matrix4f::Translation(-camPos);
-	//tester *= Matrix4f::Translation(-camPos) * eyeConfig.ViewAdjust;
-	
-	hsMatrix44 testerAlt;
-	
-	for(int i = 0; i < 4; i++){
-		for(int j = 0; j < 4; j++){
-			testerAlt.fMap[i][j] = tester.M[i][j];
-		}
-	}
-	
-	//std::stringstream riftCons;
-	//riftCons << riftOrientation.x << ", " << riftOrientation.y << ", " << riftOrientation.z << ", " << riftOrientation.w;
-	//fConsole->AddLine(riftCons.str().c_str());
-
-	fNewCamera->SetRiftOverrideMatrix(testerAlt);
-	fNewCamera->SetRiftOverridePOA(hsVector3(riftOrientation.x, riftOrientation.y, riftOrientation.z));
-	fNewCamera->SetRiftOverrideUp(hsVector3(0, 0, riftOrientation.w));
-}
 
 bool plClient::IDrawProgress() {
     // HACK: Don't draw while we're caching some room loads, otherwise the
@@ -2068,13 +1916,6 @@ bool plClient::IDraw()
     plProfile_BeginTiming(ClearRender);
     fPipeline->ClearRenderTarget();
     plProfile_EndTiming(ClearRender);
-
-	//Rift Stereo rendering. Need to render the screen twice!
-	//-------------------------------------------------------
-
-	//Force the camera position to update before rendering. Dunno when this should start.
-	//CalculateRiftCameraOrientation( SFusion.GetOrientation(), SConfig.GetEyeRenderParams(Util::Render::StereoEye_Left) );
-	//fNewCamera->ForceCameraUpdate();
 
     plProfile_BeginTiming(PreRender);
     if( !fFlags.IsBitSet( kFlagDBGDisableRRequests ) )

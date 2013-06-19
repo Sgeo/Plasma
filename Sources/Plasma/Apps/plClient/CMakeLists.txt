@@ -193,6 +193,7 @@ endif(WIN32)
 if(LibOVR_FOUND)
     target_link_libraries(plClient ${LibOVR_LIBRARY})
     target_link_libraries(plClient ${LibOVR_DEBUG_LIBRARY})
+    target_link_libraries(plClient pfOculusRift)
 endif()
 
 source_group("Source Files" FILES ${plClient_SOURCES})

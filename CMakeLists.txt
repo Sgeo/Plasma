@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 
 # Set up Product Identification parameters
 set(PRODUCT_BRANCH_ID   "1"         CACHE STRING "Branch ID")
-set(PRODUCT_BUILD_ID    "918"       CACHE STRING "Build ID")
+set(PRODUCT_BUILD_ID    "912"       CACHE STRING "Build ID")
 set(PRODUCT_BUILD_TYPE  "50"        CACHE STRING "Build Type")
 set(PRODUCT_CORE_NAME   "UruLive"   CACHE STRING "Product Core Name")
 set(PRODUCT_SHORT_NAME  "UruLive"   CACHE STRING "Product Short Name")
@@ -73,6 +73,12 @@ option(PLASMA_EXTERNAL_RELEASE "Is this release intended for the general public?
 if(PLASMA_EXTERNAL_RELEASE)
     add_definitions(-DPLASMA_EXTERNAL_RELEASE)
 endif(PLASMA_EXTERNAL_RELEASE)
+
+#Optional Oculus Rift support
+option(BUILD_RIFT_SUPPORT "Include Oculus Rift support" ON)
+if(BUILD_RIFT_SUPPORT)
+    find_package(LibOVR)
+endif(BUILD_RIFT_SUPPORT)
 
 set(PLASMA_TARGETS "Client"
     CACHE STRING "Which set of plasma targets to build and use")

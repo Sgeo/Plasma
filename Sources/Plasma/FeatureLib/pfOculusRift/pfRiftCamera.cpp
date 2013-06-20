@@ -53,37 +53,34 @@ pfRiftCamera::pfRiftCamera(){
 	UpVector = Vector3f(0.0f, 0.0f, 1.0f);
 	ForwardVector = Vector3f(0.0f, 1.0f, 0.0f);
 	RightVector = Vector3f(1.0f, 0.0f, 0.0f);
+}
 
+void pfRiftCamera::initRift(){
 	System::Init(Log::ConfigureDefaultLog(LogMask_All));
 
 	pManager = *DeviceManager::Create();
 	pHMD = *pManager->EnumerateDevices<HMDDevice>().CreateDevice();
 	SFusion.SetPredictionEnabled(true);
 
-	//SConfig.SetFullViewport(Util::Render::Viewport(0,0, fPipeline->Width(), fPipeline->Height()));
-
 	SConfig.SetStereoMode(Util::Render::Stereo_LeftRight_Multipass);
 	SConfig.SetDistortionFitPointVP(-1.0f, 0.0f);
 
-	//fConsole->AddLine("-- Initializing Rift --");
+	pfConsole::AddLine("-- Initializing Rift --");
 
 	if(pHMD){
 		pSensor = *pHMD->GetSensor();
-		//fConsole->AddLine("- Found Rift -");
+		pfConsole::AddLine("- Found Rift -");
 
 		 OVR::HMDInfo HMDInfo;
          pHMD->GetDeviceInfo(&HMDInfo);
 	} else {
-		//fConsole->AddLine("- No HMD found -");
+		pfConsole::AddLine("- No HMD found -");
 	}
 
 	if (pSensor){
 		SFusion.AttachToSensor(pSensor);
 		SFusion.SetPredictionEnabled(true);
 	}
-
-	//Setup post processing
-	//fNewCamera->createDistortionPlate();
 }
 
 void pfRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){

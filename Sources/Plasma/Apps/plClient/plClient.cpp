@@ -157,7 +157,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plTweak.h"
 
 //Rift includes
+#ifdef BUILD_RIFT_SUPPORT
 #include "pfOculusRift/pfRiftCamera.h"
+#endif
 
 
 #define MSG_LOADING_BAR
@@ -1603,6 +1605,11 @@ bool plClient::StartInit()
         msg->param              = nil;
         msg->Send();
     }
+
+#ifdef BUILD_RIFT_SUPPORT
+	pRiftCamera = new pfRiftCamera;
+	pRiftCamera->initRift();
+#endif
 
 	    // 2nd half of plClient initialization occurs after
     // all network events have completed.  Async events:

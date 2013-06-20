@@ -86,6 +86,10 @@ class plNetCommAuthMsg;
 class plAgeLoaded2Msg;
 class plResPatcherMsg;
 
+#ifdef BUILD_RIFT_SUPPORT
+class pfRiftCamera;		//Rift manager
+#endif
+
 typedef void (*plMessagePumpProc)( void );
 
 
@@ -137,6 +141,11 @@ protected:
     plOperationProgress     *fProgressBar;
 
     pfGameGUIMgr            *fGameGUIMgr;
+
+	//Rift controller
+#ifdef BUILD_RIFT_SUPPORT
+	pfRiftCamera*			pRiftCamera;
+#endif
 
     virtual hsG3DDeviceModeRecord ILoadDevMode(const char* devModeFile);
 

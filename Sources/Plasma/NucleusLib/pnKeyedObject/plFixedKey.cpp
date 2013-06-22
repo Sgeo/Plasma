@@ -119,7 +119,7 @@ plKeySeed SeedList[] = {
     { kAgeLoader_KEY,                   CLASS_INDEX_SCOPED( plAgeLoader),               "kAgeLoader_KEY",               },
     { kBuiltIn3rdPersonCamera_KEY,      CLASS_INDEX_SCOPED( plCameraModifier1 ),        "kBuiltIn3rdPersonCamera_KEY",  },
     { kSecurePreloader_KEY,             CLASS_INDEX_SCOPED( pfSecurePreloader ),        "kSecurePreloader_KEY",         },
-    
+    { kRiftCamera_KEY,					CLASS_INDEX_SCOPED( plRiftCamera ),				"kRiftCamera_KEY",				},
 
     { kLast_Fixed_KEY,                  CLASS_INDEX_SCOPED( plSceneObject ),            "kLast_Fixed_KEY",              }
 };

@@ -40,9 +40,30 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 *==LICENSE==*/
 
-#include "pfRiftCamera.h"
+#include "plRiftCamera.h"
 
-pfRiftCamera::pfRiftCamera(){
+#include "HeadSpin.h"
+#include "hsTemplates.h"
+#include "hsGeometry3.h"
+#include "hsMatrix44.h"
+#include "plstring.h"
+#include "plGImage/plMipmap.h"
+#include "plSurface/plLayer.h"
+#include "plSurface/hsGMaterial.h"
+#include "plMessage/plLayRefMsg.h"
+#include "plResMgr/plResManager.h"
+#include "plResMgr/plKeyFinder.h"
+#include "pfCamera/plVirtualCamNeu.h"
+#include "pfConsoleCore/pfConsoleEngine.h"
+#include "pfConsole/pfConsole.h"
+#include "pfConsole/pfConsoleDirSrc.h"
+#include "plPipeline/plPlates.h"
+#include "pnKeyedObject/hsKeyedObject.h"
+#include "pnKeyedObject/plKey.h"
+#include "pnKeyedObject/plFixedKey.h"
+#include "pnKeyedObject/plUoid.h"
+
+plRiftCamera::plRiftCamera(){
 	//Rift init
 	YawInitial = 3.141592f;
 	EyePos = Vector3f(0.0f, 1.6f, -5.0f),
@@ -55,10 +76,11 @@ pfRiftCamera::pfRiftCamera(){
 	RightVector = Vector3f(1.0f, 0.0f, 0.0f);
 }
 
-pfRiftCamera::~pfRiftCamera(){
+plRiftCamera::~plRiftCamera(){
 }
 
-void pfRiftCamera::initRift(){
+void plRiftCamera::initRift(){
+
 	System::Init(Log::ConfigureDefaultLog(LogMask_All));
 
 	pManager = *DeviceManager::Create();
@@ -88,12 +110,12 @@ void pfRiftCamera::initRift(){
 	createDistortionPlate();
 }
 
-bool pfRiftCamera::MsgReceive(plMessage* msg)
+bool plRiftCamera::MsgReceive(plMessage* msg)
 {
 	return true;
 }
 
-void pfRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
+void plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
 	//Matrix4f hmdMat(hmdOrient);
 
 	Quatf riftOrientation = SFusion.GetOrientation();
@@ -127,7 +149,7 @@ void pfRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
 	fVirtualCam->SetRiftOverrideUp(hsVector3(0, 0, riftOrientation.w));
 }
 
-void pfRiftCamera::createDistortionPlate(){
+void plRiftCamera::createDistortionPlate(){
 
 	plLayer         *layer;
     hsGMaterial     *material;
@@ -159,6 +181,9 @@ void pfRiftCamera::createDistortionPlate(){
 
 	//Create Vertex shader
 	fRiftPixelShader = new plShader;
+
+	const plKey keyObj = GetKey();
+	const char * key = GetKey()->GetName().c_str();
 
 	plString buff = plString::Format("%s_RiftVertexShader", GetKey()->GetName().c_str());
 	hsgResMgr::ResMgr()->NewKey(buff, fRiftPixelShader, GetKey()->GetUoid().GetLocation());

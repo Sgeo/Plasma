@@ -9,11 +9,11 @@ if(WIN32)
 endif(WIN32)
 
 set(pfOculusRift_SOURCES
-    pfRiftCamera.cpp
+    plRiftCamera.cpp
 )
 
 set(pfOculusRift_HEADERS
-	pfRiftCamera.h
+	plRiftCamera.h
     pfRiftCreatable.h
 )
 

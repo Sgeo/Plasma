@@ -86,6 +86,7 @@ enum plFixedKeyId
     kAgeLoader_KEY,
     kBuiltIn3rdPersonCamera_KEY,
     kSecurePreloader_KEY,
+	kRiftCamera_KEY,
 
     kLast_Fixed_KEY
 };

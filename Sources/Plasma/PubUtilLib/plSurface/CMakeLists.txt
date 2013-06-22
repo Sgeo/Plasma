@@ -76,6 +76,8 @@ set(plSurface_SHADERS
     vs_WaveGridFin.h
     vs_WaveRip.h
     vs_WaveRip7.h
+	vs_RiftDistortAssembly.h
+	ps_RiftDistortAssembly.h
 )
 
 add_library(plSurface STATIC ${plSurface_SOURCES} ${plSurface_HEADERS} ${plSurface_SHADERS})

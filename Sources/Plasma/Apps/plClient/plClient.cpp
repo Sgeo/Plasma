@@ -158,7 +158,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 //Rift includes
 #ifdef BUILD_RIFT_SUPPORT
-#include "pfOculusRift/pfRiftCamera.h"
+#include "pfOculusRift/plRiftCamera.h"
 #endif
 
 
@@ -204,7 +204,8 @@ plClient::plClient()
     fHoldLoadRequests(false),
     fNumLoadingRooms(0),
     fNumPostLoadMsgs(0),
-    fPostLoadMsgInc(0.f)
+    fPostLoadMsgInc(0.f),
+	fRiftCamera(nil)
 {
 #ifndef PLASMA_EXTERNAL_RELEASE
     bPythonDebugConnected = false;
@@ -1607,8 +1608,9 @@ bool plClient::StartInit()
     }
 
 #ifdef BUILD_RIFT_SUPPORT
-	pRiftCamera = new pfRiftCamera;
-	pRiftCamera->initRift();
+	fRiftCamera = new plRiftCamera;
+	fRiftCamera->RegisterAs( kRiftCamera_KEY );
+	fRiftCamera->initRift();
 #endif
 
 	    // 2nd half of plClient initialization occurs after

@@ -87,7 +87,7 @@ class plAgeLoaded2Msg;
 class plResPatcherMsg;
 
 #ifdef BUILD_RIFT_SUPPORT
-class pfRiftCamera;		//Rift manager
+class plRiftCamera;		//Rift manager
 #endif
 
 typedef void (*plMessagePumpProc)( void );
@@ -144,7 +144,7 @@ protected:
 
 	//Rift controller
 #ifdef BUILD_RIFT_SUPPORT
-	pfRiftCamera*			pRiftCamera;
+	plRiftCamera			*fRiftCamera;
 #endif
 
     virtual hsG3DDeviceModeRecord ILoadDevMode(const char* devModeFile);

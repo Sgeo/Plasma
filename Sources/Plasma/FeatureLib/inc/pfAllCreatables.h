@@ -59,4 +59,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pfGameMgr/pfGameMgrCreatables.h"
 #include "pfSecurePreloader/pfSecurePreloaderCreatable.h"
 
+#ifdef BUILD_RIFT_SUPPORT
+#include "pfOculusRift/pfRiftCreatable.h"
+#endif
+
 #endif // pfAllCreatables_inc

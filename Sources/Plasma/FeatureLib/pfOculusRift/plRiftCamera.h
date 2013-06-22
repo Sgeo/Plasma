@@ -40,8 +40,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 *==LICENSE==*/
 
-#ifndef pfRiftCamera_inc
-#define pfRiftCamera_inc
+#ifndef plRiftCamera_inc
+#define plRiftCamera_inc
 
 //Plasma includes
 #include "HeadSpin.h"
@@ -74,13 +74,47 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //Rift namespace
 using namespace OVR;
 
-class pfRiftCamera : hsKeyedObject{
-public:
-	pfRiftCamera();
-	virtual ~pfRiftCamera();
+class plPipeline;
+class plCameraModifier1;
+class plCameraBrain1;
+class plSceneObject;
+class plKey;
+class hsGMaterial;
+class plDrawableSpans;
+class plCameraProxy;
+class plSceneNode;
+class plDebugInputInterface;
+class plPlate;
+class plShader;
 
-	CLASSNAME_REGISTER( pfRiftCamera );
-    GETINTERFACE_ANY( pfRiftCamera, hsKeyedObject );
+class plRiftCamera : public hsKeyedObject{
+public:
+	plRiftCamera();
+	virtual ~plRiftCamera();
+
+	CLASSNAME_REGISTER( plRiftCamera );
+    GETINTERFACE_ANY( plRiftCamera, hsKeyedObject );
+
+//Expanded macro version of above
+//public: 
+//	virtual const char* ClassName() const { return "plRiftCamera"; } 
+//private: 
+//	static uint16_t plRiftCameraClassIndex; 
+//	static void SetClassIndex(uint16_t hClass) { plRiftCameraClassIndex = hClass; } 
+//public: 
+//	virtual uint16_t ClassIndex() const { return plRiftCamera::Index(); } 
+//	static uint16_t Index() { return plRiftCameraClassIndex; } 
+//	static plRiftCamera * Create() { return (plRiftCamera*)plFactory::Create(plRiftCameraClassIndex); } 
+//	static plRiftCamera * ConvertNoRef(plCreatable* c) { plRiftCamera* retVal = c ? (plRiftCamera *)c->GetInterface(plRiftCameraClassIndex) : (nullptr); return retVal; } 
+//	static const plRiftCamera * ConvertNoRef(const plCreatable* c) { const plRiftCamera* retVal = c ? (const plRiftCamera *)c->GetConstInterface(plRiftCameraClassIndex) : (nullptr); return retVal; } 
+//	static plRiftCamera * Convert(plCreatable* c) { plRiftCamera* retVal = ConvertNoRef(c); do { if (retVal) (retVal)->Ref(); } while (0); return retVal; } 
+//	static bool HasDerivedClass(uint16_t hDer) { return plFactory::DerivesFrom(plRiftCameraClassIndex, hDer); } 
+//
+//	friend class plRiftCamera__Creator;;
+//    static bool HasBaseClass(uint16_t hBaseClass) { if( hBaseClass == plRiftCameraClassIndex ) return true; else return hsKeyedObject::HasBaseClass(hBaseClass); } 
+//	virtual plCreatable* GetInterface(uint16_t hClass) { if( hClass == plRiftCameraClassIndex ) return this; else return hsKeyedObject::GetInterface(hClass); } 
+//	virtual const plCreatable* GetConstInterface(uint16_t hClass) const { if( hClass == plRiftCameraClassIndex ) return this; else return hsKeyedObject::GetConstInterface(hClass); };
+	//end macros
 
 	virtual bool MsgReceive(plMessage* msg);
 

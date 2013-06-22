@@ -44,13 +44,26 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #define pfRiftCamera_inc
 
 //Plasma includes
+#include "HeadSpin.h"
 #include "hsTemplates.h"
 #include "hsGeometry3.h"
 #include "hsMatrix44.h"
+#include "plstring.h"
+#include "plGImage/plMipmap.h"
+#include "plSurface/plLayer.h"
+#include "plSurface/hsGMaterial.h"
+#include "plMessage/plLayRefMsg.h"
+#include "plResMgr/plResManager.h"
+#include "plResMgr/plKeyFinder.h"
 #include "pfCamera/plVirtualCamNeu.h"
 #include "pfConsoleCore/pfConsoleEngine.h"
 #include "pfConsole/pfConsole.h"
 #include "pfConsole/pfConsoleDirSrc.h"
+#include "plPipeline/plPlates.h"
+#include "pnKeyedObject/hsKeyedObject.h"
+#include "pnKeyedObject/plKey.h"
+#include "pnKeyedObject/plFixedKey.h"
+#include "pnKeyedObject/plUoid.h"
 //#include "../../FeatureLib/pfCamera/plVirtualCamNeu.h"
 
 //Rift includes
@@ -61,17 +74,29 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //Rift namespace
 using namespace OVR;
 
-class pfRiftCamera {
+class pfRiftCamera : hsKeyedObject{
 public:
 	pfRiftCamera();
+	virtual ~pfRiftCamera();
+
+	CLASSNAME_REGISTER( pfRiftCamera );
+    GETINTERFACE_ANY( pfRiftCamera, hsKeyedObject );
+
+	virtual bool MsgReceive(plMessage* msg);
 
 	void initRift();
 	void setCameraManager(plVirtualCam1 camManager);
 	void CalculateRiftCameraOrientation(hsPoint3 camPosition);
+	void createDistortionPlate();
+	void updateDistortionPlate();
+
 private:
 
 	//Plasma objects
 	plVirtualCam1* fVirtualCam;
+	plPlate*            fRiftDistortionPlate;
+	plShader*			fRiftVertexShader;
+	plShader			*fRiftPixelShader;
 
 	//Rift objects
 	Ptr<DeviceManager>  pManager;

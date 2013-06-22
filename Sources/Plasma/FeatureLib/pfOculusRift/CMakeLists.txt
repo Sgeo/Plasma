@@ -13,7 +13,8 @@ set(pfOculusRift_SOURCES
 )
 
 set(pfOculusRift_HEADERS
-    pfRiftCamera.h
+	pfRiftCamera.h
+    pfRiftCreatable.h
 )
 
 add_library(pfOculusRift STATIC ${pfOculusRift_SOURCES} ${pfOculusRift_HEADERS})

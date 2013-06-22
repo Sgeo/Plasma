@@ -174,8 +174,6 @@ public:
 	void SetRiftOverrideUp(hsVector3 viewUp);
 	void SetRiftOverrideMatrix(hsMatrix44 viewMat);
 	void ForceCameraUpdate();
-	void createDistortionPlate();
-
 
     // console command stuff
     static void Next();
@@ -254,9 +252,6 @@ private:
 	hsPoint3 riftPOA;
 	hsVector3 riftUp;
 	hsMatrix44 riftMatrix;
-	plPlate*            fRiftDistortionPlate;
-	plShader*			fRiftVertexShader;
-	plShader			*fRiftPixelShader;
 
     // built-in cameras
     plCameraModifier1*  fDriveCamera; // for driving around 

@@ -78,6 +78,7 @@ endif(PLASMA_EXTERNAL_RELEASE)
 option(BUILD_RIFT_SUPPORT "Include Oculus Rift support" ON)
 if(BUILD_RIFT_SUPPORT)
     find_package(LibOVR)
+	add_definitions(-DBUILD_RIFT_SUPPORT)
 endif(BUILD_RIFT_SUPPORT)
 
 set(PLASMA_TARGETS "Client"

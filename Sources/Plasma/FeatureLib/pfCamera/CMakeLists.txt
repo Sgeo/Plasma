@@ -4,6 +4,10 @@ include_directories(../../NucleusLib)
 include_directories(../../NucleusLib/inc)
 include_directories(../../PubUtilLib)
 
+if(WIN32)
+    add_definitions(-DWIN32)
+endif(WIN32) 
+
 set(pfCamera_SOURCES
     pfCameraProxy.cpp
     plCameraBrain.cpp

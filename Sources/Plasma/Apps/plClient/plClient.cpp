@@ -159,6 +159,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //Rift includes
 #ifdef BUILD_RIFT_SUPPORT
 #include "pfOculusRift/plRiftCamera.h"
+#include "plPostPipeline/plPostPipeline.h"
 #endif
 
 
@@ -203,13 +204,15 @@ plClient::plClient()
     fFontCache(nil),
     fHoldLoadRequests(false),
     fNumLoadingRooms(0),
-    fNumPostLoadMsgs(0),
-    fPostLoadMsgInc(0.f),
-	fRiftCamera(nil)
-{
-#ifndef PLASMA_EXTERNAL_RELEASE
-    bPythonDebugConnected = false;
+
+#ifdef BUILD_RIFT_SUPPORT
+	fRiftCamera(nil),
+	fPostProcessingMgr(nil),
 #endif
+	fNumPostLoadMsgs(0)
+{
+
+    bPythonDebugConnected = false;
 
     hsStatusMessage("Constructing client\n");
     plClient::SetInstance(this);
@@ -1611,6 +1614,11 @@ bool plClient::StartInit()
 	fRiftCamera = new plRiftCamera;
 	fRiftCamera->RegisterAs( kRiftCamera_KEY );
 	fRiftCamera->initRift();
+
+	fPostProcessingMgr = new plPostPipeline;
+	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
+	fPostProcessingMgr->setPipeline(fPipeline);
+	fPostProcessingMgr->createPostSurface();
 #endif
 
 	    // 2nd half of plClient initialization occurs after

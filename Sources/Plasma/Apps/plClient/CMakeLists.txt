@@ -194,6 +194,7 @@ if(LibOVR_FOUND)
     target_link_libraries(plClient ${LibOVR_LIBRARY})
     target_link_libraries(plClient ${LibOVR_DEBUG_LIBRARY})
     target_link_libraries(plClient pfOculusRift)
+    target_link_libraries(plClient plPostPipeline)
 endif()
 
 source_group("Source Files" FILES ${plClient_SOURCES})

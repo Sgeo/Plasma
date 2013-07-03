@@ -88,6 +88,7 @@ class plResPatcherMsg;
 
 #ifdef BUILD_RIFT_SUPPORT
 class plRiftCamera;		//Rift manager
+class plPostPipeline;
 #endif
 
 typedef void (*plMessagePumpProc)( void );
@@ -142,9 +143,9 @@ protected:
 
     pfGameGUIMgr            *fGameGUIMgr;
 
-	//Rift controller
 #ifdef BUILD_RIFT_SUPPORT
 	plRiftCamera			*fRiftCamera;
+	plPostPipeline			*fPostProcessingMgr;
 #endif
 
     virtual hsG3DDeviceModeRecord ILoadDevMode(const char* devModeFile);

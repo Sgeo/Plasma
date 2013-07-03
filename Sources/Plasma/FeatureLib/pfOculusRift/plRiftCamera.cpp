@@ -106,8 +106,6 @@ void plRiftCamera::initRift(){
 		SFusion.AttachToSensor(pSensor);
 		SFusion.SetPredictionEnabled(true);
 	}
-
-	createDistortionPlate();
 }
 
 bool plRiftCamera::MsgReceive(plMessage* msg)
@@ -147,99 +145,16 @@ void plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
 	fVirtualCam->SetRiftOverrideMatrix(testerAlt);
 	fVirtualCam->SetRiftOverridePOA(hsVector3(riftOrientation.x, riftOrientation.y, riftOrientation.z));
 	fVirtualCam->SetRiftOverrideUp(hsVector3(0, 0, riftOrientation.w));
+
+
+
+
 }
 
-void plRiftCamera::createDistortionPlate(){
 
-	plLayer         *layer;
-    hsGMaterial     *material;
-    plString        keyName;
+void plRiftCamera::updateShaders(){
 
-	//Create the plate
-	fRiftDistortionPlate = nil;
-	plPlateManager::Instance().CreatePlate( &fRiftDistortionPlate, 0, 0, 1.0, 1.0 );
-	fRiftDistortionPlate->SetVisible( true );
-	fRiftDistortionPlate->SetDepth(3);
-
-	/*
-	//material override TEST
-	plMipmap* texture = fRiftDistortionPlate->CreateMaterial(512,512,true);
-	int x, y;
-	for( y = 0; y < texture->GetHeight(); y++ )
-    {
-        uint32_t  *pixels = texture->GetAddr32( 0, y );
-        for( x = 0; x < texture->GetWidth(); x++ )
-            pixels[ x ] = 0x55555555;
-    }*/
-
-	/// Create a new bitmap
-    plMipmap* texture = new plMipmap( 512, 512, plMipmap::kRGB32Config, 1 );
-	memset( texture->GetImage(), 0xff, texture->GetHeight() * texture->GetRowBytes() );
-    keyName = plString::Format( "PlateBitmap#%d", 27 );
-    hsgResMgr::ResMgr()->NewKey( keyName, texture, plLocation::kGlobalFixedLoc );
-    texture->SetFlags( texture->GetFlags() | plMipmap::kDontThrowAwayImage );
-
-	//Create Vertex shader
-	fRiftPixelShader = new plShader;
-
-	const plKey keyObj = GetKey();
-	const char * key = GetKey()->GetName().c_str();
-
-	plString buff = plString::Format("%s_RiftVertexShader", GetKey()->GetName().c_str());
-	hsgResMgr::ResMgr()->NewKey(buff, fRiftPixelShader, GetKey()->GetUoid().GetLocation());
-	
-	fRiftPixelShader->SetIsPixelShader(false);
-	fRiftPixelShader->SetNumConsts(2);
-	fRiftPixelShader->SetInputFormat(1);
-	fRiftPixelShader->SetOutputFormat(0);
-	fRiftPixelShader->SetDecl(plShaderTable::Decl(vs_RiftDistortAssembly));
-
-	hsgResMgr::ResMgr()->SendRef(fRiftPixelShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, 0), plRefFlags::kActiveRef);
-	
-
-	//Create Pixel shader
-	fRiftPixelShader = new plShader;
-
-	buff = plString::Format("%s_RiftPixelShader", GetKey()->GetName().c_str());
-	hsgResMgr::ResMgr()->NewKey(buff, fRiftPixelShader, GetKey()->GetUoid().GetLocation());
-	
-	fRiftPixelShader->SetIsPixelShader(true);
-	fRiftPixelShader->SetNumConsts(6);
-	fRiftPixelShader->SetInputFormat(0);
-	fRiftPixelShader->SetOutputFormat(0);
-
-	fRiftPixelShader->SetDecl(plShaderTable::Decl(vs_RiftDistortAssembly));
-
-	hsgResMgr::ResMgr()->SendRef(fRiftPixelShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, 0), plRefFlags::kActiveRef);
-	 
-	/// Create material for layer
-    material = new hsGMaterial();
-    keyName = plString::Format( "RiftPlate" );
-    hsgResMgr::ResMgr()->NewKey( keyName, material, plLocation::kGlobalFixedLoc );
-    layer = material->MakeBaseLayer();
-    layer->SetShadeFlags( layer->GetShadeFlags() | hsGMatState::kShadeNoShade | hsGMatState::kShadeWhite | hsGMatState::kShadeReallyNoFog );
-    layer->SetZFlags( layer->GetZFlags() | hsGMatState::kZNoZRead );
-    layer->SetBlendFlags( layer->GetBlendFlags() | hsGMatState::kBlendAlpha );
-	layer->SetPixelShader(fRiftPixelShader);
-	layer->SetVertexShader(fRiftPixelShader);
-	layer->SetOpacity( 1.0f );
-
-	hsgResMgr::ResMgr()->AddViaNotify( texture->GetKey(), new plLayRefMsg( layer->GetKey(), plRefMsg::kOnCreate, 0, plLayRefMsg::kTexture ), plRefFlags::kActiveRef );
-
-    // Set up a ref to these. Since we don't have a key, we use the
-    // generic RefObject() (and matching UnRefObject() when we're done).
-    // If we had a key, we would use myKey->AddViaNotify(otherKey) and myKey->Release(otherKey).
-    material->GetKey()->RefObject();
-
-	fRiftDistortionPlate->SetMaterial(material);
-	fRiftDistortionPlate->SetTexture(texture);
-
-
-
-
-
-	
-}
+};
 
 
 

@@ -92,8 +92,12 @@ namespace plShaderID
             vs_WaveFixedFin7,
             vs_GrassShader,
             ps_GrassShader,
+
+#ifdef BUILD_RIFT_SUPPORT
+			//Post processing shaders
 			vs_RiftDistortAssembly,
 			ps_RiftDistortAssembly,
+#endif
 
             kNumShaders
     };

@@ -89,8 +89,11 @@ using namespace plShaderID;
 #include "vs_WaveFixedFin7.h"
 #include "vs_GrassShader.h"
 #include "ps_GrassShader.h"
+
+#ifdef BUILD_RIFT_SUPPORT
 #include "vs_RiftDistortAssembly.h"
 #include "ps_RiftDistortAssembly.h"
+#endif
 
 
 plShaderTableInst::plShaderTableInst()

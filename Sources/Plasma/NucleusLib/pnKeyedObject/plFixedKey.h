@@ -86,7 +86,10 @@ enum plFixedKeyId
     kAgeLoader_KEY,
     kBuiltIn3rdPersonCamera_KEY,
     kSecurePreloader_KEY,
+#ifdef BUILD_RIFT_SUPPORT
 	kRiftCamera_KEY,
+	kPostProcessingMgr_KEY,
+#endif
 
     kLast_Fixed_KEY
 };

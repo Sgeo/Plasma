@@ -5286,6 +5286,25 @@ bool plDXPipeline::IGetClearViewPort(D3DRECT& r)
     return useRect;
 }
 
+
+#ifdef BUILD_RIFT_SUPPORT
+void plDXPipeline::BeginPostScene(){
+	fD3DDevice->BeginScene();
+}
+
+void plDXPipeline::EndWorldRender()
+{
+	fD3DDevice->EndScene();
+}
+
+void plDXPipeline::ClearBackbuffer()
+{
+	D3DCOLOR clearColour = 0x00004499;
+	fD3DDevice->Clear( 0L, NULL, D3DCLEAR_TARGET, clearColour, 1.0f, 0L );
+}
+#endif
+
+
 // ClearRenderTarget //////////////////////////////////////////////////////////////////////////////
 // Flat fill the current render target with the specified color and depth values.
 void    plDXPipeline::ClearRenderTarget( const hsColorRGBA *col, const float* depth )

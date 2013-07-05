@@ -208,6 +208,7 @@ plClient::plClient()
 #ifdef BUILD_RIFT_SUPPORT
 	fRiftCamera(nil),
 	fPostProcessingMgr(nil),
+	fPostProcessingEnabled(false),
 #endif
 	fNumPostLoadMsgs(0)
 {
@@ -592,6 +593,14 @@ bool plClient::InitPipeline()
 
     if( fPipeline )
         fPipeline->LoadResources();
+
+#ifdef BUILD_RIFT_SUPPORT
+	fPostProcessingMgr = new plPostPipeline;
+	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
+	fPostProcessingMgr->SetPipeline(fPipeline);
+	fPostProcessingMgr->CreatePostRT(fPipeline->Width(), fPipeline->Height());
+	//fPostProcessingMgr->CreatePostSurface();
+#endif
 
     return false;
 }
@@ -1614,11 +1623,6 @@ bool plClient::StartInit()
 	fRiftCamera = new plRiftCamera;
 	fRiftCamera->RegisterAs( kRiftCamera_KEY );
 	fRiftCamera->initRift();
-
-	fPostProcessingMgr = new plPostPipeline;
-	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
-	fPostProcessingMgr->setPipeline(fPipeline);
-	fPostProcessingMgr->createPostSurface();
 #endif
 
 	    // 2nd half of plClient initialization occurs after
@@ -1939,10 +1943,32 @@ bool plClient::IDraw()
         IProcessPreRenderRequests();
     plProfile_EndTiming(PreRender);
 
+#ifdef BUILD_RIFT_SUPPORT
+	//-------------------------------
+	//Activate postprocessing before rendering the world
+	//-------------------------------
+	if(fPostProcessingEnabled){
+		fPostProcessingMgr->EnablePostRT();
+	}
+#endif
+
     plProfile_BeginTiming(MainRender);
     if( !fFlags.IsBitSet( kFlagDBGDisableRender ) )
         fPageMgr->Render(fPipeline);
     plProfile_EndTiming(MainRender);
+
+#ifdef BUILD_RIFT_SUPPORT
+	//-------------------------------
+	//Use post rendertarget to render post effects to main surface and flip the RT back
+	//-------------------------------
+	//fPipeline->EndRender();
+	if(fPostProcessingEnabled){
+		fPipeline->EndWorldRender();
+		fPostProcessingMgr->DisablePostRT();
+		fPipeline->BeginPostScene();
+		fPostProcessingMgr->RenderPostEffects();
+	}
+#endif
 
     plProfile_BeginTiming(PostRender);
     if( !fFlags.IsBitSet( kFlagDBGDisableRRequests ) )

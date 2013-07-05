@@ -17,7 +17,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 Additional permissions under GNU GPL version 3 section 7
-
+ne
 If you modify this Program, or any covered work, by linking or
 combining it with any of RAD Game Tools Bink SDK, Autodesk 3ds Max SDK,
 NVIDIA PhysX SDK, Microsoft DirectX SDK, OpenSSL library, Independent
@@ -41,6 +41,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 *==LICENSE==*/
 
 #include "plPostPipeline.h"
+#include "plPipeline.h"
+#include "plPipeline/plRenderTarget.h"
 #include "plPipeline/plPlates.h"
 #include "plSurface/plLayer.h"
 #include "plSurface/plShader.h"
@@ -65,7 +67,37 @@ bool plPostPipeline::MsgReceive(plMessage* msg)
 }
 
 
-void plPostPipeline::createPostSurface(){
+void plPostPipeline::EnablePostRT()
+{ 
+	//fPipe->EndWorldRender();
+	fPipe->PushRenderTarget(fPostRT); 
+};
+
+void plPostPipeline::DisablePostRT()
+{ 
+	fPipe->PushRenderTarget(nil); 
+	//fPipe->BeginPostScene();
+};
+
+void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
+	// Create our render target
+    const uint16_t flags = plRenderTarget::kIsOffscreen;
+    const uint8_t bitDepth(32);
+    const uint8_t zDepth(-1);
+    const uint8_t stencilDepth(-1);
+   fPostRT = new plRenderTarget(flags, width, height, bitDepth, zDepth, stencilDepth);
+
+    static int idx=0;
+    plString buff = plString::Format("tRT%d", idx++);
+    hsgResMgr::ResMgr()->NewKey(buff, fPostRT, this->GetKey()->GetUoid().GetLocation());
+}
+
+void plPostPipeline::RenderPostEffects(){
+	fPipe->ClearBackbuffer();
+}
+
+
+void plPostPipeline::CreatePostSurface(){
 
 	plLayer         *layer;
     hsGMaterial     *material;

@@ -44,9 +44,11 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #define plPostPipeline_inc
 
 #include "pnKeyedObject/hsKeyedObject.h" 
+#include "plPipeline.h"
 
 class plPipeline;
 class plShader;
+class plRenderTarget;
 
 class plPostPipeline : public hsKeyedObject{
 public:
@@ -58,11 +60,17 @@ public:
 
 	virtual bool MsgReceive(plMessage* msg);
 
-	void setPipeline(plPipeline* pipe){fPipe = pipe; };
-	void createPostSurface();
+	void EnablePostRT();
+	void DisablePostRT();
+	void RenderPostEffects();
+
+	void SetPipeline(plPipeline* pipe){fPipe = pipe; };
+	void CreatePostSurface();
+	void CreatePostRT(uint16_t width, uint16_t height);
 
 private:
 	plPipeline* fPipe;
+	plRenderTarget* fPostRT;
 };
 	
 

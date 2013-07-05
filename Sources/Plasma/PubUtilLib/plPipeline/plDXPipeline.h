@@ -638,6 +638,12 @@ public:
 
     void ResetDisplayDevice(int Width, int Height, int ColorDepth, bool Windowed, int NumAASamples, int MaxAnisotropicSamples, bool VSync = false );
 
+#ifdef BUILD_RIFT_SUPPORT
+	virtual void						BeginPostScene();
+	virtual void						ClearBackbuffer();
+	virtual void						EndWorldRender();
+#endif
+
     virtual void                        ClearRenderTarget( plDrawable* d );
     virtual void                        ClearRenderTarget( const hsColorRGBA* col = nil, const float* depth = nil );
     virtual void                        SetClear(const hsColorRGBA* col=nil, const float* depth=nil);

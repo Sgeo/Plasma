@@ -215,6 +215,12 @@ public:
     virtual void                        PushRenderRequest(plRenderRequest* req) = 0;
     virtual void                        PopRenderRequest(plRenderRequest* req) = 0;
 
+#ifdef BUILD_RIFT_SUPPORT
+	virtual void						BeginPostScene() = 0;
+	virtual void						ClearBackbuffer() = 0;
+	virtual void						EndWorldRender() = 0;	//basic endscene without resetting the entire frame
+#endif
+
     virtual void                        ClearRenderTarget( plDrawable* d ) = 0; // nil d reverts to ClearRenderTarget(nil, nil).
     virtual void                        ClearRenderTarget(const hsColorRGBA* col = nil, const float* depth = nil) = 0; // col/depth are overrides for current default.
     virtual void                        SetClear(const hsColorRGBA* col=nil, const float* depth=nil) = 0; // sets the default clear for current render target.

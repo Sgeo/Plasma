@@ -6,6 +6,43 @@ A CMake-based fork of the GPLv3-licensed **CyanWorlds.com Engine** (Headspin/Pla
 For more information on Myst Online, see http://mystonline.com/developers/
 
 
+Tasks for Rift Support
+----------------------
+
+Head orientation
+- Adjust camera matrix based on HMD orientations
+
+Stereo Rendering
+- Offset Camera based on IPD
+- Adjust viewport to half screenwidth
+- Adjust aspect ratio
+- Render 2x into same RT (somehow)
+
+Post processing
+- Use plate vertex buffer for screen quad
+- Bind RT texture to quad
+- Set shaders/update constants
+
+
+Project Changes Structure
+-------------------------
+
+plClient
+- Main draw loop. Intercepts rendering to RT for post processing.
+
+plPipeline 
+- Plasma rendering interface. Directx specific rendering commands. 
+
+plPostPipeline
+- Shader creation/updating
+
+plSurface
+- Compiled rift shaders
+
+pfOculusRift
+- Interfaces with LibOVR
+
+
 Related projects
 ----------------
 - moul-scripts  - https://github.com/H-uru/moul-scripts  - An updated repository of game scripts containing bug-fixes and compatible with modern python interpreters for use with Plasma.

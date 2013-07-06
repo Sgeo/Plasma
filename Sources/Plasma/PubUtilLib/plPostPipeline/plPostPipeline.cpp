@@ -44,6 +44,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plPipeline.h"
 #include "plPipeline/plRenderTarget.h"
 #include "plPipeline/plPlates.h"
+#include "plPipeline/plDXTextureRef.h"
 #include "plSurface/plLayer.h"
 #include "plSurface/plShader.h"
 #include "plSurface/plShaderTable.h"
@@ -94,6 +95,9 @@ void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
 
 void plPostPipeline::RenderPostEffects(){
 	fPipe->ClearBackbuffer();
+
+	plDXTextureRef* ref = (plDXTextureRef*)fPostRT->GetDeviceRef();
+
 }
 
 

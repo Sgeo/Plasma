@@ -552,6 +552,10 @@ protected:
                                     D3DFORMAT &depthFormat, D3DRESOURCETYPE &resType );
     bool    IFindRenderTargetInfo( plRenderTarget *owner, D3DFORMAT &surfFormat, D3DRESOURCETYPE &resType );
 
+#ifdef BUILD_RIFT_SUPPORT
+	//Post processing variables in here. 
+#endif
+
     // From a D3DFORMAT enumeration, return the string literal for it
     static const char   *IGetDXFormatName( D3DFORMAT format );
 

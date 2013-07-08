@@ -3,28 +3,12 @@
 //
 //   fxc /Fc vs_Passthrough.inl /E vs_main /T vs_3_0 vs_Passthrough.fx
 //
-//
-// Parameters:
-//
-//   float4x4 WorldViewProj;
-//
-//
-// Registers:
-//
-//   Name          Reg   Size
-//   ------------- ----- ----
-//   WorldViewProj c0       4
-//
-
     vs_3_0
     dcl_position v0
     dcl_texcoord v1
     dcl_position o0
     dcl_texcoord o1.xy
-    dp4 o0.x, v0, c0
-    dp4 o0.y, v0, c1
-    dp4 o0.z, v0, c2
-    dp4 o0.w, v0, c3
+    mov o0, v0
     mov o1.xy, v1
 
-// approximately 5 instruction slots used
+// approximately 2 instruction slots used

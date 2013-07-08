@@ -4585,7 +4585,7 @@ hsGDeviceRef    *plDXPipeline::MakeRenderTargetRef( plRenderTarget *owner)
 				//For some reason, the normal RT class will only allow either a surface or a texture to be set, but not both. 
 				//The RT class has been modified to allow for both values to be set at the same time, so let's create our screen texture here.
 				LPDIRECT3DTEXTURE9 renderTexture = NULL;
-				fD3DDevice->CreateTexture(Width(), Height(), 1, D3DUSAGE_RENDERTARGET, D3DFMT_R5G6B5, D3DPOOL_DEFAULT, &renderTexture, NULL);
+				fD3DDevice->CreateTexture(Width(), Height(), 1, D3DUSAGE_RENDERTARGET, D3DFMT_X8R8G8B8, D3DPOOL_DEFAULT, &renderTexture, NULL);
 				renderTexture->GetSurfaceLevel(0, &surface);
 				ref->SetTexture( surface, renderTexture, depthSurface );
 			}
@@ -5341,7 +5341,8 @@ void plDXPipeline::CreateScreenQuadGeometry()
     }
     
     /// Set 'em up
-    ptr[ 0 ].fPoint.Set( -0.5f, -0.5f, 0.0f );
+    /*
+	ptr[ 0 ].fPoint.Set( -0.5f, -0.5f, 0.0f );
     ptr[ 0 ].fColor = 0xffffffff;
     ptr[ 0 ].fUV.Set( 0.0f, 0.0f, 0.0f );
 
@@ -5356,6 +5357,23 @@ void plDXPipeline::CreateScreenQuadGeometry()
     ptr[ 3 ].fPoint.Set( 0.5f, 0.5f, 0.0f );
     ptr[ 3 ].fColor = 0xffffffff;
     ptr[ 3 ].fUV.Set( 1.0f, 1.0f, 0.0f );
+	*/
+
+	ptr[ 0 ].fPoint.Set( 0.0f, 0.0f, 0.0f );
+    ptr[ 0 ].fColor = 0xffffffff;
+    ptr[ 0 ].fUV.Set( 0.0f, 0.0f, 0.0f );
+
+    ptr[ 1 ].fPoint.Set(0.0f, 1.0f, 0.0f );
+    ptr[ 1 ].fColor = 0xffffffff;
+    ptr[ 1 ].fUV.Set( 0.0f, 1.0f, 0.0f );
+
+    ptr[ 2 ].fPoint.Set( 1.0f, 0.0f, 0.0f );
+    ptr[ 2 ].fColor = 0xffffffff;
+    ptr[ 2 ].fUV.Set( 1.0f, 0.0f, 0.0f );
+
+    ptr[ 3 ].fPoint.Set( 1.0f, 1.0f, 0.0f );
+    ptr[ 3 ].fColor = 0xffffffff;
+    ptr[ 3 ].fUV.Set( 1.0f, 1.0f, 0.0f );
 
     /// Unlock and we're done!
     fScreenQuadVertBuffer->Unlock();
@@ -5364,7 +5382,7 @@ void plDXPipeline::CreateScreenQuadGeometry()
 	fScreenQuadMatrix.Reset();
 	
 	hsVector3 screenQuadPos(0.0f, 0.0f, 0.0f);
-	hsVector3 screenQuadScale(1.0f,1.0f,1.0f);
+	hsVector3 screenQuadScale(1.0f,-1.0f,1.0f);		//Quad is flipped cause the RT draws upside down
 
 	fScreenQuadMatrix.SetTranslate( &screenQuadPos );
 	fScreenQuadMatrix.SetScale( &screenQuadScale); 
@@ -5381,11 +5399,10 @@ void plDXPipeline::RenderPostScene(plRenderTarget* screenRender, plShader* vsSha
         return;
     
     // Make sure skinning is disabled.
-    fD3DDevice->SetRenderState(D3DRS_VERTEXBLEND, D3DVBF_DISABLE);
+    //fD3DDevice->SetRenderState(D3DRS_VERTEXBLEND, D3DVBF_DISABLE);
     fD3DDevice->SetVertexShader( fSettings.fCurrVertexShader = NULL);
     fD3DDevice->SetFVF(fSettings.fCurrFVFFormat = PLD3D_SCREENQUADFVF);
     fD3DDevice->SetStreamSource( 0, fScreenQuadVertBuffer, 0, sizeof( plScreenQuadVertex ) );  
-    plProfile_Inc(VertexChange);
     // To get plates properly pixel-aligned, we need to compensate for D3D9's weird half-pixel
     // offset (see http://drilian.com/2008/11/25/understanding-half-pixel-and-half-texel-offsets/
     // or http://msdn.microsoft.com/en-us/library/bb219690(VS.85).aspx).
@@ -5401,11 +5418,11 @@ void plDXPipeline::RenderPostScene(plRenderTarget* screenRender, plShader* vsSha
 	IMatrix44ToD3DMatrix( convertMat, fScreenQuadMatrix );
     fD3DDevice->SetTransform( D3DTS_WORLD, &convertMat );
     convertMat = d3dIdentityMatrix;
-    convertMat(1,1) = -1.0f;
-    convertMat(2,2) = 2.0f;
-    convertMat(2,3) = 1.0f;
-    convertMat(3,2) = -2.0f;
-    convertMat(3,3) = 0.0f;
+    //convertMat(1,1) = -1.0f;
+    //convertMat(2,2) = 2.0f;
+    //convertMat(2,3) = 1.0f;
+    //convertMat(3,2) = -2.0f;
+    //convertMat(3,3) = 0.0f;
 
 	// To override the transform done by the z-bias
     fD3DDevice->SetTransform( D3DTS_PROJECTION, &convertMat );
@@ -5413,15 +5430,21 @@ void plDXPipeline::RenderPostScene(plRenderTarget* screenRender, plShader* vsSha
 	//IDirect3DSurface9* backBuffer = NULL;
 	//fD3DDevice->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backBuffer);
 	fD3DDevice->SetTexture(0, ref->fD3DTexture);
-	//fD3DDevice->StretchRect(ref->GetColorSurface(), NULL, backBuffer, NULL, D3DTEXF_NONE);
-	//backBuffer->Release();
+	fD3DDevice->SetTextureStageState(0,D3DTSS_COLOROP,D3DTOP_SELECTARG1);
+    fD3DDevice->SetTextureStageState(0,D3DTSS_COLORARG1,D3DTA_TEXTURE);
+    fD3DDevice->SetTextureStageState(0,D3DTSS_COLORARG2,D3DTA_DIFFUSE);   //Ignored
+	fD3DDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+    fD3DDevice->SetRenderState(D3DRS_SRCBLEND,  D3DBLEND_ONE );
+    fD3DDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ZERO);
 
 	if(vsShader && psShader){
 		ISetShaders(vsShader, psShader);
 	}
+	
+	//fD3DDevice->StretchRect(ref->GetColorSurface(), NULL, backBuffer, NULL, D3DTEXF_NONE);
+	//backBuffer->Release();
 
-	// And this to override cullmode set based on material 2-sidedness.
-	fD3DDevice->SetRenderState( D3DRS_CULLMODE, fCurrCullMode = D3DCULL_CW );
+	fD3DDevice->SetRenderState( D3DRS_CULLMODE, fCurrCullMode = D3DCULL_NONE  );
 
 	WEAK_ERROR_CHECK( fD3DDevice->DrawPrimitive( D3DPT_TRIANGLESTRIP, 0, 2 ) );
 }
@@ -5437,7 +5460,7 @@ void plDXPipeline::EndWorldRender()
 
 void plDXPipeline::ClearBackbuffer()
 {
-	D3DCOLOR clearColour = 0x00004499;
+	D3DCOLOR clearColour = 0x00000000;
 	fD3DDevice->Clear( 0L, NULL, D3DCLEAR_TARGET, clearColour, 1.0f, 0L );
 }
 #endif

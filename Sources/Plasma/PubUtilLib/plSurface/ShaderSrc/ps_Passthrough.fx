@@ -1,6 +1,3 @@
-//sampler2D input : register(s0); 
-
-
 // Pixel shader input structure
 struct PS_INPUT
 {
@@ -29,7 +26,7 @@ PS_OUTPUT ps_main( in PS_INPUT In )
     PS_OUTPUT Out;                             //create an output pixel
 
     Out.Color = tex2D(Tex0, In.Texture);       //do a texture lookup
-    //Out.Color *= float4(0.9f, 0.8f, 0.4, 1);   //do a simple effect
+    Out.Color *= float4(0.9f, 0.8f, 0.4, 1);   //do a simple effect
 
     return Out;                                //return output pixel
 }

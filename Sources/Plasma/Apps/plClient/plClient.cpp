@@ -208,7 +208,7 @@ plClient::plClient()
 #ifdef BUILD_RIFT_SUPPORT
 	fRiftCamera(nil),
 	fPostProcessingMgr(nil),
-	fPostProcessingEnabled(false),
+	fPostProcessingEnabled(true),
 #endif
 	fNumPostLoadMsgs(0)
 {

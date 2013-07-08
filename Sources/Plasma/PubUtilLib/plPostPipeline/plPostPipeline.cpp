@@ -44,7 +44,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plPipeline.h"
 #include "plPipeline/plRenderTarget.h"
 #include "plPipeline/plPlates.h"
-#include "plPipeline/plDXTextureRef.h"
+//#include "plPipeline/plDXTextureRef.h"
 #include "plSurface/plLayer.h"
 #include "plSurface/plShader.h"
 #include "plSurface/plShaderTable.h"
@@ -61,23 +61,50 @@ plPostPipeline::plPostPipeline(){
 plPostPipeline::~plPostPipeline(){
 }
 
-
 bool plPostPipeline::MsgReceive(plMessage* msg)
 {
 	return true;
 }
 
+void plPostPipeline::CreateShaders(){
+	int numVSConsts = 0;
+	int numPSConsts = 0;
+
+	//if(!fVsShader){
+		fVsShader = new plShader;
+		plString buff = plString::Format("%s_PassthroughVS", GetKey()->GetName().c_str());
+		hsgResMgr::ResMgr()->NewKey(buff, fVsShader, GetKey()->GetUoid().GetLocation());
+		fVsShader->SetIsPixelShader(false);
+		fVsShader->SetInputFormat(1);
+		fVsShader->SetOutputFormat(0);
+		fVsShader->SetNumConsts(numVSConsts);
+		fVsShader->SetNumPipeConsts(0);
+		//fVsShader->SetPipeConst(0, plPipeConst::kLocalToNDC, plGrassVS::kLocalToNDC);
+		fVsShader->SetDecl(plShaderTable::Decl(plShaderID::vs_Passthrough));
+		hsgResMgr::ResMgr()->SendRef(fVsShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, kRefPassthroughVS), plRefFlags::kActiveRef);
+	//}
+
+	//if(!fPsShader){
+		fPsShader = new plShader;
+		buff = plString::Format("%s_PassthroughPS", GetKey()->GetName().c_str());
+		hsgResMgr::ResMgr()->NewKey(buff, fPsShader, GetKey()->GetUoid().GetLocation());
+		fPsShader->SetIsPixelShader(true);
+		fPsShader->SetNumConsts(numPSConsts);
+		fPsShader->SetInputFormat(0);
+		fPsShader->SetOutputFormat(0);
+		fPsShader->SetDecl(plShaderTable::Decl(plShaderID::ps_Passthrough));
+		hsgResMgr::ResMgr()->SendRef(fPsShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, kRefPassthroughPS), plRefFlags::kActiveRef);
+	//}
+}
 
 void plPostPipeline::EnablePostRT()
 { 
-	//fPipe->EndWorldRender();
 	fPipe->PushRenderTarget(fPostRT); 
 };
 
 void plPostPipeline::DisablePostRT()
 { 
-	fPipe->PushRenderTarget(nil); 
-	//fPipe->BeginPostScene();
+	fPipe->PopRenderTarget(); 
 };
 
 void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
@@ -87,6 +114,7 @@ void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
     const uint8_t zDepth(-1);
     const uint8_t stencilDepth(-1);
    fPostRT = new plRenderTarget(flags, width, height, bitDepth, zDepth, stencilDepth);
+   fPostRT->SetScreenRenderTarget(true);
 
     static int idx=0;
     plString buff = plString::Format("tRT%d", idx++);
@@ -94,12 +122,8 @@ void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
 }
 
 void plPostPipeline::RenderPostEffects(){
-	fPipe->ClearBackbuffer();
-
-	plDXTextureRef* ref = (plDXTextureRef*)fPostRT->GetDeviceRef();
-
+	fPipe->RenderPostScene(fPostRT, fVsShader, fPsShader);
 }
-
 
 void plPostPipeline::CreatePostSurface(){
 

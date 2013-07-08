@@ -90,6 +90,7 @@ class plFogEnvironment;
 class plLightInfo;
 class plMipmap;
 class plVisMgr;
+class plShader;
 
 class plViewTransform;
 
@@ -216,7 +217,9 @@ public:
     virtual void                        PopRenderRequest(plRenderRequest* req) = 0;
 
 #ifdef BUILD_RIFT_SUPPORT
+	virtual void						CreateScreenQuadGeometry() = 0;
 	virtual void						BeginPostScene() = 0;
+	virtual void						RenderPostScene(plRenderTarget* screenRender, plShader* vsShader, plShader* psShader) = 0;
 	virtual void						ClearBackbuffer() = 0;
 	virtual void						EndWorldRender() = 0;	//basic endscene without resetting the entire frame
 #endif
@@ -226,6 +229,7 @@ public:
     virtual void                        SetClear(const hsColorRGBA* col=nil, const float* depth=nil) = 0; // sets the default clear for current render target.
     virtual hsColorRGBA                 GetClearColor() const = 0;
     virtual float                       GetClearDepth() const = 0;
+
     virtual hsGDeviceRef                *MakeRenderTargetRef( plRenderTarget *owner ) = 0;
     virtual void                        PushRenderTarget( plRenderTarget *target ) = 0;
     virtual plRenderTarget              *PopRenderTarget( void ) = 0;

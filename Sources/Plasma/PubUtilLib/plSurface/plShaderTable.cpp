@@ -93,6 +93,8 @@ using namespace plShaderID;
 #ifdef BUILD_RIFT_SUPPORT
 #include "vs_RiftDistortAssembly.h"
 #include "ps_RiftDistortAssembly.h"
+#include "vs_Passthrough.h"
+#include "ps_Passthrough.h"
 #endif
 
 

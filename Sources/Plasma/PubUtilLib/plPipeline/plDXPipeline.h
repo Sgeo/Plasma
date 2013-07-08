@@ -554,6 +554,18 @@ protected:
 
 #ifdef BUILD_RIFT_SUPPORT
 	//Post processing variables in here. 
+	IDirect3DVertexBuffer9  *fScreenQuadVertBuffer;
+
+	const long  PLD3D_SCREENQUADFVF;
+
+	struct plScreenQuadVertex
+	{
+		hsPoint3    fPoint;
+		uint32_t      fColor;
+		hsPoint3    fUV;
+	};
+
+	hsMatrix44 fScreenQuadMatrix;
 #endif
 
     // From a D3DFORMAT enumeration, return the string literal for it
@@ -643,7 +655,9 @@ public:
     void ResetDisplayDevice(int Width, int Height, int ColorDepth, bool Windowed, int NumAASamples, int MaxAnisotropicSamples, bool VSync = false );
 
 #ifdef BUILD_RIFT_SUPPORT
+	virtual void						CreateScreenQuadGeometry();
 	virtual void						BeginPostScene();
+	virtual void						RenderPostScene(plRenderTarget* screenRender, plShader* vsShader, plShader* psShader);
 	virtual void						ClearBackbuffer();
 	virtual void						EndWorldRender();
 #endif
@@ -653,6 +667,7 @@ public:
     virtual void                        SetClear(const hsColorRGBA* col=nil, const float* depth=nil);
     virtual hsColorRGBA                 GetClearColor() const;
     virtual float                    GetClearDepth() const;
+
     virtual hsGDeviceRef*               MakeRenderTargetRef( plRenderTarget *owner );
     virtual hsGDeviceRef*               SharedRenderTargetRef(plRenderTarget* sharer, plRenderTarget *owner);
     virtual void                        PushRenderTarget( plRenderTarget *target );

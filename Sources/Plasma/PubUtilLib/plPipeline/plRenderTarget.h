@@ -91,6 +91,10 @@ class plRenderTarget : public plBitmap
 
         plCubicRenderTarget* fParent;
 
+#ifdef BUILD_RIFT_SUPPORT
+		bool fIsScreenRenderTarget;
+#endif
+
         virtual void SetKey(plKey k);
 
         virtual uint32_t  Read( hsStream *s );
@@ -104,6 +108,9 @@ class plRenderTarget : public plBitmap
             : fWidth(0), fHeight(0), fZDepth(0), fStencilDepth(0), fApplyTexQuality(false),
               fProportionalViewport(true), fParent(nullptr)
         {
+#ifdef BUILD_RIFT_SUPPORT
+			fIsScreenRenderTarget = false;
+#endif
             fFlags = 0;
             fPixelSize = 0;
             SetViewport( 0, 0, 1.f, 1.f );
@@ -185,6 +192,11 @@ class plRenderTarget : public plBitmap
         float    GetVPBottomProp( void ) { ASSERT_PROPORTIONAL; return fViewport.fProportional.fBottom; }
 
         bool        ViewIsProportional( void ) const { return fProportionalViewport; }
+
+#ifdef BUILD_RIFT_SUPPORT
+		bool IsScreenRenderTarget(){ return fIsScreenRenderTarget; };
+		void SetScreenRenderTarget(bool isScreenRT){ fIsScreenRenderTarget = isScreenRT; };
+#endif
 
         plCubicRenderTarget *GetParent( void ) const { return fParent; }
 

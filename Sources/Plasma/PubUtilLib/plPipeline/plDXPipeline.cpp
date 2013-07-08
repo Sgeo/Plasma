@@ -569,6 +569,9 @@ uint32_t plDXPipeline::fVtxManaged(0);
 
 plDXPipeline::plDXPipeline( hsWinRef hWnd, const hsG3DDeviceModeRecord *devModeRec )
 :   fManagedAlloced(false),
+#ifdef BUILD_RIFT_SUPPORT	
+	PLD3D_SCREENQUADFVF( D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1 | D3DFVF_TEXCOORDSIZE3(0) ),		//Vertex format flags for post processing screen quad
+#endif
     fAllocUnManaged(false)
 {
     hsAssert(D3DTSS_TCI_PASSTHRU == plLayerInterface::kUVWPassThru, "D3D Enum has changed. Notify graphics department.");
@@ -2149,6 +2152,10 @@ void plDXPipeline::ICreateDynamicBuffers()
 
     if( fPlateMgr )
         fPlateMgr->ICreateGeometry(this);
+
+#ifdef BUILD_RIFT_SUPPORT
+	CreateScreenQuadGeometry();
+#endif
 
     fNextDynVtx = 0;
 
@@ -4384,7 +4391,8 @@ bool  plDXPipeline::CaptureScreen( plMipmap *dest, bool flipVertical, uint16_t d
 // Note that for ATI boards, we create a single depth surface for them to share.
 // That can actually be 2 depth surfaces, if some color surfaces are 16 bit and
 // others are 24/32 bit, since the ATI's want to match color depth with depth depth.
-hsGDeviceRef    *plDXPipeline::MakeRenderTargetRef( plRenderTarget *owner )
+
+hsGDeviceRef    *plDXPipeline::MakeRenderTargetRef( plRenderTarget *owner)
 {
     plDXRenderTargetRef *ref = nil;
     IDirect3DSurface9       *surface = nil, *depthSurface = nil;
@@ -4568,7 +4576,24 @@ hsGDeviceRef    *plDXPipeline::MakeRenderTargetRef( plRenderTarget *owner )
         {
             D3DSURF_MEMNEW(surface);
 
-            ref->SetTexture( surface, depthSurface );
+#ifdef BUILD_RIFT_SUPPORT
+			if(!owner->IsScreenRenderTarget())
+			{
+				ref->SetTexture( surface, depthSurface );
+			} else {
+				//In order to render the entire scene to a RT, we need a texture to go along with our surface.
+				//For some reason, the normal RT class will only allow either a surface or a texture to be set, but not both. 
+				//The RT class has been modified to allow for both values to be set at the same time, so let's create our screen texture here.
+				LPDIRECT3DTEXTURE9 renderTexture = NULL;
+				fD3DDevice->CreateTexture(Width(), Height(), 1, D3DUSAGE_RENDERTARGET, D3DFMT_R5G6B5, D3DPOOL_DEFAULT, &renderTexture, NULL);
+				renderTexture->GetSurfaceLevel(0, &surface);
+				ref->SetTexture( surface, renderTexture, depthSurface );
+			}
+#endif
+#ifndef BUILD_RIFT_SUPPORT
+			ref->SetTexture( surface, depthSurface );
+#endif
+
         }
         else
         {
@@ -5157,8 +5182,9 @@ void    plDXPipeline::ISetRenderTarget( plRenderTarget *target )
     if( target != nil )
     {
         ref = (plDXRenderTargetRef *)target->GetDeviceRef();
-        if( ref == nil || ref->IsDirty() )
+        if( ref == nil || ref->IsDirty() ){
             ref = (plDXRenderTargetRef *)MakeRenderTargetRef( target );
+		}
     }
 
     if( ref == nil || ref->GetColorSurface() == nil )
@@ -5288,6 +5314,118 @@ bool plDXPipeline::IGetClearViewPort(D3DRECT& r)
 
 
 #ifdef BUILD_RIFT_SUPPORT
+
+void plDXPipeline::CreateScreenQuadGeometry()
+{
+    uint32_t fvfFormat = PLD3D_SCREENQUADFVF;
+    D3DPOOL poolType = D3DPOOL_DEFAULT;
+    hsAssert(!pipe->ManagedAlloced(), "Alloc default with managed alloc'd");
+    if( FAILED( fD3DDevice->CreateVertexBuffer( 4 * sizeof( plScreenQuadVertex ),
+                                                D3DUSAGE_WRITEONLY, 
+                                                fvfFormat,
+                                                poolType, &fScreenQuadVertBuffer, NULL ) ) )
+    {
+        hsAssert( false, "CreateVertexBuffer() call failed!" );
+        //fCreatedSucessfully = false;
+        return;
+    }
+    PROFILE_POOL_MEM(poolType, 4 * sizeof(plScreenQuadVertex), true, "ScreenQuadVtxBuff");
+
+    /// Lock the buffer
+    plScreenQuadVertex *ptr;
+    if( FAILED( fScreenQuadVertBuffer->Lock( 0, 0, (void **)&ptr, D3DLOCK_NOSYSLOCK ) ) )
+    {
+        hsAssert( false, "Failed to lock vertex buffer for writing" );
+        //fCreatedSucessfully = false;
+        return;
+    }
+    
+    /// Set 'em up
+    ptr[ 0 ].fPoint.Set( -0.5f, -0.5f, 0.0f );
+    ptr[ 0 ].fColor = 0xffffffff;
+    ptr[ 0 ].fUV.Set( 0.0f, 0.0f, 0.0f );
+
+    ptr[ 1 ].fPoint.Set( -0.5f, 0.5f, 0.0f );
+    ptr[ 1 ].fColor = 0xffffffff;
+    ptr[ 1 ].fUV.Set( 0.0f, 1.0f, 0.0f );
+
+    ptr[ 2 ].fPoint.Set( 0.5f, -0.5f, 0.0f );
+    ptr[ 2 ].fColor = 0xffffffff;
+    ptr[ 2 ].fUV.Set( 1.0f, 0.0f, 0.0f );
+
+    ptr[ 3 ].fPoint.Set( 0.5f, 0.5f, 0.0f );
+    ptr[ 3 ].fColor = 0xffffffff;
+    ptr[ 3 ].fUV.Set( 1.0f, 1.0f, 0.0f );
+
+    /// Unlock and we're done!
+    fScreenQuadVertBuffer->Unlock();
+    //fCreatedSucessfully = true;
+
+	fScreenQuadMatrix.Reset();
+	
+	hsVector3 screenQuadPos(0.0f, 0.0f, 0.0f);
+	hsVector3 screenQuadScale(1.0f,1.0f,1.0f);
+
+	fScreenQuadMatrix.SetTranslate( &screenQuadPos );
+	fScreenQuadMatrix.SetScale( &screenQuadScale); 
+}
+
+void plDXPipeline::RenderPostScene(plRenderTarget* screenRender, plShader* vsShader, plShader* psShader){
+
+    uint32_t          scrnWidthDiv2 = Width() >> 1;
+    uint32_t          scrnHeightDiv2 = Height() >> 1;
+    D3DXMATRIX      mat;
+    D3DCULL         oldCullMode;
+    
+    if( !fScreenQuadVertBuffer )
+        return;
+    
+    // Make sure skinning is disabled.
+    fD3DDevice->SetRenderState(D3DRS_VERTEXBLEND, D3DVBF_DISABLE);
+    fD3DDevice->SetVertexShader( fSettings.fCurrVertexShader = NULL);
+    fD3DDevice->SetFVF(fSettings.fCurrFVFFormat = PLD3D_SCREENQUADFVF);
+    fD3DDevice->SetStreamSource( 0, fScreenQuadVertBuffer, 0, sizeof( plScreenQuadVertex ) );  
+    plProfile_Inc(VertexChange);
+    // To get plates properly pixel-aligned, we need to compensate for D3D9's weird half-pixel
+    // offset (see http://drilian.com/2008/11/25/understanding-half-pixel-and-half-texel-offsets/
+    // or http://msdn.microsoft.com/en-us/library/bb219690(VS.85).aspx).
+    //D3DXMatrixTranslation(&mat, -0.5f/scrnWidthDiv2, -0.5f/scrnHeightDiv2, 0.0f);
+    //fD3DDevice->SetTransform( D3DTS_VIEW, &mat );
+    oldCullMode = fCurrCullMode;
+
+	plDXRenderTargetRef* ref = (plDXRenderTargetRef*)screenRender->GetDeviceRef();
+
+	D3DXMATRIX convertMat;
+
+	/// Set up the D3D transform directly
+	IMatrix44ToD3DMatrix( convertMat, fScreenQuadMatrix );
+    fD3DDevice->SetTransform( D3DTS_WORLD, &convertMat );
+    convertMat = d3dIdentityMatrix;
+    convertMat(1,1) = -1.0f;
+    convertMat(2,2) = 2.0f;
+    convertMat(2,3) = 1.0f;
+    convertMat(3,2) = -2.0f;
+    convertMat(3,3) = 0.0f;
+
+	// To override the transform done by the z-bias
+    fD3DDevice->SetTransform( D3DTS_PROJECTION, &convertMat );
+
+	//IDirect3DSurface9* backBuffer = NULL;
+	//fD3DDevice->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backBuffer);
+	fD3DDevice->SetTexture(0, ref->fD3DTexture);
+	//fD3DDevice->StretchRect(ref->GetColorSurface(), NULL, backBuffer, NULL, D3DTEXF_NONE);
+	//backBuffer->Release();
+
+	if(vsShader && psShader){
+		ISetShaders(vsShader, psShader);
+	}
+
+	// And this to override cullmode set based on material 2-sidedness.
+	fD3DDevice->SetRenderState( D3DRS_CULLMODE, fCurrCullMode = D3DCULL_CW );
+
+	WEAK_ERROR_CHECK( fD3DDevice->DrawPrimitive( D3DPT_TRIANGLESTRIP, 0, 2 ) );
+}
+
 void plDXPipeline::BeginPostScene(){
 	fD3DDevice->BeginScene();
 }

@@ -60,6 +60,7 @@ public:
 
 	virtual bool MsgReceive(plMessage* msg);
 
+	void CreateShaders();
 	void EnablePostRT();
 	void DisablePostRT();
 	void RenderPostEffects();
@@ -68,9 +69,17 @@ public:
 	void CreatePostSurface();
 	void CreatePostRT(uint16_t width, uint16_t height);
 
+	 enum {
+        kRefPassthroughVS,
+        kRefPassthroughPS
+    };
+
 private:
 	plPipeline* fPipe;
 	plRenderTarget* fPostRT;
+
+	plShader* fVsShader;
+	plShader* fPsShader;
 };
 	
 

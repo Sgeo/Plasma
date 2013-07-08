@@ -599,6 +599,7 @@ bool plClient::InitPipeline()
 	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
 	fPostProcessingMgr->SetPipeline(fPipeline);
 	fPostProcessingMgr->CreatePostRT(fPipeline->Width(), fPipeline->Height());
+	fPostProcessingMgr->CreateShaders();
 	//fPostProcessingMgr->CreatePostSurface();
 #endif
 
@@ -1926,6 +1927,15 @@ bool plClient::IDraw()
 
     plProfile_BeginTiming(DrawTime);
 
+#ifdef BUILD_RIFT_SUPPORT
+	//-------------------------------
+	//Activate postprocessing before rendering the world
+	//-------------------------------
+	if(fPostProcessingEnabled){
+		fPostProcessingMgr->EnablePostRT();
+	}
+#endif
+
     plProfile_BeginTiming(BeginRender);
     if( fPipeline->BeginRender() )
     {
@@ -1943,15 +1953,6 @@ bool plClient::IDraw()
         IProcessPreRenderRequests();
     plProfile_EndTiming(PreRender);
 
-#ifdef BUILD_RIFT_SUPPORT
-	//-------------------------------
-	//Activate postprocessing before rendering the world
-	//-------------------------------
-	if(fPostProcessingEnabled){
-		fPostProcessingMgr->EnablePostRT();
-	}
-#endif
-
     plProfile_BeginTiming(MainRender);
     if( !fFlags.IsBitSet( kFlagDBGDisableRender ) )
         fPageMgr->Render(fPipeline);
@@ -1965,6 +1966,7 @@ bool plClient::IDraw()
 	if(fPostProcessingEnabled){
 		fPipeline->EndWorldRender();
 		fPostProcessingMgr->DisablePostRT();
+		fPipeline->ClearBackbuffer();
 		fPipeline->BeginPostScene();
 		fPostProcessingMgr->RenderPostEffects();
 	}

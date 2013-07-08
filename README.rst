@@ -23,24 +23,12 @@ Post processing
 - Bind RT texture to quad
 - Set shaders/update constants
 
-
-Project Changes Structure
--------------------------
-
-plClient
-- Main draw loop. Intercepts rendering to RT for post processing.
-
-plPipeline 
-- Plasma rendering interface. Directx specific rendering commands. 
-
-plPostPipeline
-- Shader creation/updating
-
-plSurface
-- Compiled rift shaders
-
-pfOculusRift
-- Interfaces with LibOVR
+Project Structure
+- plClient - Main draw loop. Intercepts rendering to RT for post processing.
+- plPipeline - Plasma rendering interface. Directx specific rendering commands. 
+- plPostPipeline - Shader creation/updating
+- plSurfaceCompiled rift shaders
+- pfOculusRift - Interfaces with LibOVR
 
 
 Related projects

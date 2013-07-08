@@ -420,6 +420,15 @@ plDXRenderTargetRef& plDXRenderTargetRef::Set( D3DFORMAT tp, uint32_t ml, plRend
 
 //// SetTexture ///////////////////////////////////////////////////////////////
 
+#ifdef BUILD_RIFT_SUPPORT
+void    plDXRenderTargetRef::SetTexture(  IDirect3DSurface9 *surface, IDirect3DTexture9 *texture, IDirect3DSurface9 *depth )
+{
+    fD3DColorSurface = surface;
+    fD3DTexture = texture;
+    fD3DDepthSurface = depth;
+}
+#endif
+
 void    plDXRenderTargetRef::SetTexture( IDirect3DSurface9 *surface, IDirect3DSurface9 *depth )
 {
     fD3DColorSurface = surface;

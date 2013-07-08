@@ -87,7 +87,9 @@ class plAgeLoaded2Msg;
 class plResPatcherMsg;
 
 #ifdef BUILD_RIFT_SUPPORT
-class plRiftCamera;		//Rift manager
+#define D3DXSHADER_DEBUG				//Flags for PIX directx debugging
+#define D3DXSHADER_SKIPOPTIMIZATION 
+class plRiftCamera;						//Rift manager
 class plPostPipeline;
 #endif
 

@@ -17,10 +17,10 @@
 //
 
     ps_3_0
-    def c0, 0.899999976, 0.800000012, 0.400000006, 1
+    def c0, 1, -1, 0, 0
     dcl_texcoord v0.xy
     dcl_2d s0
-    texld r0, v0, s0
-    mul oC0, r0, c0
+    mad r0.xy, v0, c0, c0.zxzw
+    texld oC0, r0, s0
 
 // approximately 2 instruction slots used (1 texture, 1 arithmetic)

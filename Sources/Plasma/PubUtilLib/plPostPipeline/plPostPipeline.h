@@ -71,7 +71,9 @@ public:
 
 	 enum {
         kRefPassthroughVS,
-        kRefPassthroughPS
+        kRefPassthroughPS,
+		kRefRiftDistortVS,
+		kRefRiftDistortPS
     };
 
 private:

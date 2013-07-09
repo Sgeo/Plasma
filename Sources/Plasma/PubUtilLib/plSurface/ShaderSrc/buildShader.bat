@@ -1,7 +1,7 @@
 @echo off
 
 set FXC="C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Utilities\bin\x86\fxc.exe"
-set ASSEMBLER="D:\Code\Myst\Plasma\build\bin\RelWithDebInfo\plShaderAssembler.exe"
+set ASSEMBLER="C:\Code\Myst\Plasma\build\bin\RelWithDebInfo\plShaderAssembler.exe"
 
 IF "%1"=="" GOTO NoShader
 set SHADERNAME=%1

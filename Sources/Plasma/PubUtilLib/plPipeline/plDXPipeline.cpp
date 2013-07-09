@@ -5359,15 +5359,15 @@ void plDXPipeline::CreateScreenQuadGeometry()
     ptr[ 3 ].fUV.Set( 1.0f, 1.0f, 0.0f );
 	*/
 
-	ptr[ 0 ].fPoint.Set( 0.0f, 0.0f, 0.0f );
+	ptr[ 0 ].fPoint.Set( -1.0f, -1.0f, 0.0f );
     ptr[ 0 ].fColor = 0xffffffff;
     ptr[ 0 ].fUV.Set( 0.0f, 0.0f, 0.0f );
 
-    ptr[ 1 ].fPoint.Set(0.0f, 1.0f, 0.0f );
+    ptr[ 1 ].fPoint.Set(-1.0f, 1.0f, 0.0f );
     ptr[ 1 ].fColor = 0xffffffff;
     ptr[ 1 ].fUV.Set( 0.0f, 1.0f, 0.0f );
 
-    ptr[ 2 ].fPoint.Set( 1.0f, 0.0f, 0.0f );
+    ptr[ 2 ].fPoint.Set( 1.0f, -1.0f, 0.0f );
     ptr[ 2 ].fColor = 0xffffffff;
     ptr[ 2 ].fUV.Set( 1.0f, 0.0f, 0.0f );
 
@@ -5406,8 +5406,8 @@ void plDXPipeline::RenderPostScene(plRenderTarget* screenRender, plShader* vsSha
     // To get plates properly pixel-aligned, we need to compensate for D3D9's weird half-pixel
     // offset (see http://drilian.com/2008/11/25/understanding-half-pixel-and-half-texel-offsets/
     // or http://msdn.microsoft.com/en-us/library/bb219690(VS.85).aspx).
-    //D3DXMatrixTranslation(&mat, -0.5f/scrnWidthDiv2, -0.5f/scrnHeightDiv2, 0.0f);
-    //fD3DDevice->SetTransform( D3DTS_VIEW, &mat );
+    D3DXMatrixTranslation(&mat, -0.5f/scrnWidthDiv2, -0.5f/scrnHeightDiv2, 0.0f);
+    fD3DDevice->SetTransform( D3DTS_VIEW, &mat );
     oldCullMode = fCurrCullMode;
 
 	plDXRenderTargetRef* ref = (plDXRenderTargetRef*)screenRender->GetDeviceRef();

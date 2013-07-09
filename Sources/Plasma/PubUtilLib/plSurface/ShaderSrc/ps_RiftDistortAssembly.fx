@@ -26,7 +26,7 @@ float2 HmdWarp(float2 in01)
 }
 
 // You should be able to compile this for the PS_2_0 target
-float4 main(float2 tex : TEXCOORD0) : COLOR
+float4 ps_main(float2 tex : TEXCOORD0) : COLOR
 {
 //return float4(0.8,0.1,0.3,0.3);
     if( tex.x<0.5)
@@ -35,7 +35,7 @@ float4 main(float2 tex : TEXCOORD0) : COLOR
    float2 tc = HmdWarp(tex);
    if (any(clamp(tc, ScreenCenter - float2(0.5, 0.5), ScreenCenter + float2(0.5, 0.5) ) - tc) )       return 0;
    tc = tc/ SBSFactor;
-   return tex2D(s0, tc);
+   return tex2D(s0, float2(tc.x, 1-tc.y));
     }
     if( tex.x>0.5)
     {
@@ -43,7 +43,7 @@ float4 main(float2 tex : TEXCOORD0) : COLOR
    float2 tc = HmdWarp(tex);
    if (any(clamp(tc, ScreenCenter - float2(0.5, 0.5), ScreenCenter + float2(0.5, 0.5) ) - tc) )       return 0;
    tc = float2(0.0,0)+ tc/ SBSFactor;
-   return tex2D(s0, tc);
+   return tex2D(s0, float2(tc.x, 1-tc.y));
     }
    
     return float4(0.8,0.1,0.3,0.3);

@@ -1,8 +1,27 @@
+struct VS_INPUT
+{
+    float4 Position   : POSITION;
+    //float4 Color 	  : COLOR0;
+    float2 TexCoord    : TEXCOORD0;
+};
+
+struct VS_OUTPUT
+{
+	float4 oPosition	: POSITION;
+    //float4 oColor   	: COLOR0;
+    float2 oTexCoord	: TEXCOORD0;
+};
+
 float4x4 View : register(c4);
 float4x4 Texm : register(c8);
-void main(in float4 Position : POSITION, in float4 Color : COLOR0, in float2 TexCoord : TEXCOORD0, out float4 oPosition : SV_Position, out float4 oColor : COLOR, out float2 oTexCoord : TEXCOORD0)
+
+
+VS_OUTPUT vs_main(in VS_INPUT In)
 {
-	oPosition = mul(View, Position);
-	oTexCoord = mul(Texm, float4(TexCoord,0,1));
-	oColor = Color;
-};
+	VS_OUTPUT Out;
+
+	Out.oPosition = mul(View, In.Position);
+	//Out.oColor = In.Color;
+	Out.oTexCoord = mul(Texm, float4(In.TexCoord, 0, 1)).xy;
+}
+

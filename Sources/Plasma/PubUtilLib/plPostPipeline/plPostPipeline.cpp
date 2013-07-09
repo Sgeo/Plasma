@@ -86,14 +86,14 @@ void plPostPipeline::CreateShaders(){
 
 	//if(!fPsShader){
 		fPsShader = new plShader;
-		buff = plString::Format("%s_PassthroughPS", GetKey()->GetName().c_str());
+		buff = plString::Format("%s_RiftDistortPS", GetKey()->GetName().c_str());
 		hsgResMgr::ResMgr()->NewKey(buff, fPsShader, GetKey()->GetUoid().GetLocation());
 		fPsShader->SetIsPixelShader(true);
 		fPsShader->SetNumConsts(numPSConsts);
 		fPsShader->SetInputFormat(0);
 		fPsShader->SetOutputFormat(0);
-		fPsShader->SetDecl(plShaderTable::Decl(plShaderID::ps_Passthrough));
-		hsgResMgr::ResMgr()->SendRef(fPsShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, kRefPassthroughPS), plRefFlags::kActiveRef);
+		fPsShader->SetDecl(plShaderTable::Decl(plShaderID::ps_RiftDistortAssembly));
+		hsgResMgr::ResMgr()->SendRef(fPsShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, kRefRiftDistortPS), plRefFlags::kActiveRef);
 	//}
 }
 

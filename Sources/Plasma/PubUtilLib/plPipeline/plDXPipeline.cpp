@@ -4585,7 +4585,7 @@ hsGDeviceRef    *plDXPipeline::MakeRenderTargetRef( plRenderTarget *owner)
 				//For some reason, the normal RT class will only allow either a surface or a texture to be set, but not both. 
 				//The RT class has been modified to allow for both values to be set at the same time, so let's create our screen texture here.
 				LPDIRECT3DTEXTURE9 renderTexture = NULL;
-				fD3DDevice->CreateTexture(Width(), Height(), 1, D3DUSAGE_RENDERTARGET, D3DFMT_X8R8G8B8, D3DPOOL_DEFAULT, &renderTexture, NULL);
+				fD3DDevice->CreateTexture(owner->GetWidth(), owner->GetHeight(), 1, D3DUSAGE_RENDERTARGET, D3DFMT_X8R8G8B8, D3DPOOL_DEFAULT, &renderTexture, NULL);
 				renderTexture->GetSurfaceLevel(0, &surface);
 				ref->SetTexture( surface, renderTexture, depthSurface );
 			}

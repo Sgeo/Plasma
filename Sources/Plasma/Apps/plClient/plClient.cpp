@@ -1623,7 +1623,8 @@ bool plClient::StartInit()
 #ifdef BUILD_RIFT_SUPPORT
 	fRiftCamera = new plRiftCamera;
 	fRiftCamera->RegisterAs( kRiftCamera_KEY );
-	fRiftCamera->initRift();
+	fRiftCamera->initRift(fPipeline->Width(), fPipeline->Height());
+	fRiftCamera->SetPipeline(fPipeline);
 #endif
 
 	    // 2nd half of plClient initialization occurs after

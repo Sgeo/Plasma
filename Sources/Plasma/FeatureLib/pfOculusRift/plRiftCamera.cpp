@@ -79,7 +79,7 @@ plRiftCamera::plRiftCamera(){
 plRiftCamera::~plRiftCamera(){
 }
 
-void plRiftCamera::initRift(){
+void plRiftCamera::initRift(int width, int height){
 
 	System::Init(Log::ConfigureDefaultLog(LogMask_All));
 
@@ -87,8 +87,11 @@ void plRiftCamera::initRift(){
 	pHMD = *pManager->EnumerateDevices<HMDDevice>().CreateDevice();
 	SFusion.SetPredictionEnabled(true);
 
+	SConfig.SetFullViewport(Util::Render::Viewport(0, 0, width, height));
 	SConfig.SetStereoMode(Util::Render::Stereo_LeftRight_Multipass);
 	SConfig.SetDistortionFitPointVP(-1.0f, 0.0f);
+
+	
 
 	pfConsole::AddLine("-- Initializing Rift --");
 
@@ -111,6 +114,11 @@ void plRiftCamera::initRift(){
 bool plRiftCamera::MsgReceive(plMessage* msg)
 {
 	return true;
+}
+
+void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
+{
+	Util::Render::StereoEyeParams eyeParams = SConfig.GetEyeRenderParams(eye);
 }
 
 void plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
@@ -145,17 +153,7 @@ void plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
 	fVirtualCam->SetRiftOverrideMatrix(testerAlt);
 	fVirtualCam->SetRiftOverridePOA(hsVector3(riftOrientation.x, riftOrientation.y, riftOrientation.z));
 	fVirtualCam->SetRiftOverrideUp(hsVector3(0, 0, riftOrientation.w));
-
-
-
-
 }
-
-
-void plRiftCamera::updateShaders(){
-
-};
-
 
 
 //LEFTOVER TESTING CODE - Is this useful for richard?

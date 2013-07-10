@@ -44,6 +44,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plPipeline.h"
 #include "plPipeline/plRenderTarget.h"
 #include "plPipeline/plPlates.h"
+#include "plViewTransform.h"
 //#include "plPipeline/plDXTextureRef.h"
 #include "plSurface/plLayer.h"
 #include "plSurface/plShader.h"
@@ -92,20 +93,11 @@ void plPostPipeline::CreateShaders(){
 		fPsShader->SetNumConsts(numPSConsts);
 		fPsShader->SetInputFormat(0);
 		fPsShader->SetOutputFormat(0);
-		fPsShader->SetDecl(plShaderTable::Decl(plShaderID::ps_RiftDistortAssembly));
+		fPsShader->SetDecl(plShaderTable::Decl(plShaderID::ps_Passthrough));
+		//fPsShader->SetDecl(plShaderTable::Decl(plShaderID::ps_RiftDistortAssembly));
 		hsgResMgr::ResMgr()->SendRef(fPsShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, kRefRiftDistortPS), plRefFlags::kActiveRef);
 	//}
 }
-
-void plPostPipeline::EnablePostRT()
-{ 
-	fPipe->PushRenderTarget(fPostRT); 
-};
-
-void plPostPipeline::DisablePostRT()
-{ 
-	fPipe->PopRenderTarget(); 
-};
 
 void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
 	// Create our render target
@@ -114,12 +106,44 @@ void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
     const uint8_t zDepth(-1);
     const uint8_t stencilDepth(-1);
    fPostRT = new plRenderTarget(flags, width, height, bitDepth, zDepth, stencilDepth);
+   fPostRT->SetViewport(width/2,0,width,height);
    fPostRT->SetScreenRenderTarget(true);
 
     static int idx=0;
     plString buff = plString::Format("tRT%d", idx++);
     hsgResMgr::ResMgr()->NewKey(buff, fPostRT, this->GetKey()->GetUoid().GetLocation());
-}
+} 
+
+
+void plPostPipeline::EnablePostRT()
+{ 
+	//hsMatrix44 l2w = fView.fLocalToWorld;
+    //hsMatrix44 w2l = fView.fWorldToLocal;
+
+    //fSettings.fViewStack.Push(fView);
+
+    plViewTransform vt = fPipe->GetViewTransform();
+	//vt.SetViewPort(50, 0, (uint16_t)fPostRT->GetWidth()*0.5, fPostRT->GetHeight());
+	vt.SetViewPort(0.0f, 0.0f, fPostRT->GetWidth(), fPostRT->GetHeight(), false);
+    fPipe->SetViewTransform(vt);
+	
+	fPipe->PushRenderTarget(fPostRT); 
+
+    // Set from our saved ones...
+    //fView.fWorldToLocal = w2l;
+    //fView.fLocalToWorld = l2w;
+
+    fPipe->RefreshMatrices();
+
+};
+
+void plPostPipeline::DisablePostRT()
+{ 
+	fPipe->PopRenderTarget(); 
+	plViewTransform vt = fPipe->GetViewTransform();
+	vt.SetViewPort(0, 0, 1280, 800, false);	//Don't you DARE leave this hardcoded
+    fPipe->SetViewTransform(vt);
+};
 
 void plPostPipeline::RenderPostEffects(){
 	fPipe->RenderPostScene(fPostRT, fVsShader, fPsShader);

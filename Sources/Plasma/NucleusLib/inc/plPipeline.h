@@ -308,6 +308,7 @@ public:
     virtual const hsMatrix44&           GetLocalToWorld() const = 0;
 
     virtual const plViewTransform&      GetViewTransform() const = 0;
+	virtual void						SetViewTransform(const plViewTransform& trans) = 0;
 
     virtual void                        ScreenToWorldPoint( int n, uint32_t stride, int32_t *scrX, int32_t *scrY, 
                                                     float dist, uint32_t strideOut, hsPoint3 *worldOut ) = 0;

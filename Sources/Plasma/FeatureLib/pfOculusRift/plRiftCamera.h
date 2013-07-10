@@ -97,18 +97,22 @@ public:
 
 	virtual bool MsgReceive(plMessage* msg);
 
-	void initRift();
-	void setCameraManager(plVirtualCam1 camManager);
+	void initRift(int width, int height);
+	void SetCameraManager(plVirtualCam1* camManager){ fVirtualCam = camManager; };
+	void SetPipeline(plPipeline* pipe){ fPipe = pipe; };
 	void CalculateRiftCameraOrientation(hsPoint3 camPosition);
-	void updateShaders();
+
+	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
+	void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
+	void ApplyStereoViewport(Util::Render::StereoEye);
+
+	enum eye {EYE_LEFT = 1, EYE_RIGHT};
 
 private:
 
 	//Plasma objects
 	plVirtualCam1* fVirtualCam;
-	plPlate*            fRiftDistortionPlate;
-	plShader*			fRiftVertexShader;
-	plShader			*fRiftPixelShader;
+	plPipeline* fPipe;
 
 	//Rift objects
 	Ptr<DeviceManager>  pManager;
@@ -116,6 +120,7 @@ private:
 	Ptr<SensorDevice>	pSensor;
 	SensorFusion		SFusion;
 	Util::Render::StereoConfig        SConfig;
+	
 
 	Vector3f            EyePos;
     float               EyeYaw;         // Rotation around Y, CCW positive when looking at RHS (X,Z) plane.

@@ -159,10 +159,6 @@ plVirtualCam1::plVirtualCam1()
     fXPanLimit = 0;
     fZPanLimit = 0;
     fRetainedFY = 0.5f;
-
-	//Rift defaults
-	riftPOA.Set(0,0,0);
-	riftUp.Set(0,0,1);
     // create built-in drive mode camera
     fCameraDriveInterface = plDebugInputInterface::GetInstance();
     hsRefCnt_SafeRef( fCameraDriveInterface );
@@ -487,6 +483,7 @@ void plVirtualCam1::ICreatePlate()
     fEffectPlate->SetVisible( false );
 }
 
+
 void plVirtualCam1::SetCutNextTrans()
 {
     SetFlags(kCutNextTrans);
@@ -662,33 +659,6 @@ void plVirtualCam1::UnPanIfNeeded()
     }
 }
 
-//void plVirtualCam1::SetRiftOverrideX(float yaw){
-//
-//	if(fFirstPersonOverride){
-//		fY = yaw / 3.1415926f;
-//	}
-//}
-//
-//void plVirtualCam1::SetRiftOverrideY(float pitch){
-//	if(fFirstPersonOverride){
-//		fX = pitch / 3.1415926f;
-//	}
-//}
-
-
-void plVirtualCam1::SetRiftOverridePOA(hsVector3 viewVec){
-	riftPOA = hsPoint3(viewVec.fX, viewVec.fY, viewVec.fZ);
-}
-
-void plVirtualCam1::SetRiftOverrideUp(hsVector3 viewUp){
-	riftUp = viewUp;
-}
-
-void plVirtualCam1::SetRiftOverrideMatrix(hsMatrix44 viewMat){
-	riftMatrix = viewMat;
-	
-}
-
 
 void plVirtualCam1::AdjustForInput()
 {
@@ -768,7 +738,6 @@ void plVirtualCam1::AdjustForInput()
     m = mZ * m;
 
     hsVector3 view = m.GetAxis(hsMatrix44::kView);
-
     fOutputPOA = fOutputPos + (view * 15);
 
 }
@@ -864,69 +833,17 @@ void plVirtualCam1::Output()
     }
     // construct output matrix
     hsVector3 abUp(0,0,1);
-
-	//Rift camera vector override
-	if(fFirstPersonOverride){
-		//fOutputPOA = riftPOA;
-	}
-
     hsVector3 view(fOutputPos - fOutputPOA);
     view.Normalize();
     // Now passing in Up for up parameter to MakeCamera. Negates sense of up. mf_flip_up - mf
     hsVector3 up = (view % abUp) % view;
     if (GetCurrentCamera()->IsAnimated())
         up = -GetCurrentCamera()->GetTarget()->GetCoordinateInterface()->GetLocalToWorld().GetAxis(hsMatrix44::kView);
-
-	//Rift up vector override
-	if(fFirstPersonOverride){
-		//up = riftUp;
-	}
     
     fOutputUp = up;
-	
     targetMatrix.MakeCamera(&fOutputPos,&fOutputPOA, &up);
-
-	// Rift
-	if(fFirstPersonOverride){
-		//riftMatrix.MakeRotateMat
-		//targetMatrix.SetRotate();
-		//targetMatrix.MakeCamera(&fOutputPos, &riftPOA, &riftUp);
-		//targetMatrix.SetRotate(0, riftPOA.fX);
-		//targetMatrix.SetRotate(1, riftPOA.fY);
-		//targetMatrix.SetRotate(2, riftPOA.fZ);
-		//targetMatrix.
-		
-		//targetMatrix = targetMatrix.Rotate(2, riftPOA.fZ);
-		//targetMatrix = targetMatrix.Rotate(1, riftPOA.fX);
-		//targetMatrix = targetMatrix.Rotate(0, -riftPOA.fY);
-
-
-		//for(int i = 0; i < 3; i++){
-		//	for(int j = 0; j < 3; j++){
-		//		//targetMatrix.fMap[i][j] = riftMatrix.fMap[i][j];
-		//	}
-		//}
-
-		//targetMatrix.fMap[0][0] = riftMatrix.fMap[0][0];
-		//targetMatrix.fMap[1][1] = riftMatrix.fMap[1][1];
-		//targetMatrix.fMap[2][2] = riftMatrix.fMap[2][2];
-		//targetMatrix.fFlags
-		//targetMatrix = targetMatrix * riftMatrix;
-		//targetMatrix.SetTranslate(&fOutputPos);
-
-		
-		//fPipe->SetFOV(fFOVw,fFOVh);
-		//targetMatrix= riftMatrix;
-		
-		
-	}
-
-	//Set the camera view based on the rift orientation
-	targetMatrix.DecompRigid(fOutputPos, hsQuat(riftPOA.fX, riftPOA.fY, riftPOA.fZ, riftUp.fZ));
     targetMatrix.GetInverse(&inverse);
     fPipe->SetWorldToCamera( targetMatrix, inverse );
-
-
     if (HasFlags(kSetFOV)) // are we changing the field of view?
     {
         ClearFlags(kSetFOV);
@@ -940,13 +857,12 @@ void plVirtualCam1::Output()
         }   
 
     }
-    
-	if (foutLog)
+/*  if (foutLog)
     {
         fprintf(foutLog, "output pos %f %f %f\n", fOutputPos.fX,fOutputPos.fY,fOutputPos.fZ);
         fprintf(foutLog, "output poa %f %f %f\n", fOutputPOA.fX,fOutputPOA.fY,fOutputPOA.fZ);
         fprintf(foutLog, "\n");
-    }   
+    }   */
 }
 
 void plVirtualCam1::Init()

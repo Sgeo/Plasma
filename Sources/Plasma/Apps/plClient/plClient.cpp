@@ -208,7 +208,6 @@ plClient::plClient()
 #ifdef BUILD_RIFT_SUPPORT
 	fRiftCamera(nil),
 	fPostProcessingMgr(nil),
-	fPostProcessingEnabled(true),
 #endif
 	fNumPostLoadMsgs(0)
 {
@@ -593,15 +592,6 @@ bool plClient::InitPipeline()
 
     if( fPipeline )
         fPipeline->LoadResources();
-
-#ifdef BUILD_RIFT_SUPPORT
-	fPostProcessingMgr = new plPostPipeline;
-	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
-	fPostProcessingMgr->SetPipeline(fPipeline);
-	fPostProcessingMgr->CreatePostRT(fPipeline->Width(), fPipeline->Height());
-	fPostProcessingMgr->CreateShaders();
-	//fPostProcessingMgr->CreatePostSurface();
-#endif
 
     return false;
 }
@@ -1625,6 +1615,13 @@ bool plClient::StartInit()
 	fRiftCamera->RegisterAs( kRiftCamera_KEY );
 	fRiftCamera->initRift(fPipeline->Width(), fPipeline->Height());
 	fRiftCamera->SetPipeline(fPipeline);
+
+	fPostProcessingMgr = new plPostPipeline;
+	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
+	fPostProcessingMgr->SetPipeline(fPipeline);
+	fPostProcessingMgr->CreatePostRT(fPipeline->Width() * fRiftCamera->GetRenderScale(), fPipeline->Height() * fRiftCamera->GetRenderScale());
+	fPostProcessingMgr->CreateShaders();
+	//fPostProcessingMgr->CreatePostSurface();
 #endif
 
 	    // 2nd half of plClient initialization occurs after
@@ -1928,12 +1925,23 @@ bool plClient::IDraw()
 
     plProfile_BeginTiming(DrawTime);
 
+//-------------------------------
+//Stereo rendering pass A
+//-------------------------------
 #ifdef BUILD_RIFT_SUPPORT
-	//-------------------------------
-	//Activate postprocessing before rendering the world
-	//-------------------------------
-	if(fPostProcessingEnabled){
-		fPostProcessingMgr->EnablePostRT();
+	//Set vieport, RT and projection
+	if(fRiftCamera->GetStereoRenderingState()){
+		if(fPostProcessingMgr->GetPostProcessingState()){
+			fPostProcessingMgr->EnablePostRT();
+			
+			fPipeline->EndScene();
+			fRiftCamera->ApplyLeftEyeViewport(true);
+			fRiftCamera->ApplyRightEyeViewport(true);
+			fPipeline->BeginScene();
+
+			fPostProcessingMgr->SetRealViewport(OVR::Util::Render::Viewport(0,0,1280,800));
+		}
+	
 	}
 #endif
 
@@ -1959,17 +1967,40 @@ bool plClient::IDraw()
         fPageMgr->Render(fPipeline);
     plProfile_EndTiming(MainRender);
 
+	//End first stereo pass
+
+	//-------------------------------
+	//Stereo rendering pass B
+	//-------------------------------
 #ifdef BUILD_RIFT_SUPPORT
-	//-------------------------------
-	//Use post rendertarget to render post effects to main surface and flip the RT back
-	//-------------------------------
-	//fPipeline->EndRender();
-	if(fPostProcessingEnabled){
-		fPipeline->EndWorldRender();
-		fPostProcessingMgr->DisablePostRT();
-		fPipeline->ClearBackbuffer();
-		fPipeline->BeginPostScene();
-		fPostProcessingMgr->RenderPostEffects();
+	if(fRiftCamera->GetStereoRenderingState())
+	{
+		fPipeline->BeginScene();
+
+		//Render right eye
+        fPageMgr->Render(fPipeline);
+
+		//Render last post effects
+		if(fPostProcessingMgr->GetPostProcessingState())
+		{
+			//fPipeline->EndScene();
+			fPostProcessingMgr->DisablePostRT();
+			//fPostProcessingMgr->RestoreViewport();
+			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,640,800), true);
+
+
+			//fPipeline->BeginScene();
+			fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Left).pDistortion), OVR::Util::Render::StereoEye_Left);
+			//fRiftCamera->ApplyLeftEyeViewport(false);
+			fPostProcessingMgr->UpdateShaders();
+			fPostProcessingMgr->RenderPostEffects();
+
+
+			//fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Right).pDistortion), OVR::Util::Render::StereoEye_Right);
+			//fPostProcessingMgr->UpdateShaders();
+			//fPostProcessingMgr->RenderPostEffects();
+			fPostProcessingMgr->RestoreViewport();
+		}
 	}
 #endif
 

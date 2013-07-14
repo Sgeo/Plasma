@@ -656,10 +656,11 @@ public:
 
 #ifdef BUILD_RIFT_SUPPORT
 	virtual void						CreateScreenQuadGeometry();
-	virtual void						BeginPostScene();
+	virtual void						BeginScene();
 	virtual void						RenderPostScene(plRenderTarget* screenRender, plShader* vsShader, plShader* psShader);
 	virtual void						ClearBackbuffer();
-	virtual void						EndWorldRender();
+	virtual void						EndScene();
+	virtual void						SetViewport();
 #endif
 
     virtual void                        ClearRenderTarget( plDrawable* d );

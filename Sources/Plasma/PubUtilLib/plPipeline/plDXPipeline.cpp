@@ -5319,7 +5319,7 @@ void plDXPipeline::CreateScreenQuadGeometry()
 {
     uint32_t fvfFormat = PLD3D_SCREENQUADFVF;
     D3DPOOL poolType = D3DPOOL_DEFAULT;
-    hsAssert(!pipe->ManagedAlloced(), "Alloc default with managed alloc'd");
+    hsAssert(!ManagedAlloced(), "Alloc default with managed alloc'd");
     if( FAILED( fD3DDevice->CreateVertexBuffer( 4 * sizeof( plScreenQuadVertex ),
                                                 D3DUSAGE_WRITEONLY, 
                                                 fvfFormat,
@@ -5382,7 +5382,7 @@ void plDXPipeline::CreateScreenQuadGeometry()
 	fScreenQuadMatrix.Reset();
 	
 	hsVector3 screenQuadPos(0.0f, 0.0f, 0.0f);
-	hsVector3 screenQuadScale(1.0f,-1.0f,1.0f);		//Quad is flipped cause the RT draws upside down
+	hsVector3 screenQuadScale(1.0f,1.0f,1.0f);		//Quad is flipped cause the RT draws upside down
 
 	fScreenQuadMatrix.SetTranslate( &screenQuadPos );
 	fScreenQuadMatrix.SetScale( &screenQuadScale); 
@@ -5406,7 +5406,7 @@ void plDXPipeline::RenderPostScene(plRenderTarget* screenRender, plShader* vsSha
     // To get plates properly pixel-aligned, we need to compensate for D3D9's weird half-pixel
     // offset (see http://drilian.com/2008/11/25/understanding-half-pixel-and-half-texel-offsets/
     // or http://msdn.microsoft.com/en-us/library/bb219690(VS.85).aspx).
-    D3DXMatrixTranslation(&mat, -0.5f/scrnWidthDiv2, -0.5f/scrnHeightDiv2, 0.0f);
+	D3DXMatrixTranslation(&mat, -0.5f/scrnWidthDiv2, -0.5f/scrnHeightDiv2, 0.0f);
     fD3DDevice->SetTransform( D3DTS_VIEW, &mat );
     oldCullMode = fCurrCullMode;
 
@@ -5449,13 +5449,20 @@ void plDXPipeline::RenderPostScene(plRenderTarget* screenRender, plShader* vsSha
 	WEAK_ERROR_CHECK( fD3DDevice->DrawPrimitive( D3DPT_TRIANGLESTRIP, 0, 2 ) );
 }
 
-void plDXPipeline::BeginPostScene(){
+void plDXPipeline::BeginScene(){
+	//ISetViewport();
+	//RefreshMatrices();
 	fD3DDevice->BeginScene();
 }
 
-void plDXPipeline::EndWorldRender()
+void plDXPipeline::EndScene()
 {
 	fD3DDevice->EndScene();
+}
+
+void plDXPipeline::SetViewport()
+{
+	ISetViewport();
 }
 
 void plDXPipeline::ClearBackbuffer()

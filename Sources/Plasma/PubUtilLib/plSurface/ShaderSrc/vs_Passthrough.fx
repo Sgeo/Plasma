@@ -1,4 +1,3 @@
-// Vertex shader input structure
 struct VS_INPUT
 {
     float4 Position   : POSITION;
@@ -6,7 +5,6 @@ struct VS_INPUT
 };
 
 
-// Vertex shader output structure
 struct VS_OUTPUT
 {
     float4 Position   : POSITION;

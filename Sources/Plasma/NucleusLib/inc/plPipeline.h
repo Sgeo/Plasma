@@ -218,10 +218,11 @@ public:
 
 #ifdef BUILD_RIFT_SUPPORT
 	virtual void						CreateScreenQuadGeometry() = 0;
-	virtual void						BeginPostScene() = 0;
+	virtual void						BeginScene() = 0;
 	virtual void						RenderPostScene(plRenderTarget* screenRender, plShader* vsShader, plShader* psShader) = 0;
 	virtual void						ClearBackbuffer() = 0;
-	virtual void						EndWorldRender() = 0;	//basic endscene without resetting the entire frame
+	virtual void						EndScene() = 0;	//basic endscene without resetting the entire frame
+	virtual void						SetViewport() = 0;
 #endif
 
     virtual void                        ClearRenderTarget( plDrawable* d ) = 0; // nil d reverts to ClearRenderTarget(nil, nil).

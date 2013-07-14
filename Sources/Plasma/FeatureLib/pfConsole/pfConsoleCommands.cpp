@@ -166,6 +166,11 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plResMgr/plResMgrSettings.h"
 #include "plResMgr/plLocalization.h"
 
+#ifdef BUILD_RIFT_SUPPORT
+#include "plPostPipeline/plPostPipeline.h"
+#include "pfOculusRift/plRiftCamera.h"
+#endif
+
 
 #define PF_SANITY_CHECK( cond, msg ) { if( !( cond ) ) { PrintString( msg ); return; } }
 
@@ -7068,6 +7073,34 @@ PF_CONSOLE_CMD( Rift,										// Group name
                 "",											// Params
                 "Prints HMD orientation to the console" )   // Help string
 {
+}
+
+PF_CONSOLE_CMD( Rift,										// Group name
+                EnablePostProcessing,							// Function name
+                "bool enable",											// Params
+                "Enables post processing" )   // Help string
+{
+	plUoid pU1( kPostProcessingMgr_KEY );
+    plKey fPostProcessingMgrKey = hsgResMgr::ResMgr()->FindKey( pU1 );
+    if (fPostProcessingMgrKey)
+    {
+		plPostPipeline::ConvertNoRef(fPostProcessingMgrKey->GetObjectPtr())->EnablePostProcessing((bool)params[0]);
+        return;
+    }
+}
+
+PF_CONSOLE_CMD( Rift,										// Group name
+                EnableHMDStereo,							// Function name
+                "bool enable",											// Params
+                "Enables stereo rendering" )   // Help string
+{
+	plUoid pU1( kRiftCamera_KEY );
+    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
+    if (fRiftCameraKey)
+    {
+		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->EnableStereoRendering((bool)params[0]);
+        return;
+    }
 }
 
 

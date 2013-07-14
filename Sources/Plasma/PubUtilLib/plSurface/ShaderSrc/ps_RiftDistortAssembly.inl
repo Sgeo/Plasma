@@ -7,64 +7,49 @@
 //
 // Parameters:
 //
-//   sampler2D s0;
+//   float4 HmdWarpParam;
+//   float2 LensCenter;
+//   float2 Scale;
+//   float2 ScaleIn;
+//   float2 ScreenCenter;
+//   sampler2D tex;
 //
 //
 // Registers:
 //
 //   Name         Reg   Size
 //   ------------ ----- ----
-//   s0           s0       1
+//   LensCenter   c0       1
+//   ScreenCenter c1       1
+//   Scale        c2       1
+//   ScaleIn      c3       1
+//   HmdWarpParam c4       1
+//   tex          s0       1
 //
 
     ps_3_0
-    def c0, -0.5, 2, 1, 0
-    def c1, 0.219999999, 1, 0.239999995, 0
-    def c2, -0.0199999996, -0, -0.519999981, -0.5
-    def c3, 0.319999993, 0.449999988, 0.5, 0
-    def c4, 0.800000012, 0.100000001, 0.300000012, 0
-    def c5, 2, 1, -1.48000002, -0.5
+    def c5, -0.25, -0.5, 0.25, 0.5
+    def c6, 0, 0, 0, 0
     dcl_texcoord v0.xy
     dcl_2d s0
-    mov r0.yz, c0
-    mad r0, v0.xyxy, r0.yzyz, c2
-    add r0.zw, r0, r0
-    dp2add r1.x, r0.zwzw, r0.zwzw, c0.w
-    rsq r1.x, r1.x
-    rcp r1.x, r1.x
-    mad r1.y, r1.x, c1.x, c1.y
-    mul r1.x, r1.x, r1.x
-    mad r1.x, r1.x, c1.z, r1.y
-    mul r0.zw, r0, r1.x
-    mad r0.zw, r0, c3.xyxy, c3.z
-    mov_sat r1.xy, r0.zwzw
-    add r1.xy, -r0.zwzw, r1
-    dp2add r1.x, r1, r1, c0.w
-    mul r2.x, r0.z, -c0.x
-    mad r2.z, r0.w, -c0.z, c0.z
-    texld r2, r2.xzzw, s0
-    cmp r1, -r1.x, r2, c0.w
-    add r0.z, c0.x, v0.x
-    cmp r0.xy, r0.z, v0, r0
-    mad r0.yw, r0.xxzy, c5.xxzy, c5.xzzw
-    add r0.x, -r0.x, -c0.x
-    add r0.yw, r0, r0
-    dp2add r2.x, r0.ywzw, r0.ywzw, c0.w
-    rsq r2.x, r2.x
-    rcp r2.x, r2.x
-    mad r2.y, r2.x, c1.x, c1.y
-    mul r2.x, r2.x, r2.x
-    mad r2.x, r2.x, c1.z, r2.y
-    mul r0.yw, r0, r2.x
-    mad r0.yw, r0, c3.xxzy, c3.z
-    mov_sat r2.xy, r0.ywzw
-    add r2.xy, -r0.ywzw, r2
-    dp2add r2.x, r2, r2, c0.w
-    mul r3.x, r0.y, -c0.x
-    mad r3.z, r0.w, -c0.z, c0.z
-    texld r3, r3.xzzw, s0
-    cmp r2, -r2.x, r3, c0.w
-    cmp r2, r0.x, c4.xyzz, r2
-    cmp oC0, r0.z, r2, r1
+    add r0.xy, -c0, v0
+    mul r0.xy, r0, c3
+    dp2add r0.z, r0, r0, c6.x
+    mad r0.w, c4.y, r0.z, c4.x
+    mul r1.x, r0.z, r0.z
+    mad r0.w, r1.x, c4.z, r0.w
+    mul r1.x, r1.x, c4.w
+    mad r0.z, r1.x, r0.z, r0.w
+    mul r0.xy, r0.z, r0
+    mov r1.xy, c0
+    mad r0.xy, c2, r0, r1
+    mov r1.xy, c1
+    add r1, r1.xyxy, c5
+    max r2.xy, r0, r1
+    min r0.zw, r1, r2.xyxy
+    add r0.zw, -r0.xyxy, r0
+    texld r1, r0, s0
+    dp2add r0.x, r0.zwzw, r0.zwzw, c6.x
+    cmp oC0, -r0.x, r1, c6.x
 
-// approximately 44 instruction slots used (2 texture, 42 arithmetic)
+// approximately 21 instruction slots used (1 texture, 20 arithmetic)

@@ -168,6 +168,15 @@ void plShader::SetFloat4(int i, const float* const f)
     fConsts[i].fW = f[3];
 }
 
+#ifdef BUILD_RIFT_SUPPORT
+void plShader::SetFloat2(int i, const float* const f)
+{
+    fConsts[i].fX = f[0];
+    fConsts[i].fY = f[1];
+}
+#endif
+
+
 plFloat44 plShader::GetMatrix(int i) const
 {
     // untranspose

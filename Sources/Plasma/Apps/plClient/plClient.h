@@ -148,7 +148,6 @@ protected:
 #ifdef BUILD_RIFT_SUPPORT
 	plRiftCamera			*fRiftCamera;
 	plPostPipeline			*fPostProcessingMgr;
-	bool					fPostProcessingEnabled;
 #endif
 
     virtual hsG3DDeviceModeRecord ILoadDevMode(const char* devModeFile);

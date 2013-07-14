@@ -58,13 +58,18 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pfConsole/pfConsole.h"
 #include "pfConsole/pfConsoleDirSrc.h"
 #include "plPipeline/plPlates.h"
+#include "plPipeline.h"
+#include "plViewTransform.h"
 #include "pnKeyedObject/hsKeyedObject.h"
 #include "pnKeyedObject/plKey.h"
 #include "pnKeyedObject/plFixedKey.h"
 #include "pnKeyedObject/plUoid.h"
 
-plRiftCamera::plRiftCamera(){
-	//Rift init
+plRiftCamera::plRiftCamera() : 
+	fEnableStereoRendering(true),
+	fRenderScale(1.0f)
+{
+	/*
 	YawInitial = 3.141592f;
 	EyePos = Vector3f(0.0f, 1.6f, -5.0f),
     EyeYaw = YawInitial;
@@ -74,6 +79,7 @@ plRiftCamera::plRiftCamera(){
 	UpVector = Vector3f(0.0f, 0.0f, 1.0f);
 	ForwardVector = Vector3f(0.0f, 1.0f, 0.0f);
 	RightVector = Vector3f(1.0f, 0.0f, 0.0f);
+	*/
 }
 
 plRiftCamera::~plRiftCamera(){
@@ -90,8 +96,7 @@ void plRiftCamera::initRift(int width, int height){
 	SConfig.SetFullViewport(Util::Render::Viewport(0, 0, width, height));
 	SConfig.SetStereoMode(Util::Render::Stereo_LeftRight_Multipass);
 	SConfig.SetDistortionFitPointVP(-1.0f, 0.0f);
-
-	
+	fRenderScale = SConfig.GetDistortionScale();
 
 	pfConsole::AddLine("-- Initializing Rift --");
 
@@ -116,10 +121,54 @@ bool plRiftCamera::MsgReceive(plMessage* msg)
 	return true;
 }
 
-void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
+void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye, bool scaled = false)
 {
 	Util::Render::StereoEyeParams eyeParams = SConfig.GetEyeRenderParams(eye);
+
+	fRenderScale = SConfig.GetDistortionScale();
+
+	if( !scaled)
+		fRenderScale = 1.0f;
+
+
+	//Viewport stuff
+	//--------------
+	plViewTransform vt = fPipe->GetViewTransform();
+	vt.SetViewPort(eyeParams.VP.x * fRenderScale,
+					eyeParams.VP.y * fRenderScale, 
+					(eyeParams.VP.x + eyeParams.VP.w)  * fRenderScale, 
+					(eyeParams.VP.y + eyeParams.VP.h) * fRenderScale, false);
+
+	//Setting widths breaks the render!
+	//vt.SetWidth((float)eyeParams.VP.w   * fRenderScale);
+	//vt.SetHeight((float)eyeParams.VP.h  * fRenderScale);
+	
+	if(scaled){
+		hsMatrix44 eyeTransform, transposed, w2c, inverse;
+		OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
+
+		hsMatrix44 origW2c = vt.GetWorldToCamera();
+		//w2c = eyeTransform * origW2c;
+		w2c = origW2c;
+		w2c.GetInverse(&inverse);
+		vt.SetCameraTransform( w2c, inverse );
+		vt.SetWidth(eyeParams.VP.w * fRenderScale);
+		vt.SetHeight(eyeParams.VP.h * fRenderScale);
+	}
+
+	//Projection matrix stuff
+	//-------------------------
+	hsMatrix44 projMatrix;
+
+	OVRProjectionToHSProjection(eyeParams.Projection, &projMatrix);
+	vt.SetProjectionMatrix(&projMatrix);
+	fPipe->RefreshMatrices();
+    
+	fPipe->SetViewTransform(vt);	
+	fPipe->SetViewport();
 }
+
+
 
 void plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
 	//Matrix4f hmdMat(hmdOrient);
@@ -138,22 +187,47 @@ void plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
 	tester *= Matrix4f::Translation(-camPos);
 	//tester *= Matrix4f::Translation(-camPos) * eyeConfig.ViewAdjust;
 	
-	hsMatrix44 testerAlt;
-	
-	for(int i = 0; i < 4; i++){
-		for(int j = 0; j < 4; j++){
-			testerAlt.fMap[i][j] = tester.M[i][j];
-		}
-	}
+	//hsMatrix44 testerAlt = OVRTransformToHSTransform(tester);
 	
 	//std::stringstream riftCons;
 	//riftCons << riftOrientation.x << ", " << riftOrientation.y << ", " << riftOrientation.z << ", " << riftOrientation.w;
 	//fConsole->AddLine(riftCons.str().c_str());
 
-	fVirtualCam->SetRiftOverrideMatrix(testerAlt);
-	fVirtualCam->SetRiftOverridePOA(hsVector3(riftOrientation.x, riftOrientation.y, riftOrientation.z));
-	fVirtualCam->SetRiftOverrideUp(hsVector3(0, 0, riftOrientation.w));
+	//fVirtualCam->SetRiftOverrideMatrix(testerAlt);
+	//fVirtualCam->SetRiftOverridePOA(hsVector3(riftOrientation.x, riftOrientation.y, riftOrientation.z));
+	//fVirtualCam->SetRiftOverrideUp(hsVector3(0, 0, riftOrientation.w));
 }
+
+
+hsMatrix44* plRiftCamera::OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44* hsMat)
+{
+	hsMat->NotIdentity();
+	//OVRmat.Transpose();
+	int i,j;
+	for(i=0; i < 4; i++){
+		for(j=0; j < 4; j++){
+			hsMat->fMap[i][j] = OVRmat.M[i][j];
+		}
+	}
+
+	return hsMat;
+}
+
+hsMatrix44* plRiftCamera::OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix44* hsMat){
+	hsMat->Reset(false);
+	
+	//OVRmat.Transpose();
+	hsMat->fMap[0][0] = OVRmat.M[0][0];
+	hsMat->fMap[0][2] = OVRmat.M[0][2];
+	hsMat->fMap[1][1] = OVRmat.M[1][1];
+	hsMat->fMap[2][2] = -OVRmat.M[2][2];
+	hsMat->fMap[2][3] = OVRmat.M[2][3];
+	hsMat->fMap[3][2] = -OVRmat.M[3][2];
+
+	return hsMat;
+}
+
+
 
 
 //LEFTOVER TESTING CODE - Is this useful for richard?

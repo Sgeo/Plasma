@@ -105,6 +105,11 @@ public:
     const hsMatrix44&   GetCameraToNDC() const { return ICheckCameraToNDC(); }
     const hsMatrix44&   GetWorldToNDC() const { return ICheckWorldToNDC(); }
 
+#ifdef BUILD_RIFT_SUPPORT
+	void SetProjectionMatrix(hsMatrix44* projectionMatrix);		//Manually set Projection matrix.
+	void ResetProjectionMatrix();
+#endif
+
     hsPoint3            GetPosition() const { return GetCameraToWorld().GetTranslate(); }
     hsVector3           GetDirection() const { return *((hsVector3 *)&GetWorldToCamera().fMap[2]); }
     hsVector3           GetUp() const { return *((hsVector3*)&GetWorldToCamera().fMap[1]); }
@@ -289,6 +294,9 @@ protected:
         kCameraToNDCSet     = 0x4,
         kWorldToNDCSet      = 0x8,
         kSetMask            = kCameraToNDCSet | kWorldToNDCSet,
+#ifdef BUILD_RIFT_SUPPORT
+		kRiftProjectionSet  = 0x9,
+#endif
         kViewPortRelative   = 0x10
     };
 

@@ -102,11 +102,23 @@ public:
 	void SetPipeline(plPipeline* pipe){ fPipe = pipe; };
 	void CalculateRiftCameraOrientation(hsPoint3 camPosition);
 
-	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
-	void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
-	void ApplyStereoViewport(Util::Render::StereoEye);
+	void ApplyLeftEyeViewport(bool scaled){ ApplyStereoViewport(Util::Render::StereoEye_Left, scaled); };
+	void ApplyRightEyeViewport(bool scaled){ ApplyStereoViewport(Util::Render::StereoEye_Right, scaled); };
+	void ApplyStereoViewport(Util::Render::StereoEye, bool scaled);
+
+
+	void EnableStereoRendering(bool state){ fEnableStereoRendering = state; };
+	bool GetStereoRenderingState(){ return fEnableStereoRendering; };
+	float GetRenderScale(){return fRenderScale;};
+
+	Util::Render::StereoEyeParams GetEyeParams(Util::Render::StereoEye eye){return SConfig.GetEyeRenderParams(eye); };
 
 	enum eye {EYE_LEFT = 1, EYE_RIGHT};
+
+	//Utils
+	hsMatrix44* OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44* hsMat);
+	hsMatrix44* OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix44* hsMat);
+
 
 private:
 
@@ -120,6 +132,10 @@ private:
 	Ptr<SensorDevice>	pSensor;
 	SensorFusion		SFusion;
 	Util::Render::StereoConfig        SConfig;
+
+	bool fEnableStereoRendering;
+	float fRenderScale;
+
 	
 
 	Vector3f            EyePos;

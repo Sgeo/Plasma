@@ -47,12 +47,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsMatrix44.h"
 #include "hsBitVector.h"
 #include <vector>
-#include <sstream>
-
-#include "plSurface/plShader.h"
-#include "plSurface/plLayer.h"
-#include "plMessage/plLayRefMsg.h"
-using namespace plShaderID;
 
 class plPipeline;
 class plCameraModifier1;
@@ -65,7 +59,6 @@ class plCameraProxy;
 class plSceneNode;
 class plDebugInputInterface;
 class plPlate;
-class plShader;
 
 #include "hsTemplates.h"
 
@@ -167,14 +160,6 @@ public:
     bool HasFlags(int flag) { return fFlags.IsBitSet(flag); }
     void ClearFlags(int flag) { fFlags.ClearBit(flag); }
 
-	//Rift overrides
-	//void SetRiftOverrideX(float yaw);
-	//void SetRiftOverrideY(float pitch);
-	void SetRiftOverridePOA(hsVector3 viewVec);
-	void SetRiftOverrideUp(hsVector3 viewUp);
-	void SetRiftOverrideMatrix(hsMatrix44 viewMat);
-	void ForceCameraUpdate();
-
     // console command stuff
     static void Next();
     static void Prev();
@@ -247,11 +232,6 @@ private:
     double              fUnPanEndTime;
     double              fInterpPanLimitTime;
     float               fRetainedFY;
-
-	//Rift overrides
-	hsPoint3 riftPOA;
-	hsVector3 riftUp;
-	hsMatrix44 riftMatrix;
 
     // built-in cameras
     plCameraModifier1*  fDriveCamera; // for driving around 

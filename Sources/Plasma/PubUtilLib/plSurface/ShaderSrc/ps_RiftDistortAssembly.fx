@@ -1,3 +1,11 @@
+struct PS_INPUT
+{
+    float4 oPosition   : POSITION;
+    float4 oColor      : COLOR0;   
+    float2 oTexCoord   : TEXCOORD0;
+};
+
+
 // D3D9 version of the Rift barrel warp shader (ps_2_0 compatible)
 sampler tex : register(s0);
 
@@ -20,10 +28,9 @@ float2 HmdWarp(float2 in01)
 }
 
 // You should be able to compile this for the PS_2_0 target
-float4 ps_main(in float4 oPosition : SV_Position, in float4 oColor : COLOR,
-            in float2 oTexCoord : TEXCOORD0) : SV_Target
+float4 ps_main(in PS_INPUT In) : COLOR
 {
-   float2 tc = HmdWarp(oTexCoord);
+   float2 tc = HmdWarp(In.oTexCoord);
    if (any(clamp(tc, ScreenCenter - float2(0.25, 0.5), ScreenCenter + float2(0.25, 0.5) ) - tc) )
        return 0;
    return tex2D(tex, tc);

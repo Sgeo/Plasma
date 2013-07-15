@@ -117,18 +117,18 @@ void plPostPipeline::UpdateShaders()
 
     // We are using 1/4 of DistortionCenter offset value here, since it is
     // relative to [-1,1] range that gets mapped to [0, 0.5].
-	float lensCenterSet[2] = {x + (w + fDistortion.XCenterOffset * 0.5f)*0.5f,  y + h*0.5f};
+	float lensCenterSet[2] = {x + (w + fDistortion.XCenterOffset*0.5)*0.5,  y + h*0.5f};
 	fPsShader->SetFloat2(kRiftShaderLensCenter, lensCenterSet);
 	
-	float screenCenterSet[2] = {x + w*0.5f, y + h*0.5f};
+	float screenCenterSet[2] = {x + w*0.5, y + h*0.5f};
 	fPsShader->SetFloat2(kRiftShaderScreenCenter, screenCenterSet);
 
     // MA: This is more correct but we would need higher-res texture vertically; we should adopt this
     // once we have asymmetric input texture scale.
     float scaleFactor = 1.0f / fDistortion.Scale;
 	
-	float shaderScaleSet[2] = {(w/2) * scaleFactor, (h/2) * scaleFactor * as};
-	fPsShader->SetFloat2(kRiftShaderScale, shaderScaleSet );
+	float scaleOutSet[2] = {(w/2) * scaleFactor, (h/2) * scaleFactor * as};
+	fPsShader->SetFloat2(kRiftShaderScaleOut, scaleOutSet );
 	
 	float scaleInSet[2] = {(2/w), (2/h) / as};
 	fPsShader->SetFloat2(kRiftShaderScaleIn, scaleInSet);
@@ -137,23 +137,27 @@ void plPostPipeline::UpdateShaders()
 	fPsShader->SetFloat4(kRiftShaderHmdWarpParam, distortionSet);
 
 	//Vertex shader consts
-    hsMatrix44 texm;
+    hsMatrix44 texm, transpose;
 	texm.Reset(false);
 	texm.fMap[0][0] = w;
 	texm.fMap[0][3] = x;
 	texm.fMap[1][1] = h;
 	texm.fMap[1][3] = y;
 	texm.fMap[2][2] = 0;
-	texm.Reset(false);
-	fVsShader->SetMatrix44(kRiftShaderTexm, texm);
+	transpose.Reset(false);
+	texm.GetTranspose(&transpose);
+	//texm.Reset(false);
+	fVsShader->SetMatrix44(kRiftShaderTexm, transpose);
 	
-    hsMatrix44 view;
+    /*hsMatrix44 view, vTransposed;
 	view.Reset(false);
 	view.fMap[0][0] = view.fMap[1][1] = 2;
 	view.fMap[0][3] = view.fMap[1][3] = -1;
 	view.fMap[2][2] = 0;
 	view.Reset(false);
-	fVsShader->SetMatrix44(kRiftShaderView, view);
+	*/
+	//view.GetTranspose(&vTransposed);
+	//fVsShader->SetMatrix44(kRiftShaderView, view);
 }
 
 void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
@@ -176,28 +180,23 @@ void plPostPipeline::SetViewport(OVR::Util::Render::Viewport vp, bool resetProje
 	fVP = vp;
 
 	plViewTransform vt = fPipe->GetViewTransform();
-	if(resetProjection)
-		vt.ResetProjectionMatrix();
+	
 	vt.SetViewPort(fVP.x, fVP.y, fVP.x + fVP.w, fVP.y + fVP.h, false);
 	
+	if(resetProjection){
+		vt.SetWidth((float)fVP.w);
+		vt.SetHeight((float)fVP.h);
+		vt.ResetProjectionMatrix();
+	}
+	
     fPipe->SetViewTransform(vt);
+	fPipe->SetViewport();
 }
 
 
 void plPostPipeline::EnablePostRT()
 { 
-	//hsMatrix44 l2w = fView.fLocalToWorld;
-    //hsMatrix44 w2l = fView.fWorldToLocal;
-
-    //fSettings.fViewStack.Push(fView);
-	
 	fPipe->PushRenderTarget(fPostRT); 
-
-    // Set from our saved ones...
-    //fView.fWorldToLocal = w2l;
-    //fView.fLocalToWorld = l2w;
-
-    fPipe->RefreshMatrices();
 };
 
 void plPostPipeline::DisablePostRT()

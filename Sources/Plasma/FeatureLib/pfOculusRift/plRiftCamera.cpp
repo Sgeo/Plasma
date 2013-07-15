@@ -67,7 +67,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 plRiftCamera::plRiftCamera() : 
 	fEnableStereoRendering(true),
-	fRenderScale(1.0f)
+	fRenderScale(1.0f),
+	fEyeToRender(EYE_LEFT)
 {
 	/*
 	YawInitial = 3.141592f;
@@ -138,22 +139,18 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye, bool scaled 
 					eyeParams.VP.y * fRenderScale, 
 					(eyeParams.VP.x + eyeParams.VP.w)  * fRenderScale, 
 					(eyeParams.VP.y + eyeParams.VP.h) * fRenderScale, false);
-
-	//Setting widths breaks the render!
-	//vt.SetWidth((float)eyeParams.VP.w   * fRenderScale);
-	//vt.SetHeight((float)eyeParams.VP.h  * fRenderScale);
 	
 	if(scaled){
 		hsMatrix44 eyeTransform, transposed, w2c, inverse;
 		OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
-
+		eyeTransform.fMap[0][3] *= 0.3048;	//Convert Rift meters to feet
 		hsMatrix44 origW2c = vt.GetWorldToCamera();
-		//w2c = eyeTransform * origW2c;
-		w2c = origW2c;
+		w2c = eyeTransform * origW2c;
+		//w2c = origW2c;
 		w2c.GetInverse(&inverse);
 		vt.SetCameraTransform( w2c, inverse );
-		vt.SetWidth(eyeParams.VP.w * fRenderScale);
-		vt.SetHeight(eyeParams.VP.h * fRenderScale);
+		//vt.SetWidth(eyeParams.VP.w * fRenderScale);
+		//vt.SetHeight(eyeParams.VP.h * fRenderScale);
 	}
 
 	//Projection matrix stuff
@@ -220,9 +217,9 @@ hsMatrix44* plRiftCamera::OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix4
 	hsMat->fMap[0][0] = OVRmat.M[0][0];
 	hsMat->fMap[0][2] = OVRmat.M[0][2];
 	hsMat->fMap[1][1] = OVRmat.M[1][1];
-	hsMat->fMap[2][2] = -OVRmat.M[2][2];
+	hsMat->fMap[2][2] = OVRmat.M[2][2] * -1;
 	hsMat->fMap[2][3] = OVRmat.M[2][3];
-	hsMat->fMap[3][2] = -OVRmat.M[3][2];
+	hsMat->fMap[3][2] = OVRmat.M[3][2] * -1;
 
 	return hsMat;
 }

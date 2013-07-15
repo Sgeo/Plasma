@@ -1619,6 +1619,7 @@ bool plClient::StartInit()
 	fPostProcessingMgr = new plPostPipeline;
 	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
 	fPostProcessingMgr->SetPipeline(fPipeline);
+	fPostProcessingMgr->SetRealViewport(OVR::Util::Render::Viewport(0,0,fPipeline->Width(),fPipeline->Height() ));
 	fPostProcessingMgr->CreatePostRT(fPipeline->Width() * fRiftCamera->GetRenderScale(), fPipeline->Height() * fRiftCamera->GetRenderScale());
 	fPostProcessingMgr->CreateShaders();
 	//fPostProcessingMgr->CreatePostSurface();
@@ -1930,16 +1931,33 @@ bool plClient::IDraw()
 //-------------------------------
 #ifdef BUILD_RIFT_SUPPORT
 	//Set vieport, RT and projection
+	OVR::Util::Render::StereoEye eyeToRender;
+	int viewportX;
+
 	if(fRiftCamera->GetStereoRenderingState()){
+
+		fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,1280,800), true);
+		fPipeline->ClearRenderTarget();
+
+		if(fRiftCamera->GetEyeToRender() == plRiftCamera::EYE_LEFT){
+			eyeToRender = OVR::Util::Render::StereoEye_Left;
+			viewportX = 0;
+		} else {
+			eyeToRender = OVR::Util::Render::StereoEye_Right;
+			viewportX = 640;
+		}
+
 		if(fPostProcessingMgr->GetPostProcessingState()){
 			fPostProcessingMgr->EnablePostRT();
 			
-			fPipeline->EndScene();
-			fRiftCamera->ApplyLeftEyeViewport(true);
-			fRiftCamera->ApplyRightEyeViewport(true);
-			fPipeline->BeginScene();
-
-			fPostProcessingMgr->SetRealViewport(OVR::Util::Render::Viewport(0,0,1280,800));
+			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,fPipeline->Width() * fRiftCamera->GetRenderScale(), fPipeline->Height() * fRiftCamera->GetRenderScale()), true);
+			fPipeline->ClearRenderTarget();
+			
+			//if(eyeToRender == OVR::Util::Render::StereoEye_Left){
+				fRiftCamera->ApplyLeftEyeViewport(true);
+			//} else {
+				//fRiftCamera->ApplyRightEyeViewport(true);
+			//}			
 		}
 	
 	}
@@ -1975,32 +1993,40 @@ bool plClient::IDraw()
 #ifdef BUILD_RIFT_SUPPORT
 	if(fRiftCamera->GetStereoRenderingState())
 	{
-		fPipeline->BeginScene();
-
-		//Render right eye
-        fPageMgr->Render(fPipeline);
-
 		//Render last post effects
 		if(fPostProcessingMgr->GetPostProcessingState())
 		{
-			//fPipeline->EndScene();
+
+			fRiftCamera->ApplyRightEyeViewport(true);
+			fPageMgr->Render(fPipeline);
+
 			fPostProcessingMgr->DisablePostRT();
-			//fPostProcessingMgr->RestoreViewport();
+
 			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,640,800), true);
+			fPipeline->ClearRenderTarget();
 
-
-			//fPipeline->BeginScene();
 			fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Left).pDistortion), OVR::Util::Render::StereoEye_Left);
-			//fRiftCamera->ApplyLeftEyeViewport(false);
+		
+			fPostProcessingMgr->UpdateShaders();
+			fPostProcessingMgr->RenderPostEffects();
+			//fPostProcessingMgr->RestoreViewport();
+		
+			//Render right eye
+			//fPostProcessingMgr->EnablePostRT();
+			//fPostProcessingMgr->DisablePostRT();
+
+			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(640,0,640,800), true);
+			fPipeline->ClearRenderTarget();
+
+			fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Right).pDistortion), OVR::Util::Render::StereoEye_Right);
+
 			fPostProcessingMgr->UpdateShaders();
 			fPostProcessingMgr->RenderPostEffects();
 
+			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,1280,800), true);
 
-			//fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Right).pDistortion), OVR::Util::Render::StereoEye_Right);
-			//fPostProcessingMgr->UpdateShaders();
-			//fPostProcessingMgr->RenderPostEffects();
-			fPostProcessingMgr->RestoreViewport();
 		}
+
 	}
 #endif
 

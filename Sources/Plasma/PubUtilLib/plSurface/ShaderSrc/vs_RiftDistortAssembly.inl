@@ -8,31 +8,29 @@
 // Parameters:
 //
 //   float4x4 Texm;
-//   float4x4 View;
 //
 //
 // Registers:
 //
 //   Name         Reg   Size
 //   ------------ ----- ----
-//   View         c0       4
 //   Texm         c4       4
 //
 
     vs_3_0
+    def c0, 1, 0, 0, 0
     dcl_position v0
     dcl_color v1
     dcl_texcoord v2
     dcl_position o0
     dcl_color o1
     dcl_texcoord o2.xy
-    mul r0, c1, v0.y
-    mad r0, c0, v0.x, r0
-    mad r0, c2, v0.z, r0
-    mad o0, c3, v0.w, r0
+    mov o0, v0
+    mov o1, v1
     mul r0.xy, c5, v2.y
     mad r0.xy, c4, v2.x, r0
-    add o2.xy, r0, c7
-    mov o1, v1
+    add r0.xy, r0, c7
+    add r0.z, -r0.y, c0.x
+    mov o2.xy, r0.xzzw
 
-// approximately 8 instruction slots used
+// approximately 7 instruction slots used

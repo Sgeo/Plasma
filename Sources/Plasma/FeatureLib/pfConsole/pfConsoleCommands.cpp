@@ -7103,6 +7103,34 @@ PF_CONSOLE_CMD( Rift,										// Group name
     }
 }
 
+PF_CONSOLE_CMD( Rift,										// Group name
+                RenderLeft,							// Function name
+                "bool enable",											// Params
+                "Render Left Viewport only" )   // Help string
+{
+	plUoid pU1( kRiftCamera_KEY );
+    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
+    if (fRiftCameraKey)
+    {
+		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->EnableLeftEyeRender((bool)params[0]);
+		return;
+    }
+}
+
+PF_CONSOLE_CMD( Rift,										// Group name
+                RenderRight,							// Function name
+                "bool enable",											// Params
+                "Render Right Viewport only" )   // Help string
+{
+	plUoid pU1( kRiftCamera_KEY );
+    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
+    if (fRiftCameraKey)
+    {
+		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->EnableRightEyeRender((bool)params[0]);
+		return;
+    }
+}
+
 
 //////////////////////////////////////////////////////////////////////////////
 // End.

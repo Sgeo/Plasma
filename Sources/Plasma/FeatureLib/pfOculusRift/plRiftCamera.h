@@ -105,7 +105,11 @@ public:
 	void ApplyLeftEyeViewport(bool scaled){ ApplyStereoViewport(Util::Render::StereoEye_Left, scaled); };
 	void ApplyRightEyeViewport(bool scaled){ ApplyStereoViewport(Util::Render::StereoEye_Right, scaled); };
 	void ApplyStereoViewport(Util::Render::StereoEye, bool scaled);
-
+	
+	void EnableLeftEyeRender(bool state){ fEyeToRender = EYE_LEFT; };
+	void EnableRightEyeRender(bool state){ fEyeToRender = EYE_RIGHT; };
+	void EnableBothEyeRender(bool state){ fEyeToRender = EYE_BOTH; };
+	int GetEyeToRender(){return fEyeToRender; };
 
 	void EnableStereoRendering(bool state){ fEnableStereoRendering = state; };
 	bool GetStereoRenderingState(){ return fEnableStereoRendering; };
@@ -113,7 +117,7 @@ public:
 
 	Util::Render::StereoEyeParams GetEyeParams(Util::Render::StereoEye eye){return SConfig.GetEyeRenderParams(eye); };
 
-	enum eye {EYE_LEFT = 1, EYE_RIGHT};
+	enum eye {EYE_LEFT = 1, EYE_RIGHT, EYE_BOTH};
 
 	//Utils
 	hsMatrix44* OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44* hsMat);
@@ -125,6 +129,7 @@ private:
 	//Plasma objects
 	plVirtualCam1* fVirtualCam;
 	plPipeline* fPipe;
+	int fEyeToRender;
 
 	//Rift objects
 	Ptr<DeviceManager>  pManager;

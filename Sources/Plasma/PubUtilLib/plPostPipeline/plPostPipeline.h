@@ -72,7 +72,7 @@ public:
 	enum RiftShaderPSConsts {
 		kRiftShaderLensCenter = 0,
 		kRiftShaderScreenCenter = 1,
-		kRiftShaderScale = 2,
+		kRiftShaderScaleOut = 2,
 		kRiftShaderScaleIn = 3,
 		kRiftShaderHmdWarpParam = 4
 	};

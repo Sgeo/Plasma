@@ -129,8 +129,8 @@ void plViewTransform::SetProjectionMatrix(hsMatrix44* projectionMatrix)
 
 void plViewTransform::ResetProjectionMatrix()
 {
-	//InvalidateTransforms();
-	ICameraToNDCSet();
+	InvalidateTransforms();
+	ICheckCameraToNDC();
 }
 #endif
 

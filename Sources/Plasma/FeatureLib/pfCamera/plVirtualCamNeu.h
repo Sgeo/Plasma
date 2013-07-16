@@ -102,6 +102,9 @@ public:
         //kRegisteredForBehaviors, // not reliable anymore since we have a dummy avatar in the startup age
         kFirstPersonAtLinkOut,
         kJustLinkedIn,
+#ifdef BUILD_RIFT_SUPPORT
+		kHasUpdated,
+#endif
         kFirstPersonUserSelected,
     };
     

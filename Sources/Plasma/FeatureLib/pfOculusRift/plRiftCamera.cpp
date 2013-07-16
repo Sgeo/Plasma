@@ -68,7 +68,10 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 plRiftCamera::plRiftCamera() : 
 	fEnableStereoRendering(true),
 	fRenderScale(1.0f),
-	fEyeToRender(EYE_LEFT)
+	fEyeToRender(EYE_LEFT),
+	fXRotOffset(3.1415926),
+	fYRotOffset(3.1415926),
+	fZRotOffset(3.1415926)
 {
 	/*
 	YawInitial = 3.141592f;
@@ -143,22 +146,42 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye, bool scaled 
 	if(scaled){
 		hsMatrix44 eyeTransform, transposed, w2c, inverse;
 		OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
-		eyeTransform.fMap[0][3] *= 0.3048;	//Convert Rift meters to feet
-		hsMatrix44 origW2c = vt.GetWorldToCamera();
+		eyeTransform.fMap[0][3] *= -0.3048;	//Convert Rift meters to feet
+
+		hsMatrix44 riftOrientation;
+		riftOrientation.Reset();
+
+		if(fVirtualCam){
+			//if(fVirtualCam->HasFlags(plVirtualCam1::kHasUpdated)){
+				riftOrientation = CalculateRiftCameraOrientation(fVirtualCam->GetCameraPos());
+			//}
+		}
+		
+		eyeTransform = riftOrientation * eyeTransform;
+		hsMatrix44 origW2c = fWorldToCam;
+		
 		w2c = eyeTransform * origW2c;
-		//w2c = origW2c;
 		w2c.GetInverse(&inverse);
 		vt.SetCameraTransform( w2c, inverse );
-		//vt.SetWidth(eyeParams.VP.w * fRenderScale);
-		//vt.SetHeight(eyeParams.VP.h * fRenderScale);
+		vt.SetWidth(eyeParams.VP.w * fRenderScale);
+		vt.SetHeight(eyeParams.VP.h * fRenderScale);
+		vt.SetHeight(eyeParams.VP.h * fRenderScale);
+		hsPoint2 depth;
+		depth.Set(0.3f, 500.0f);
+		vt.SetDepth(depth);
 	}
 
 	//Projection matrix stuff
 	//-------------------------
 	hsMatrix44 projMatrix;
 
-	OVRProjectionToHSProjection(eyeParams.Projection, &projMatrix);
+	hsMatrix44 oldCamNDC = vt.GetCameraToNDC();
+
+	OVRTransformToHSTransform(eyeParams.Projection, &projMatrix);
 	vt.SetProjectionMatrix(&projMatrix);
+
+	//fPipe->ReverseCulling();
+
 	fPipe->RefreshMatrices();
     
 	fPipe->SetViewTransform(vt);	
@@ -167,32 +190,32 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye, bool scaled 
 
 
 
-void plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
+hsMatrix44 plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
 	//Matrix4f hmdMat(hmdOrient);
 
-	Quatf riftOrientation = SFusion.GetOrientation();
-
+	Quatf riftOrientation = SFusion.GetPredictedOrientation();
 	Matrix4f tester = Matrix4f(riftOrientation.Inverted());
 	Vector3f camPos(camPosition.fX, camPosition.fY, camPosition.fZ);
-	//Vector3f poa(1, 0, 0);
-	
-	Vector3f upp(1, 0, 0);
-	
-	tester *= Matrix4f::RotationX(3.1415926 * 0.5);
-	tester *= Matrix4f::RotationY(3.1415926);
-	tester *= Matrix4f::RotationZ(3.1415926 * 0.5);
-	tester *= Matrix4f::Translation(-camPos);
+
+	/*
+	tester *= Matrix4f::RotationX(3.1415926 * -0.5);
+	tester *= Matrix4f::RotationY(-3.1415926);
+	tester *= Matrix4f::RotationZ(3.1415926 * -0.5);
+	*/
+	tester *= Matrix4f::RotationX(fXRotOffset);
+	tester *= Matrix4f::RotationY(fYRotOffset);
+	tester *= Matrix4f::RotationZ(fZRotOffset);
+
+	//tester *= Matrix4f::Translation(-camPos);
 	//tester *= Matrix4f::Translation(-camPos) * eyeConfig.ViewAdjust;
 	
-	//hsMatrix44 testerAlt = OVRTransformToHSTransform(tester);
+	hsMatrix44 testerAlt;
+	OVRTransformToHSTransform(tester, &testerAlt);
+	return testerAlt;
 	
 	//std::stringstream riftCons;
 	//riftCons << riftOrientation.x << ", " << riftOrientation.y << ", " << riftOrientation.z << ", " << riftOrientation.w;
 	//fConsole->AddLine(riftCons.str().c_str());
-
-	//fVirtualCam->SetRiftOverrideMatrix(testerAlt);
-	//fVirtualCam->SetRiftOverridePOA(hsVector3(riftOrientation.x, riftOrientation.y, riftOrientation.z));
-	//fVirtualCam->SetRiftOverrideUp(hsVector3(0, 0, riftOrientation.w));
 }
 
 
@@ -210,16 +233,60 @@ hsMatrix44* plRiftCamera::OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44*
 	return hsMat;
 }
 
-hsMatrix44* plRiftCamera::OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix44* hsMat){
+hsMatrix44* plRiftCamera::OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix44* hsMat, float zMin, float zMax){
 	hsMat->Reset(false);
-	
+	hsMat->NotIdentity();
+
 	//OVRmat.Transpose();
 	hsMat->fMap[0][0] = OVRmat.M[0][0];
+	hsMat->fMap[0][1] = OVRmat.M[0][1];
 	hsMat->fMap[0][2] = OVRmat.M[0][2];
+	hsMat->fMap[0][3] = OVRmat.M[0][3];
+	hsMat->fMap[1][0] = OVRmat.M[1][0];
 	hsMat->fMap[1][1] = OVRmat.M[1][1];
-	hsMat->fMap[2][2] = OVRmat.M[2][2] * -1;
-	hsMat->fMap[2][3] = OVRmat.M[2][3];
-	hsMat->fMap[3][2] = OVRmat.M[3][2] * -1;
+	hsMat->fMap[1][2] = OVRmat.M[1][2];
+	hsMat->fMap[1][3] = OVRmat.M[1][3];
+	hsMat->fMap[2][0] = OVRmat.M[2][0];
+	hsMat->fMap[2][1] = OVRmat.M[2][1];
+	hsMat->fMap[2][2] = zMax / (zMax - zMin); //OVRmat.M[2][2]; //zMin;
+	hsMat->fMap[2][3] =  1.0f;//OVRmat.M[2][3]; //zMax;
+	hsMat->fMap[3][0] = OVRmat.M[3][0];
+	hsMat->fMap[3][1] = OVRmat.M[3][1];
+	hsMat->fMap[3][2] = -zMax * zMin / (zMax - zMin);
+	hsMat->fMap[3][3] = 0.0;
+
+	//For reference, here is what OVR is outputting
+	//----------------------------------------------
+	/*
+	Matrix4f m;
+    float    tanHalfFov = tan(yfov * 0.5f);
+  
+    m.M[0][0] = 1.0f / (aspect * tanHalfFov);
+    m.M[1][1] = 1.0f / tanHalfFov;
+    m.M[2][2] = zfar / (znear - zfar);
+   // m.M[2][2] = zfar / (zfar - znear);
+    m.M[3][2] = -1.0f;
+    m.M[2][3] = (zfar * znear) / (znear - zfar);
+    m.M[3][3] = 0.0f;
+
+    // Note: Post-projection matrix result assumes Left-Handed coordinate system,    
+    //       with Y up, X right and Z forward. This supports positive z-buffer values.
+    // This is the case even for RHS cooridnate input.       
+    return m;
+	*/
+
+	/* fCameraToNDC.fMap[0][0] = 2.f / (fMax.fX - fMin.fX);
+        fCameraToNDC.fMap[0][2] = (fMax.fX + fMin.fX) / (fMax.fX - fMin.fX);
+
+        fCameraToNDC.fMap[1][1] = 2.f / (fMax.fY - fMin.fY);
+        fCameraToNDC.fMap[1][2] = (fMax.fY + fMin.fY) / (fMax.fY - fMin.fY);
+
+        fCameraToNDC.fMap[2][2] = fMax.fZ / (fMax.fZ - fMin.fZ);
+        fCameraToNDC.fMap[2][3] = -fMax.fZ * fMin.fZ / (fMax.fZ - fMin.fZ);
+
+        fCameraToNDC.fMap[3][2] = 1.f;
+        fCameraToNDC.fMap[3][3] = 0.f;
+		*/
 
 	return hsMat;
 }
@@ -228,55 +295,9 @@ hsMatrix44* plRiftCamera::OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix4
 
 
 //LEFTOVER TESTING CODE - Is this useful for richard?
-/*
 
-	//Rift update
-	/*std::stringstream riftConsole;
-	Quatf    hmdOrient = SFusion.GetOrientation();
-	float    yaw = 0.0f;
-
-	hmdOrient.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &EyePitch, &EyeRoll);
-
-	EyeYaw += (yaw - LastSensorYaw);
-	LastSensorYaw = yaw;
-
-	Matrix4f rollPitchYaw = Matrix4f::RotationY(EyeRoll) * Matrix4f::RotationX(-EyePitch) * Matrix4f::RotationZ(-EyeYaw);
-    Vector3f up = rollPitchYaw.Transform(UpVector);
-    Vector3f forward = rollPitchYaw.Transform(ForwardVector);
-
-	hsMatrix44 convertMat;
-	
-	Vector3f camPos(fNewCamera->GetCameraPos().fX, fNewCamera->GetCameraPos().fY, fNewCamera->GetCameraPos().fZ);
-	Matrix4f viewMat = Matrix4f::LookAtLH(camPos, camPos + forward, up);
-	viewMat.Scaling(-1.0f, 0.0f,0.0f);
-	//Matrix4f viewMat = Matrix4f::RotationY(EyeYaw) * Matrix4f::RotationX(-EyePitch) * Matrix4f::RotationZ(EyeRoll) * Matrix4f::Translation(camPos);
-
-
-	//Matrix4f orientMat = hmdOrient;
-	//orientMat.Translation(camPos);
-	//orientMat.AxisConversion( WorldAxes(Axis_Right, Axis_In, Axis_Up ), WorldAxes(Axis_Left, Axis_In, Axis_Up));
-
-	for(int i = 0; i < 4; i++){
-		for(int j = 0; j < 4; j++){
-			convertMat.fMap[i][j] = viewMat.M[i][j];
-		}
-	}
 
 	
-
-	//const hsPoint3 camForward = fNewCamera->GetCameraPos() + hsVector3(forward.x, forward.y, forward.z);
-	//const hsVector3 camUp = hsVector3(up.x, up.y, up.z);
-
-	//convertMat.MakeCamera(&fNewCamera->GetCameraPos(), &camForward, &camUp);
-	fNewCamera->SetRiftOverrideMatrix(convertMat);
-
-	//fNewCamera->SetRiftOverrideY(yaw);
-	//fNewCamera->SetRiftOverrideX(EyePitch);
-
-	//riftConsole << "Yaw: " << EyeYaw << " Pitch:" << EyePitch << " Roll:" << EyeRoll;
-	//fConsole->AddLine(riftConsole.str().c_str());
-	*/
-
 	/*Quatf    hmdOrient = SFusion.GetPredictedOrientation();
 
     float    yaw = 0.0f;
@@ -312,5 +333,4 @@ hsMatrix44* plRiftCamera::OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix4
 	//upp = tester.Transform(upp);
 	//fNewCamera->SetRiftOverrideUp(hsVector3(upp.x, upp.y, upp.z));
 	//fNewCamera->SetRiftOverridePOA(hsVector3(yaw, pitch, roll));
-
 */

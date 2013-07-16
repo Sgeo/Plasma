@@ -661,6 +661,7 @@ public:
 	virtual void						ClearBackbuffer();
 	virtual void						EndScene();
 	virtual void						SetViewport();
+	virtual void						ReverseCulling();
 #endif
 
     virtual void                        ClearRenderTarget( plDrawable* d );

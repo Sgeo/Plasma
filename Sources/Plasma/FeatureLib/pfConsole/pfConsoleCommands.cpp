@@ -7131,6 +7131,50 @@ PF_CONSOLE_CMD( Rift,										// Group name
     }
 }
 
+PF_CONSOLE_CMD( Rift,										// Group name
+                SetXRotationOffset,							// Function name
+                "float offset",											// Params
+                "HMD Orientation offset for the X Axis" )   // Help string
+{
+	plUoid pU1( kRiftCamera_KEY );
+    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
+    if (fRiftCameraKey)
+    {
+		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetXOffsetRotation((float)params[0]);
+		return;
+    }
+}
+
+PF_CONSOLE_CMD( Rift,										// Group name
+                SetYRotationOffset,							// Function name
+                "float offset",											// Params
+                "HMD Orientation offset for the Y Axis" )   // Help string
+{
+	plUoid pU1( kRiftCamera_KEY );
+    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
+    if (fRiftCameraKey)
+    {
+		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetYOffsetRotation((float)params[0]);
+		return;
+    }
+}
+
+
+PF_CONSOLE_CMD( Rift,										// Group name
+                SetZRotationOffset,							// Function name
+                "float offset",											// Params
+                "HMD Orientation offset for the Z Axis" )   // Help string
+{
+	plUoid pU1( kRiftCamera_KEY );
+    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
+    if (fRiftCameraKey)
+    {
+		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetZOffsetRotation((float)params[0]);
+		return;
+    }
+}
+
+
 
 //////////////////////////////////////////////////////////////////////////////
 // End.

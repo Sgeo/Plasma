@@ -100,11 +100,13 @@ public:
 	void initRift(int width, int height);
 	void SetCameraManager(plVirtualCam1* camManager){ fVirtualCam = camManager; };
 	void SetPipeline(plPipeline* pipe){ fPipe = pipe; };
-	void CalculateRiftCameraOrientation(hsPoint3 camPosition);
+	hsMatrix44 CalculateRiftCameraOrientation(hsPoint3 camPosition);
 
 	void ApplyLeftEyeViewport(bool scaled){ ApplyStereoViewport(Util::Render::StereoEye_Left, scaled); };
 	void ApplyRightEyeViewport(bool scaled){ ApplyStereoViewport(Util::Render::StereoEye_Right, scaled); };
 	void ApplyStereoViewport(Util::Render::StereoEye, bool scaled);
+
+	void SetOriginalCamera(hsMatrix44 cam){ fWorldToCam = cam; };
 	
 	void EnableLeftEyeRender(bool state){ fEyeToRender = EYE_LEFT; };
 	void EnableRightEyeRender(bool state){ fEyeToRender = EYE_RIGHT; };
@@ -121,8 +123,11 @@ public:
 
 	//Utils
 	hsMatrix44* OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44* hsMat);
-	hsMatrix44* OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix44* hsMat);
+	hsMatrix44* OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix44* hsMat, float zMin, float zMax);
 
+	void SetXOffsetRotation(float offset){fXRotOffset = 3.1415926 * offset;};
+	void SetYOffsetRotation(float offset){fYRotOffset = 3.1415926 * offset;};
+	void SetZOffsetRotation(float offset){fZRotOffset = 3.1415926 * offset;};
 
 private:
 
@@ -130,6 +135,7 @@ private:
 	plVirtualCam1* fVirtualCam;
 	plPipeline* fPipe;
 	int fEyeToRender;
+	hsMatrix44 fWorldToCam;
 
 	//Rift objects
 	Ptr<DeviceManager>  pManager;
@@ -142,6 +148,7 @@ private:
 	float fRenderScale;
 
 	
+	float fXRotOffset, fYRotOffset, fZRotOffset;
 
 	Vector3f            EyePos;
     float               EyeYaw;         // Rotation around Y, CCW positive when looking at RHS (X,Z) plane.

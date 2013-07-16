@@ -5470,6 +5470,10 @@ void plDXPipeline::ClearBackbuffer()
 	D3DCOLOR clearColour = 0x00000000;
 	fD3DDevice->Clear( 0L, NULL, D3DCLEAR_TARGET, clearColour, 1.0f, 0L );
 }
+
+void plDXPipeline::ReverseCulling(){
+	ISetCullMode(true);
+}
 #endif
 
 

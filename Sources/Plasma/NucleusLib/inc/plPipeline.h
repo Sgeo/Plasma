@@ -223,6 +223,7 @@ public:
 	virtual void						ClearBackbuffer() = 0;
 	virtual void						EndScene() = 0;	//basic endscene without resetting the entire frame
 	virtual void						SetViewport() = 0;
+	virtual void						ReverseCulling() = 0;
 #endif
 
     virtual void                        ClearRenderTarget( plDrawable* d ) = 0; // nil d reverts to ClearRenderTarget(nil, nil).

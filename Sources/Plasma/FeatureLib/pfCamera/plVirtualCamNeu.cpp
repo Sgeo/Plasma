@@ -186,7 +186,7 @@ plVirtualCam1::plVirtualCam1()
     if ( !plStatusLog::fLoggingOff )
         foutLog = plFileSystem::Open(plFileName::Join(plFileSystem::GetLogPath(), "camLog.txt"), "wt");
 #endif
-
+	ClearFlags(kHasUpdated);
     SetFlags(kFirstPersonEnabled);
 }
 
@@ -793,6 +793,9 @@ void plVirtualCam1::IUpdate()
     if(fForceCutOnce)fForceCutOnce=false;
     
     Output();
+#ifdef BUILD_RIFT_SUPPORT
+	SetFlags(kHasUpdated);
+#endif
 }
 
 

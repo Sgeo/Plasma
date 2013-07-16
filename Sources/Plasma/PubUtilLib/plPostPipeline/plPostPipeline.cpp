@@ -117,10 +117,10 @@ void plPostPipeline::UpdateShaders()
 
     // We are using 1/4 of DistortionCenter offset value here, since it is
     // relative to [-1,1] range that gets mapped to [0, 0.5].
-	float lensCenterSet[2] = {x + (w + fDistortion.XCenterOffset*0.5)*0.5,  y + h*0.5f};
+	float lensCenterSet[2] = {x + (w + fDistortion.XCenterOffset * 0.5f)*0.5f, y + h*0.5f};
 	fPsShader->SetFloat2(kRiftShaderLensCenter, lensCenterSet);
 	
-	float screenCenterSet[2] = {x + w*0.5, y + h*0.5f};
+	float screenCenterSet[2] = {x + w*0.5f, y + h*0.5f};
 	fPsShader->SetFloat2(kRiftShaderScreenCenter, screenCenterSet);
 
     // MA: This is more correct but we would need higher-res texture vertically; we should adopt this
@@ -186,6 +186,7 @@ void plPostPipeline::SetViewport(OVR::Util::Render::Viewport vp, bool resetProje
 	if(resetProjection){
 		vt.SetWidth((float)fVP.w);
 		vt.SetHeight((float)fVP.h);
+		vt.SetDepth(0.3f, 500.0f);
 		vt.ResetProjectionMatrix();
 	}
 	

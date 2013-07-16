@@ -102,9 +102,9 @@ public:
 	void SetPipeline(plPipeline* pipe){ fPipe = pipe; };
 	hsMatrix44 CalculateRiftCameraOrientation(hsPoint3 camPosition);
 
-	void ApplyLeftEyeViewport(bool scaled){ ApplyStereoViewport(Util::Render::StereoEye_Left, scaled); };
-	void ApplyRightEyeViewport(bool scaled){ ApplyStereoViewport(Util::Render::StereoEye_Right, scaled); };
-	void ApplyStereoViewport(Util::Render::StereoEye, bool scaled);
+	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
+	void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
+	void ApplyStereoViewport(Util::Render::StereoEye);
 
 	void SetOriginalCamera(hsMatrix44 cam){ fWorldToCam = cam; };
 	

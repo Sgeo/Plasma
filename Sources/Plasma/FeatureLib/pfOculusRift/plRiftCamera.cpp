@@ -125,15 +125,12 @@ bool plRiftCamera::MsgReceive(plMessage* msg)
 	return true;
 }
 
-void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye, bool scaled = false)
+void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 {
 	Util::Render::StereoEyeParams eyeParams = SConfig.GetEyeRenderParams(eye);
 
+	fRenderScale = 1.0f;
 	fRenderScale = SConfig.GetDistortionScale();
-
-	if( !scaled)
-		fRenderScale = 1.0f;
-
 
 	//Viewport stuff
 	//--------------
@@ -143,33 +140,32 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye, bool scaled 
 					(eyeParams.VP.x + eyeParams.VP.w)  * fRenderScale, 
 					(eyeParams.VP.y + eyeParams.VP.h) * fRenderScale, false);
 	
-	if(scaled){
-		hsMatrix44 eyeTransform, transposed, w2c, inverse;
-		OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
-		eyeTransform.fMap[0][3] *= -0.3048;	//Convert Rift meters to feet
+	hsMatrix44 eyeTransform, transposed, w2c, inverse;
+	OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
+	eyeTransform.fMap[0][3] *= -0.3048;	//Convert Rift meters to feet
 
-		hsMatrix44 riftOrientation;
-		riftOrientation.Reset();
+	hsMatrix44 riftOrientation;
+	riftOrientation.Reset();
 
-		if(fVirtualCam){
-			//if(fVirtualCam->HasFlags(plVirtualCam1::kHasUpdated)){
-				riftOrientation = CalculateRiftCameraOrientation(fVirtualCam->GetCameraPos());
-			//}
-		}
-		
-		eyeTransform = riftOrientation * eyeTransform;
-		hsMatrix44 origW2c = fWorldToCam;
-		
-		w2c = eyeTransform * origW2c;
-		w2c.GetInverse(&inverse);
-		vt.SetCameraTransform( w2c, inverse );
-		vt.SetWidth(eyeParams.VP.w * fRenderScale);
-		vt.SetHeight(eyeParams.VP.h * fRenderScale);
-		vt.SetHeight(eyeParams.VP.h * fRenderScale);
-		hsPoint2 depth;
-		depth.Set(0.3f, 500.0f);
-		vt.SetDepth(depth);
+	if(fVirtualCam){
+		//if(fVirtualCam->HasFlags(plVirtualCam1::kHasUpdated)){
+		riftOrientation = CalculateRiftCameraOrientation(fVirtualCam->GetCameraPos());
+		//}
 	}
+
+	eyeTransform = riftOrientation * eyeTransform;
+	hsMatrix44 origW2c = fWorldToCam;
+
+	w2c = eyeTransform * origW2c;
+	w2c.GetInverse(&inverse);
+	vt.SetCameraTransform( w2c, inverse );
+	vt.SetWidth(eyeParams.VP.w * fRenderScale);
+	vt.SetHeight(eyeParams.VP.h * fRenderScale);
+	vt.SetHeight(eyeParams.VP.h * fRenderScale);
+	hsPoint2 depth;
+	depth.Set(0.3f, 10000.0f);
+	vt.SetDepth(depth);
+	
 
 	//Projection matrix stuff
 	//-------------------------

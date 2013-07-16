@@ -1942,9 +1942,9 @@ bool plClient::IDraw()
 		if(fPostProcessingMgr->GetPostProcessingState()){
 			fPostProcessingMgr->EnablePostRT();
 
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,fPipeline->Width() * fRiftCamera->GetRenderScale(), fPipeline->Height() * fRiftCamera->GetRenderScale()), true);
-			fPipeline->ClearRenderTarget();		
-			fRiftCamera->ApplyLeftEyeViewport(true);	
+			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,fPipeline->Width() * fRiftCamera->GetRenderScale(), fPipeline->Height() * fRiftCamera->GetRenderScale()), false);
+			
+			fRiftCamera->ApplyLeftEyeViewport();	
 		}
 	}
 #endif
@@ -2010,7 +2010,7 @@ bool plClient::IDraw()
 		{
 			fPostProcessingMgr->DisablePostRT();
 
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,640,800), true);
+			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,640,800), false);
 			hsColorRGBA resetCol;
 			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
 			fPipeline->ClearRenderTarget(&resetCol);
@@ -2023,7 +2023,7 @@ bool plClient::IDraw()
 			fPostProcessingMgr->EnablePostRT();
 		}
 
-		fRiftCamera->ApplyRightEyeViewport(true);
+		fRiftCamera->ApplyRightEyeViewport();
 
 		plProfile_BeginTiming(BeginRender);
 		if( fPipeline->BeginRender() )
@@ -2047,6 +2047,8 @@ bool plClient::IDraw()
 			fPageMgr->Render(fPipeline);
 		plProfile_EndTiming(MainRender);
 
+
+
 		// pre-post render
 		/*(PostRender);
 		if( !fFlags.IsBitSet( kFlagDBGDisableRRequests ) )
@@ -2063,7 +2065,7 @@ bool plClient::IDraw()
 		{
 			fPostProcessingMgr->DisablePostRT();
 
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(640,0,640,800), true);
+			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(640,0,640,800), false);
 			hsColorRGBA resetCol;
 			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
 			fPipeline->ClearRenderTarget(&resetCol);
@@ -2073,7 +2075,7 @@ bool plClient::IDraw()
 			fPostProcessingMgr->UpdateShaders();
 			fPostProcessingMgr->RenderPostEffects();
 
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,1280,800), true);
+			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,1280,800), false);
 
 		}
 
@@ -2096,7 +2098,6 @@ plProfile_BeginTiming(Movies);
 		fConsole->Draw( fPipeline );
 		plProfile_EndTiming(Console);
 
-
 		plProfile_BeginTiming(StatusLog);
 		plStatusLogMgr::GetInstance().Draw();
 		plProfile_EndTiming(StatusLog);
@@ -2110,7 +2111,9 @@ plProfile_BeginTiming(Movies);
 		plProfile_BeginTiming(ScreenElem);
 		fPipeline->RenderScreenElements();
 		plProfile_EndTiming(ScreenElem);
-		//Stop pre-post render
+		//Stop pre-post render*/
+
+		
 
 #endif
 

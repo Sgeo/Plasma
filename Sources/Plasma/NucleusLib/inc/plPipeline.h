@@ -90,6 +90,7 @@ class plFogEnvironment;
 class plLightInfo;
 class plMipmap;
 class plVisMgr;
+class plShader;
 
 class plViewTransform;
 
@@ -216,9 +217,13 @@ public:
     virtual void                        PopRenderRequest(plRenderRequest* req) = 0;
 
 #ifdef BUILD_RIFT_SUPPORT
-	virtual void						BeginPostScene() = 0;
+	virtual void						CreateScreenQuadGeometry() = 0;
+	virtual void						BeginScene() = 0;
+	virtual void						RenderPostScene(plRenderTarget* screenRender, plShader* vsShader, plShader* psShader) = 0;
 	virtual void						ClearBackbuffer() = 0;
-	virtual void						EndWorldRender() = 0;	//basic endscene without resetting the entire frame
+	virtual void						EndScene() = 0;	//basic endscene without resetting the entire frame
+	virtual void						SetViewport() = 0;
+	virtual void						ReverseCulling() = 0;
 #endif
 
     virtual void                        ClearRenderTarget( plDrawable* d ) = 0; // nil d reverts to ClearRenderTarget(nil, nil).
@@ -226,6 +231,7 @@ public:
     virtual void                        SetClear(const hsColorRGBA* col=nil, const float* depth=nil) = 0; // sets the default clear for current render target.
     virtual hsColorRGBA                 GetClearColor() const = 0;
     virtual float                       GetClearDepth() const = 0;
+
     virtual hsGDeviceRef                *MakeRenderTargetRef( plRenderTarget *owner ) = 0;
     virtual void                        PushRenderTarget( plRenderTarget *target ) = 0;
     virtual plRenderTarget              *PopRenderTarget( void ) = 0;
@@ -304,6 +310,7 @@ public:
     virtual const hsMatrix44&           GetLocalToWorld() const = 0;
 
     virtual const plViewTransform&      GetViewTransform() const = 0;
+	virtual void						SetViewTransform(const plViewTransform& trans) = 0;
 
     virtual void                        ScreenToWorldPoint( int n, uint32_t stride, int32_t *scrX, int32_t *scrY, 
                                                     float dist, uint32_t strideOut, hsPoint3 *worldOut ) = 0;

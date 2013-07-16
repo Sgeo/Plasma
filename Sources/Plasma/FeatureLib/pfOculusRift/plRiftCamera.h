@@ -97,18 +97,45 @@ public:
 
 	virtual bool MsgReceive(plMessage* msg);
 
-	void initRift();
-	void setCameraManager(plVirtualCam1 camManager);
-	void CalculateRiftCameraOrientation(hsPoint3 camPosition);
-	void updateShaders();
+	void initRift(int width, int height);
+	void SetCameraManager(plVirtualCam1* camManager){ fVirtualCam = camManager; };
+	void SetPipeline(plPipeline* pipe){ fPipe = pipe; };
+	hsMatrix44 CalculateRiftCameraOrientation(hsPoint3 camPosition);
+
+	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
+	void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
+	void ApplyStereoViewport(Util::Render::StereoEye);
+
+	void SetOriginalCamera(hsMatrix44 cam){ fWorldToCam = cam; };
+	
+	void EnableLeftEyeRender(bool state){ fEyeToRender = EYE_LEFT; };
+	void EnableRightEyeRender(bool state){ fEyeToRender = EYE_RIGHT; };
+	void EnableBothEyeRender(bool state){ fEyeToRender = EYE_BOTH; };
+	int GetEyeToRender(){return fEyeToRender; };
+
+	void EnableStereoRendering(bool state){ fEnableStereoRendering = state; };
+	bool GetStereoRenderingState(){ return fEnableStereoRendering; };
+	float GetRenderScale(){return fRenderScale;};
+
+	Util::Render::StereoEyeParams GetEyeParams(Util::Render::StereoEye eye){return SConfig.GetEyeRenderParams(eye); };
+
+	enum eye {EYE_LEFT = 1, EYE_RIGHT, EYE_BOTH};
+
+	//Utils
+	hsMatrix44* OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44* hsMat);
+	hsMatrix44* OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix44* hsMat, float zMin, float zMax);
+
+	void SetXOffsetRotation(float offset){fXRotOffset = 3.1415926 * offset;};
+	void SetYOffsetRotation(float offset){fYRotOffset = 3.1415926 * offset;};
+	void SetZOffsetRotation(float offset){fZRotOffset = 3.1415926 * offset;};
 
 private:
 
 	//Plasma objects
 	plVirtualCam1* fVirtualCam;
-	plPlate*            fRiftDistortionPlate;
-	plShader*			fRiftVertexShader;
-	plShader			*fRiftPixelShader;
+	plPipeline* fPipe;
+	int fEyeToRender;
+	hsMatrix44 fWorldToCam;
 
 	//Rift objects
 	Ptr<DeviceManager>  pManager;
@@ -116,6 +143,12 @@ private:
 	Ptr<SensorDevice>	pSensor;
 	SensorFusion		SFusion;
 	Util::Render::StereoConfig        SConfig;
+
+	bool fEnableStereoRendering;
+	float fRenderScale;
+
+	
+	float fXRotOffset, fYRotOffset, fZRotOffset;
 
 	Vector3f            EyePos;
     float               EyeYaw;         // Rotation around Y, CCW positive when looking at RHS (X,Z) plane.

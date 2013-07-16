@@ -116,6 +116,24 @@ void plViewTransform::ISetCameraToNDC() const
     ISetFlag(kCameraToNDCSet);
 }
 
+#ifdef BUILD_RIFT_SUPPORT
+void plViewTransform::SetProjectionMatrix(hsMatrix44* projectionMatrix)
+{
+	fCameraToNDC.Reset();
+    fCameraToNDC.NotIdentity();
+
+	fCameraToNDC = *(projectionMatrix);
+	
+	ISetFlag(kCameraToNDCSet);
+}
+
+void plViewTransform::ResetProjectionMatrix()
+{
+	InvalidateTransforms();
+	ICheckCameraToNDC();
+}
+#endif
+
 void plViewTransform::SetViewPort(const hsPoint2& mins, const hsPoint2& maxs, bool relative)
 { 
     fViewPortX.Set(mins.fX, maxs.fX, 1.f / (maxs.fX - mins.fX)); 

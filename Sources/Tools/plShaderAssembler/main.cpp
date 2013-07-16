@@ -92,6 +92,8 @@ int main(int argc, char* argv[])
             ps_GrassShader,
 			vs_RiftDistortAssembly,
 			ps_RiftDistortAssembly,
+			vs_Passthrough,
+			ps_Passthrough,
 
             kNumEnumNames
         };
@@ -141,7 +143,9 @@ int main(int argc, char* argv[])
             "vs_GrassShader",
             "ps_GrassShader",
 			"vs_RiftDistortAssembly",
-			"ps_RiftDistortAssembly"
+			"ps_RiftDistortAssembly",
+			"vs_Passthrough",
+			"ps_Passthrough"
         };
 
         nameList = kEnumNames;

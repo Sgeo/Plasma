@@ -96,6 +96,12 @@ public:
             float       fZ;
             float       fW;
         };
+#if BUILD_RIFT_SUPPORT
+		struct {
+            float       f2X;
+            float       f2Y;
+        };
+#endif
         float           fArray[4];
     };
     
@@ -228,6 +234,9 @@ public:
     void                    GetVector(int i, float& x, float& y, float& z, float& w) const;
     float                   GetFloat(int i, int chan) const;
     const float*            GetFloat4(int i) const;
+#ifdef BUILD_RIFT_SUPPORT
+	const float*			GetFloat2(int i) const;
+#endif
 
     void                    SetMatrix(int i, const plFloat44& xfm); // Will transpose
     void                    SetMatrix3(int i, const plFloat44& xfm); // Will transpose
@@ -240,6 +249,9 @@ public:
     void                    SetVector(int i, float x, float y, float z, float w);
     void                    SetFloat(int i, int chan, float v);
     void                    SetFloat4(int i, const float* const f);
+#ifdef BUILD_RIFT_SUPPORT
+	void					SetFloat2(int i, const float* const f);
+#endif
 
     const plShaderDecl*     GetDecl() const { return fDecl; }
 

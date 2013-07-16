@@ -552,6 +552,22 @@ protected:
                                     D3DFORMAT &depthFormat, D3DRESOURCETYPE &resType );
     bool    IFindRenderTargetInfo( plRenderTarget *owner, D3DFORMAT &surfFormat, D3DRESOURCETYPE &resType );
 
+#ifdef BUILD_RIFT_SUPPORT
+	//Post processing variables in here. 
+	IDirect3DVertexBuffer9  *fScreenQuadVertBuffer;
+
+	const long  PLD3D_SCREENQUADFVF;
+
+	struct plScreenQuadVertex
+	{
+		hsPoint3    fPoint;
+		uint32_t      fColor;
+		hsPoint3    fUV;
+	};
+
+	hsMatrix44 fScreenQuadMatrix;
+#endif
+
     // From a D3DFORMAT enumeration, return the string literal for it
     static const char   *IGetDXFormatName( D3DFORMAT format );
 
@@ -639,9 +655,13 @@ public:
     void ResetDisplayDevice(int Width, int Height, int ColorDepth, bool Windowed, int NumAASamples, int MaxAnisotropicSamples, bool VSync = false );
 
 #ifdef BUILD_RIFT_SUPPORT
-	virtual void						BeginPostScene();
+	virtual void						CreateScreenQuadGeometry();
+	virtual void						BeginScene();
+	virtual void						RenderPostScene(plRenderTarget* screenRender, plShader* vsShader, plShader* psShader);
 	virtual void						ClearBackbuffer();
-	virtual void						EndWorldRender();
+	virtual void						EndScene();
+	virtual void						SetViewport();
+	virtual void						ReverseCulling();
 #endif
 
     virtual void                        ClearRenderTarget( plDrawable* d );
@@ -649,6 +669,7 @@ public:
     virtual void                        SetClear(const hsColorRGBA* col=nil, const float* depth=nil);
     virtual hsColorRGBA                 GetClearColor() const;
     virtual float                    GetClearDepth() const;
+
     virtual hsGDeviceRef*               MakeRenderTargetRef( plRenderTarget *owner );
     virtual hsGDeviceRef*               SharedRenderTargetRef(plRenderTarget* sharer, plRenderTarget *owner);
     virtual void                        PushRenderTarget( plRenderTarget *target );

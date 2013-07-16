@@ -79,6 +79,9 @@ class plDXRenderTargetRef: public plDXTextureRef
 
         virtual void    SetOwner( plRenderTarget *targ ) { fOwner = (plBitmap *)targ; }
 
+#ifdef BUILD_RIFT_SUPPORT
+		void	SetTexture(  IDirect3DSurface9 *surface, IDirect3DTexture9 *texture, IDirect3DSurface9 *depth );
+#endif
         void    SetTexture( IDirect3DSurface9 *surface, IDirect3DSurface9 *depth );
         void    SetTexture( IDirect3DTexture9 *surface, IDirect3DSurface9 *depth );
         void    SetTexture( IDirect3DCubeTexture9 *surface, IDirect3DSurface9 *depth );

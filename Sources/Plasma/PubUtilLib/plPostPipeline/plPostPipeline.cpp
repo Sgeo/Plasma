@@ -44,6 +44,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plPipeline.h"
 #include "plPipeline/plRenderTarget.h"
 #include "plPipeline/plPlates.h"
+#include "plViewTransform.h"
+//#include "plPipeline/plDXTextureRef.h"
 #include "plSurface/plLayer.h"
 #include "plSurface/plShader.h"
 #include "plSurface/plShaderTable.h"
@@ -54,30 +56,109 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plMessage/plLayRefMsg.h"
 
 
-plPostPipeline::plPostPipeline(){
+plPostPipeline::plPostPipeline(): 
+	fEnablePost(true), 
+	fRenderScale(1.0f)
+{
 }
 
 plPostPipeline::~plPostPipeline(){
 }
-
 
 bool plPostPipeline::MsgReceive(plMessage* msg)
 {
 	return true;
 }
 
+void plPostPipeline::CreateShaders(){
+	int numVSConsts = 8;
+	int numPSConsts = 5;
 
-void plPostPipeline::EnablePostRT()
-{ 
-	//fPipe->EndWorldRender();
-	fPipe->PushRenderTarget(fPostRT); 
-};
+	fVsShader = new plShader;
+	plString buff = plString::Format("%s_PassthroughVS", GetKey()->GetName().c_str());
+	hsgResMgr::ResMgr()->NewKey(buff, fVsShader, GetKey()->GetUoid().GetLocation());
+	fVsShader->SetIsPixelShader(false);
+	fVsShader->SetInputFormat(1);
+	fVsShader->SetOutputFormat(0);
+	fVsShader->SetNumConsts(numVSConsts);
+	fVsShader->SetNumPipeConsts(0);
+	//fVsShader->SetPipeConst(0, plPipeConst::kLocalToNDC, plGrassVS::kLocalToNDC);
+	fVsShader->SetDecl(plShaderTable::Decl(plShaderID::vs_RiftDistortAssembly));
+	hsgResMgr::ResMgr()->SendRef(fVsShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, kRefPassthroughVS), plRefFlags::kActiveRef);
 
-void plPostPipeline::DisablePostRT()
-{ 
-	fPipe->PushRenderTarget(nil); 
-	//fPipe->BeginPostScene();
-};
+	fPsShader = new plShader;
+	buff = plString::Format("%s_RiftDistortPS", GetKey()->GetName().c_str());
+	hsgResMgr::ResMgr()->NewKey(buff, fPsShader, GetKey()->GetUoid().GetLocation());
+	fPsShader->SetIsPixelShader(true);
+	fPsShader->SetNumConsts(numPSConsts);
+	fPsShader->SetInputFormat(0);
+	fPsShader->SetOutputFormat(0);
+	fPsShader->SetDecl(plShaderTable::Decl(plShaderID::ps_RiftDistortAssembly));
+	//fPsShader->SetDecl(plShaderTable::Decl(plShaderID::ps_RiftDistortAssembly));
+	hsgResMgr::ResMgr()->SendRef(fPsShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, kRefRiftDistortPS), plRefFlags::kActiveRef);
+}
+
+void plPostPipeline::UpdateShaders()
+{
+	float r, g, b;
+	r = g = b = 0.0f;
+	hsColorRGBA DistortionClearColor;
+	DistortionClearColor.Set(r, g, b, 1.0f);
+
+	fPsShader->SetColor(0, DistortionClearColor);
+    //Clear(r, g, b, a);
+
+	float w = float(fVP.w) / float(fRealVP.w),
+          h = float(fVP.h) / float(fRealVP.h),
+          x = float(fVP.x) / float(fRealVP.w),
+          y = float(fVP.y) / float(fRealVP.h);
+
+    float as = float(fVP.w) / float(fVP.h);
+
+    // We are using 1/4 of DistortionCenter offset value here, since it is
+    // relative to [-1,1] range that gets mapped to [0, 0.5].
+	float lensCenterSet[2] = {x + (w + fDistortion.XCenterOffset * 0.5f)*0.5f, y + h*0.5f};
+	fPsShader->SetFloat2(kRiftShaderLensCenter, lensCenterSet);
+	
+	float screenCenterSet[2] = {x + w*0.5f, y + h*0.5f};
+	fPsShader->SetFloat2(kRiftShaderScreenCenter, screenCenterSet);
+
+    // MA: This is more correct but we would need higher-res texture vertically; we should adopt this
+    // once we have asymmetric input texture scale.
+    float scaleFactor = 1.0f / fDistortion.Scale;
+	
+	float scaleOutSet[2] = {(w/2) * scaleFactor, (h/2) * scaleFactor * as};
+	fPsShader->SetFloat2(kRiftShaderScaleOut, scaleOutSet );
+	
+	float scaleInSet[2] = {(2/w), (2/h) / as};
+	fPsShader->SetFloat2(kRiftShaderScaleIn, scaleInSet);
+
+	float distortionSet[4] = {fDistortion.K[0], fDistortion.K[1], fDistortion.K[2], fDistortion.K[3]};
+	fPsShader->SetFloat4(kRiftShaderHmdWarpParam, distortionSet);
+
+	//Vertex shader consts
+    hsMatrix44 texm, transpose;
+	texm.Reset(false);
+	texm.fMap[0][0] = w;
+	texm.fMap[0][3] = x;
+	texm.fMap[1][1] = h;
+	texm.fMap[1][3] = y;
+	texm.fMap[2][2] = 0;
+	transpose.Reset(false);
+	texm.GetTranspose(&transpose);
+	//texm.Reset(false);
+	fVsShader->SetMatrix44(kRiftShaderTexm, transpose);
+	
+    /*hsMatrix44 view, vTransposed;
+	view.Reset(false);
+	view.fMap[0][0] = view.fMap[1][1] = 2;
+	view.fMap[0][3] = view.fMap[1][3] = -1;
+	view.fMap[2][2] = 0;
+	view.Reset(false);
+	*/
+	//view.GetTranspose(&vTransposed);
+	//fVsShader->SetMatrix44(kRiftShaderView, view);
+}
 
 void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
 	// Create our render target
@@ -86,101 +167,44 @@ void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
     const uint8_t zDepth(-1);
     const uint8_t stencilDepth(-1);
    fPostRT = new plRenderTarget(flags, width, height, bitDepth, zDepth, stencilDepth);
+   //fPostRT->SetViewport(width/2,0,width,height);
+   fPostRT->SetScreenRenderTarget(true);
 
     static int idx=0;
     plString buff = plString::Format("tRT%d", idx++);
     hsgResMgr::ResMgr()->NewKey(buff, fPostRT, this->GetKey()->GetUoid().GetLocation());
 }
 
-void plPostPipeline::RenderPostEffects(){
-	fPipe->ClearBackbuffer();
+void plPostPipeline::SetViewport(OVR::Util::Render::Viewport vp, bool resetProjection = false)
+{
+	fVP = vp;
+
+	plViewTransform vt = fPipe->GetViewTransform();
+	
+	vt.SetViewPort(fVP.x, fVP.y, fVP.x + fVP.w, fVP.y + fVP.h, false);
+	
+	if(resetProjection){
+		vt.SetWidth((float)fVP.w);
+		vt.SetHeight((float)fVP.h);
+		vt.SetDepth(0.3f, 500.0f);
+		vt.ResetProjectionMatrix();
+	}
+	
+    fPipe->SetViewTransform(vt);
+	fPipe->SetViewport();
 }
 
 
-void plPostPipeline::CreatePostSurface(){
+void plPostPipeline::EnablePostRT()
+{ 
+	fPipe->PushRenderTarget(fPostRT); 
+};
 
-	plLayer         *layer;
-    hsGMaterial     *material;
-    plString        keyName;
-	plPlate			*postPlate;
+void plPostPipeline::DisablePostRT()
+{ 
+	fPipe->PopRenderTarget(); 
+};
 
-	//Create the plate
-	postPlate = nil;
-	plPlateManager::Instance().CreatePlate( &postPlate, 0, 0, 1.0, 1.0 );
-	postPlate->SetVisible( true );
-	postPlate->SetDepth(3);
-
-	//material override TEST
-	plMipmap* texture = postPlate->CreateMaterial(512,512,true);
-	int x, y;
-	for( y = 0; y < texture->GetHeight(); y++ )
-    {
-        uint32_t  *pixels = texture->GetAddr32( 0, y );
-        for( x = 0; x < texture->GetWidth(); x++ )
-            pixels[ x ] = 0x55555555;
-    }
-
-	/// Create a new bitmap
-	/*
-    plMipmap* texture = new plMipmap( 512, 512, plMipmap::kRGB32Config, 1 );
-	memset( texture->GetImage(), 0xff, texture->GetHeight() * texture->GetRowBytes() );
-    keyName = plString::Format( "PlateBitmap#%d", 27 );
-    hsgResMgr::ResMgr()->NewKey( keyName, texture, plLocation::kGlobalFixedLoc );
-    texture->SetFlags( texture->GetFlags() | plMipmap::kDontThrowAwayImage );
-
-	//Create Vertex shader
-	plShader *vertShader = new plShader;
-
-	const plKey keyObj = GetKey();
-	const char * key = GetKey()->GetName().c_str();
-
-	plString buff = plString::Format("%s_PostVertexShader", GetKey()->GetName().c_str());
-	hsgResMgr::ResMgr()->NewKey(buff, vertShader, GetKey()->GetUoid().GetLocation());
-	
-	vertShader->SetIsPixelShader(false);
-	vertShader->SetNumConsts(2);
-	vertShader->SetInputFormat(1);
-	vertShader->SetOutputFormat(0);
-	vertShader->SetDecl(plShaderTable::Decl(plShaderID::vs_RiftDistortAssembly));
-
-	hsgResMgr::ResMgr()->SendRef(vertShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, 0), plRefFlags::kActiveRef);
-	
-
-	//Create Pixel shader
-	plShader *pixShader = new plShader;
-
-	buff = plString::Format("%s_PostPixelShader", GetKey()->GetName().c_str());
-	hsgResMgr::ResMgr()->NewKey(buff, vertShader, GetKey()->GetUoid().GetLocation());
-	
-	pixShader->SetIsPixelShader(true);
-	pixShader->SetNumConsts(6);
-	pixShader->SetInputFormat(0);
-	pixShader->SetOutputFormat(0);
-
-	pixShader->SetDecl(plShaderTable::Decl(plShaderID::vs_RiftDistortAssembly));
-
-	hsgResMgr::ResMgr()->SendRef(vertShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, 0), plRefFlags::kActiveRef);
-	 
-	/// Create material for layer
-    material = new hsGMaterial();
-	buff = plString::Format("%s_RiftPlate", GetKey()->GetName().c_str());
-    hsgResMgr::ResMgr()->NewKey( buff, material, plLocation::kGlobalFixedLoc );
-    layer = material->MakeBaseLayer();
-    layer->SetShadeFlags( layer->GetShadeFlags() | hsGMatState::kShadeNoShade | hsGMatState::kShadeWhite | hsGMatState::kShadeReallyNoFog );
-    layer->SetZFlags( layer->GetZFlags() | hsGMatState::kZNoZRead );
-    layer->SetBlendFlags( layer->GetBlendFlags() | hsGMatState::kBlendAlpha );
-	layer->SetPixelShader(pixShader);
-	layer->SetVertexShader(vertShader);
-	layer->SetOpacity( 1.0f );
-
-	hsgResMgr::ResMgr()->AddViaNotify( texture->GetKey(), new plLayRefMsg( layer->GetKey(), plRefMsg::kOnCreate, 0, plLayRefMsg::kTexture ), plRefFlags::kActiveRef );
-
-    // Set up a ref to these. Since we don't have a key, we use the
-    // generic RefObject() (and matching UnRefObject() when we're done).
-    // If we had a key, we would use myKey->AddViaNotify(otherKey) and myKey->Release(otherKey).
-    material->GetKey()->RefObject();
-
-	postPlate->SetMaterial(material);
-	postPlate->SetTexture(texture);
-	*/
+void plPostPipeline::RenderPostEffects(){
+	fPipe->RenderPostScene(fPostRT, fVsShader, fPsShader);
 }

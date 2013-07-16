@@ -97,6 +97,8 @@ namespace plShaderID
 			//Post processing shaders
 			vs_RiftDistortAssembly,
 			ps_RiftDistortAssembly,
+			vs_Passthrough,
+			ps_Passthrough,
 #endif
 
             kNumShaders

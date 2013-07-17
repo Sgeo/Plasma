@@ -71,7 +71,11 @@ plRiftCamera::plRiftCamera() :
 	fEyeToRender(EYE_LEFT),
 	fXRotOffset(3.1415926),
 	fYRotOffset(3.1415926),
-	fZRotOffset(3.1415926)
+	fZRotOffset(3.1415926),
+	fEyeYaw(0.0f),
+	fUpVector(0.0f, 1.0f, 0.0f),
+	fForwardVector(0.0f,0.0f,1.0f),
+	fRightVector(1.0f, 0.0f, 0.0f)
 {
 	/*
 	YawInitial = 3.141592f;
@@ -145,12 +149,11 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 	eyeTransform.fMap[0][3] *= -0.3048;	//Convert Rift meters to feet
 
 	hsMatrix44 riftOrientation;
-	riftOrientation.Reset();
 
 	if(fVirtualCam){
-		//if(fVirtualCam->HasFlags(plVirtualCam1::kHasUpdated)){
-		riftOrientation = CalculateRiftCameraOrientation(fVirtualCam->GetCameraPos());
-		//}
+		if(fVirtualCam->HasFlags(plVirtualCam1::kHasUpdated)){
+			riftOrientation = RawRiftRotation(fVirtualCam->GetCameraPos());
+		}
 	}
 
 	eyeTransform = riftOrientation * eyeTransform;
@@ -184,34 +187,56 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 	fPipe->SetViewport();
 }
 
+hsMatrix44 plRiftCamera::RawRiftRotation(hsPoint3 camPosition){
+	hsMatrix44 outView;
+	Quatf riftOrientation = SFusion.GetPredictedOrientation();
+	Matrix4f riftMatrix = Matrix4f(riftOrientation.Inverted());
+
+	riftMatrix *= Matrix4f::RotationX(fXRotOffset);
+	riftMatrix *= Matrix4f::RotationY(fYRotOffset);
+	riftMatrix *= Matrix4f::RotationZ(fZRotOffset);
+
+	hsMatrix44 testerAlt;
+	OVRTransformToHSTransform(riftMatrix, &outView);
+	return outView;
+}
 
 
 hsMatrix44 plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
-	//Matrix4f hmdMat(hmdOrient);
+	hsMatrix44 outView;
+	float yaw = 0.0f;
+
+	// Minimal head modeling; should be moved as an option to SensorFusion.
+    float headBaseToEyeHeight     = 0.15f;  // Vertical height of eye from base of head
+    float headBaseToEyeProtrusion = 0.09f;  // Distance forward of eye from base of head
 
 	Quatf riftOrientation = SFusion.GetPredictedOrientation();
-	Matrix4f tester = Matrix4f(riftOrientation.Inverted());
+	//Matrix4f tester = Matrix4f(riftOrientation.Inverted());
 	Vector3f camPos(camPosition.fX, camPosition.fY, camPosition.fZ);
 
-	/*
-	tester *= Matrix4f::RotationX(3.1415926 * -0.5);
-	tester *= Matrix4f::RotationY(-3.1415926);
-	tester *= Matrix4f::RotationZ(3.1415926 * -0.5);
-	*/
-	tester *= Matrix4f::RotationX(fXRotOffset);
-	tester *= Matrix4f::RotationY(fYRotOffset);
-	tester *= Matrix4f::RotationZ(fZRotOffset);
+	riftOrientation.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &fEyePitch, &fEyeRoll);
 
-	//tester *= Matrix4f::Translation(-camPos);
-	//tester *= Matrix4f::Translation(-camPos) * eyeConfig.ViewAdjust;
-	
-	hsMatrix44 testerAlt;
-	OVRTransformToHSTransform(tester, &testerAlt);
-	return testerAlt;
-	
-	//std::stringstream riftCons;
-	//riftCons << riftOrientation.x << ", " << riftOrientation.y << ", " << riftOrientation.z << ", " << riftOrientation.w;
-	//fConsole->AddLine(riftCons.str().c_str());
+	fEyeYaw += (yaw - fLastSensorYaw);
+    fLastSensorYaw = yaw;
+
+	Matrix4f rollPitchYaw = Matrix4f::RotationY(fEyeYaw) * Matrix4f::RotationX(-fEyePitch) * Matrix4f::RotationZ(-fEyeRoll);
+	Vector3f up      = rollPitchYaw.Transform(fUpVector);
+	Vector3f forward = rollPitchYaw.Transform(fForwardVector);
+
+	//Vector3f empty(0.0f, 0.0f, 0.0f);
+    //Vector3f eyeCenterInHeadFrame(0.0f, headBaseToEyeHeight, -headBaseToEyeProtrusion);
+	//Vector3f shiftedEyePos = Vector3f(camPosition.fX, camPosition.fY, camPosition.fZ) + rollPitchYaw.Transform(empty);
+    //shiftedEyePos.y -= eyeCenterInHeadFrame.y; // Bring the head back down to original height
+	//Matrix4f view = Matrix4f::LookAtLH(shiftedEyePos, shiftedEyePos + forward, up).Invert();
+	//OVRTransformToHSTransform(view, &outView);
+
+	Vector3f lookAt(Vector3f(camPosition.fX, camPosition.fY, camPosition.fZ) + forward);
+	hsPoint3 targetPOA(lookAt.x, lookAt.y, lookAt.z);
+	//hsPoint3 targetPos(shiftedEyePos.x, shiftedEyePos.y, shiftedEyePos.z);
+	hsVector3 targetUp(up.x, up.y, up.z);
+	outView.MakeCamera(&camPosition, &targetPOA, &targetUp);
+
+	return outView;
 }
 
 
@@ -228,105 +253,3 @@ hsMatrix44* plRiftCamera::OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44*
 
 	return hsMat;
 }
-
-hsMatrix44* plRiftCamera::OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix44* hsMat, float zMin, float zMax){
-	hsMat->Reset(false);
-	hsMat->NotIdentity();
-
-	//OVRmat.Transpose();
-	hsMat->fMap[0][0] = OVRmat.M[0][0];
-	hsMat->fMap[0][1] = OVRmat.M[0][1];
-	hsMat->fMap[0][2] = OVRmat.M[0][2];
-	hsMat->fMap[0][3] = OVRmat.M[0][3];
-	hsMat->fMap[1][0] = OVRmat.M[1][0];
-	hsMat->fMap[1][1] = OVRmat.M[1][1];
-	hsMat->fMap[1][2] = OVRmat.M[1][2];
-	hsMat->fMap[1][3] = OVRmat.M[1][3];
-	hsMat->fMap[2][0] = OVRmat.M[2][0];
-	hsMat->fMap[2][1] = OVRmat.M[2][1];
-	hsMat->fMap[2][2] = zMax / (zMax - zMin); //OVRmat.M[2][2]; //zMin;
-	hsMat->fMap[2][3] =  1.0f;//OVRmat.M[2][3]; //zMax;
-	hsMat->fMap[3][0] = OVRmat.M[3][0];
-	hsMat->fMap[3][1] = OVRmat.M[3][1];
-	hsMat->fMap[3][2] = -zMax * zMin / (zMax - zMin);
-	hsMat->fMap[3][3] = 0.0;
-
-	//For reference, here is what OVR is outputting
-	//----------------------------------------------
-	/*
-	Matrix4f m;
-    float    tanHalfFov = tan(yfov * 0.5f);
-  
-    m.M[0][0] = 1.0f / (aspect * tanHalfFov);
-    m.M[1][1] = 1.0f / tanHalfFov;
-    m.M[2][2] = zfar / (znear - zfar);
-   // m.M[2][2] = zfar / (zfar - znear);
-    m.M[3][2] = -1.0f;
-    m.M[2][3] = (zfar * znear) / (znear - zfar);
-    m.M[3][3] = 0.0f;
-
-    // Note: Post-projection matrix result assumes Left-Handed coordinate system,    
-    //       with Y up, X right and Z forward. This supports positive z-buffer values.
-    // This is the case even for RHS cooridnate input.       
-    return m;
-	*/
-
-	/* fCameraToNDC.fMap[0][0] = 2.f / (fMax.fX - fMin.fX);
-        fCameraToNDC.fMap[0][2] = (fMax.fX + fMin.fX) / (fMax.fX - fMin.fX);
-
-        fCameraToNDC.fMap[1][1] = 2.f / (fMax.fY - fMin.fY);
-        fCameraToNDC.fMap[1][2] = (fMax.fY + fMin.fY) / (fMax.fY - fMin.fY);
-
-        fCameraToNDC.fMap[2][2] = fMax.fZ / (fMax.fZ - fMin.fZ);
-        fCameraToNDC.fMap[2][3] = -fMax.fZ * fMin.fZ / (fMax.fZ - fMin.fZ);
-
-        fCameraToNDC.fMap[3][2] = 1.f;
-        fCameraToNDC.fMap[3][3] = 0.f;
-		*/
-
-	return hsMat;
-}
-
-
-
-
-//LEFTOVER TESTING CODE - Is this useful for richard?
-
-
-	
-	/*Quatf    hmdOrient = SFusion.GetPredictedOrientation();
-
-    float    yaw = 0.0f;
-    hmdOrient.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &Player.EyePitch, &Player.EyeRoll);
-
-    Player.EyeYaw += (yaw - Player.LastSensorYaw);
-    Player.LastSensorYaw = yaw;
-	*/
-
-	/*
-    // NOTE: We can get a matrix from orientation as follows:
-    // Matrix4f hmdMat(hmdOrient);
-
-    // Test logic - assign quaternion result directly to view:
-    // Quatf hmdOrient = SFusion.GetOrientation();
-    // View = Matrix4f(hmdOrient.Inverted()) * Matrix4f::Translation(-EyePos);
-
-	//***** --- Working code here
-
-
-	//***************************
-
-
-	//fNewCamera->SetRiftOverrideMatrix(testerAlt);
-	//fNewCamera-
-	
-	//
-	//float yaw = 0;
-	//float pitch = 0;
-	//float roll = 0;
-	//hmdOrient.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &pitch, &roll);
-
-	//upp = tester.Transform(upp);
-	//fNewCamera->SetRiftOverrideUp(hsVector3(upp.x, upp.y, upp.z));
-	//fNewCamera->SetRiftOverridePOA(hsVector3(yaw, pitch, roll));
-*/

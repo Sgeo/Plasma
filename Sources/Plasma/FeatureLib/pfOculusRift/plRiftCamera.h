@@ -98,6 +98,7 @@ public:
 	void initRift(int width, int height);
 	void SetCameraManager(plVirtualCam1* camManager){ fVirtualCam = camManager; };
 	void SetPipeline(plPipeline* pipe){ fPipe = pipe; };
+	hsMatrix44 RawRiftRotation(hsPoint3 camPosition);
 	hsMatrix44 CalculateRiftCameraOrientation(hsPoint3 camPosition);
 
 	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
@@ -121,7 +122,6 @@ public:
 
 	//Utils
 	hsMatrix44* OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44* hsMat);
-	hsMatrix44* OVRProjectionToHSProjection(Matrix4f OVRmat, hsMatrix44* hsMat, float zMin, float zMax);
 
 	void SetXOffsetRotation(float offset){fXRotOffset = 3.1415926 * offset;};
 	void SetYOffsetRotation(float offset){fYRotOffset = 3.1415926 * offset;};
@@ -148,15 +148,15 @@ private:
 	
 	float fXRotOffset, fYRotOffset, fZRotOffset;
 
-	Vector3f            EyePos;
-    float               EyeYaw;         // Rotation around Y, CCW positive when looking at RHS (X,Z) plane.
-    float               EyePitch;       // Pitch. If sensor is plugged in, only read from sensor.
-    float               EyeRoll;        // Roll, only accessible from Sensor.
-    float               LastSensorYaw;  // Stores previous Yaw value from to support computing delta.
-	float				YawInitial;
-	Vector3f			UpVector;
-	Vector3f			ForwardVector;
-	Vector3f			RightVector;
+	Vector3f            fEyePos;
+    float               fEyeYaw;         // Rotation around Y, CCW positive when looking at RHS (X,Z) plane.
+    float               fEyePitch;       // Pitch. If sensor is plugged in, only read from sensor.
+    float               fEyeRoll;        // Roll, only accessible from Sensor.
+    float               fLastSensorYaw;  // Stores previous Yaw value from to support computing delta.
+	float				fYawInitial;
+	Vector3f			fUpVector;
+	Vector3f			fForwardVector;
+	Vector3f			fRightVector;
 };
 
 #endif

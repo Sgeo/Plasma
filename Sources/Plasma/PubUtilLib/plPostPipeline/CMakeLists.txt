@@ -1,3 +1,4 @@
+include_directories(${LibOVR_INCLUDE_DIR})
 include_directories(../../CoreLib)
 include_directories(../../FeatureLib)
 include_directories(../../NucleusLib)

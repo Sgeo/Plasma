@@ -4,6 +4,10 @@ include_directories(../../NucleusLib)
 include_directories(../../NucleusLib/inc)
 include_directories(../../PubUtilLib)
 
+if(LibOVR_FOUND)
+    include_directories(${LibOVR_INCLUDE_DIR})
+endif(LibOVR_FOUND)  
+
 if(WIN32)
     add_definitions(-DWIN32)
 endif(WIN32)
@@ -13,7 +17,7 @@ set(pfOculusRift_SOURCES
 )
 
 set(pfOculusRift_HEADERS
-	plRiftCamera.h
+    plRiftCamera.h
     pfRiftCreatable.h
 )
 

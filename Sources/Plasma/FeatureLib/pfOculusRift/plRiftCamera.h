@@ -43,6 +43,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #ifndef plRiftCamera_inc
 #define plRiftCamera_inc
 
+
 //Plasma includes
 #include "HeadSpin.h"
 #include "hsTemplates.h"
@@ -50,6 +51,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsMatrix44.h"
 #include "plstring.h"
 #include "plGImage/plMipmap.h"
+
 	
 #include "plSurface/hsGMaterial.h"
 #include "plMessage/plLayRefMsg.h"
@@ -66,12 +68,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnKeyedObject/plUoid.h"
 //#include "../../FeatureLib/pfCamera/plVirtualCamNeu.h"
 
-//Rift includes
-#include "ovr.h"
-#include <iostream>		//Seriously, why is this not in here?
-#include <sstream>
-
 //Rift namespace
+#include "ovr.h"
 using namespace OVR;
 
 class plPipeline;

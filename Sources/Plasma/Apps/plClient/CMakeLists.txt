@@ -1,3 +1,7 @@
+if(LibOVR_FOUND)
+    include_directories(${LibOVR_INCLUDE_DIR})
+endif(LibOVR_FOUND)  
+
 include_directories("../../Apps")
 include_directories("../../CoreLib")
 include_directories("../../FeatureLib/inc")
@@ -10,10 +14,6 @@ include_directories("../../PubUtilLib")
 if(Bink_SDK_AVAILABLE)
     include_directories(${Bink_INCLUDE_DIR})
 endif()
-
-if(LibOVR_FOUND)
-    include_directories(${LibOVR_INCLUDE_DIR})
-endif(LibOVR_FOUND)  
 
 include_directories(${OPENAL_INCLUDE_DIR})
 include_directories(${OPENSSL_INCLUDE_DIR})

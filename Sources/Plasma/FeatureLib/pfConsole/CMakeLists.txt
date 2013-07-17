@@ -7,6 +7,10 @@ include_directories(../../PubUtilLib)
 include_directories(${OPENAL_INCLUDE_DIR})
 include_directories(${PYTHON_INCLUDE_DIR})
 
+if(LibOVR_FOUND)
+    include_directories(${LibOVR_INCLUDE_DIR})
+endif(LibOVR_FOUND)  
+
 set(pfConsole_SOURCES
     pfAvatarConsoleCommands.cpp
     pfCCRConsoleCommands.cpp

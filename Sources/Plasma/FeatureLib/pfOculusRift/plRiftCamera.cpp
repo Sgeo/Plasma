@@ -77,6 +77,7 @@ plRiftCamera::plRiftCamera() :
 	fForwardVector(0.0f,0.0f,1.0f),
 	fRightVector(1.0f, 0.0f, 0.0f)
 {
+	SetFlags(kUseRawInput);
 	/*
 	YawInitial = 3.141592f;
 	EyePos = Vector3f(0.0f, 1.6f, -5.0f),
@@ -150,10 +151,10 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 
 	hsMatrix44 riftOrientation;
 
-	if(fVirtualCam){
-		if(fVirtualCam->HasFlags(plVirtualCam1::kHasUpdated)){
-			riftOrientation = RawRiftRotation(fVirtualCam->GetCameraPos());
-		}
+	if(HasFlags(kUseRawInput)){
+		riftOrientation = RawRiftRotation();
+	} else if(HasFlags(kUseEulerInput)){
+		riftOrientation = EulerRiftRotation();
 	}
 
 	eyeTransform = riftOrientation * eyeTransform;
@@ -187,7 +188,7 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 	fPipe->SetViewport();
 }
 
-hsMatrix44 plRiftCamera::RawRiftRotation(hsPoint3 camPosition){
+hsMatrix44 plRiftCamera::RawRiftRotation(){
 	hsMatrix44 outView;
 	Quatf riftOrientation = SFusion.GetPredictedOrientation();
 	Matrix4f riftMatrix = Matrix4f(riftOrientation.Inverted());
@@ -202,7 +203,7 @@ hsMatrix44 plRiftCamera::RawRiftRotation(hsPoint3 camPosition){
 }
 
 
-hsMatrix44 plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
+hsMatrix44 plRiftCamera::EulerRiftRotation(){
 	hsMatrix44 outView;
 	float yaw = 0.0f;
 
@@ -212,7 +213,7 @@ hsMatrix44 plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
 
 	Quatf riftOrientation = SFusion.GetPredictedOrientation();
 	//Matrix4f tester = Matrix4f(riftOrientation.Inverted());
-	Vector3f camPos(camPosition.fX, camPosition.fY, camPosition.fZ);
+	//Vector3f camPos(camPosition.fX, camPosition.fY, camPosition.fZ);
 
 	riftOrientation.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &fEyePitch, &fEyeRoll);
 
@@ -223,6 +224,13 @@ hsMatrix44 plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
 	Vector3f up      = rollPitchYaw.Transform(fUpVector);
 	Vector3f forward = rollPitchYaw.Transform(fForwardVector);
 
+	Matrix4f riftMatrix = Matrix4f::LookAtLH( Vector3f(0.0f, 0.0f, 0.0f), forward, up);
+	riftMatrix *= Matrix4f::RotationX(fXRotOffset);
+	riftMatrix *= Matrix4f::RotationY(fYRotOffset);
+	riftMatrix *= Matrix4f::RotationZ(fZRotOffset);
+
+	OVRTransformToHSTransform(riftMatrix, &outView);
+
 	//Vector3f empty(0.0f, 0.0f, 0.0f);
     //Vector3f eyeCenterInHeadFrame(0.0f, headBaseToEyeHeight, -headBaseToEyeProtrusion);
 	//Vector3f shiftedEyePos = Vector3f(camPosition.fX, camPosition.fY, camPosition.fZ) + rollPitchYaw.Transform(empty);
@@ -230,11 +238,11 @@ hsMatrix44 plRiftCamera::CalculateRiftCameraOrientation(hsPoint3 camPosition){
 	//Matrix4f view = Matrix4f::LookAtLH(shiftedEyePos, shiftedEyePos + forward, up).Invert();
 	//OVRTransformToHSTransform(view, &outView);
 
-	Vector3f lookAt(Vector3f(camPosition.fX, camPosition.fY, camPosition.fZ) + forward);
-	hsPoint3 targetPOA(lookAt.x, lookAt.y, lookAt.z);
+	//Vector3f lookAt(Vector3f(camPosition.fX, camPosition.fY, camPosition.fZ) + forward);
+	//hsPoint3 targetPOA(forward.x, forward.y, forward.z);
 	//hsPoint3 targetPos(shiftedEyePos.x, shiftedEyePos.y, shiftedEyePos.z);
-	hsVector3 targetUp(up.x, up.y, up.z);
-	outView.MakeCamera(&camPosition, &targetPOA, &targetUp);
+	//hsVector3 targetUp(up.x, up.y, up.z);
+	//outView.MakeCamera(&camPosition, &targetPOA, &targetUp);
 
 	return outView;
 }

@@ -87,6 +87,13 @@ class plShader;
 
 class plRiftCamera : public hsKeyedObject{
 public:
+
+	//Flags
+	enum {
+		kUseRawInput,		
+		kUseEulerInput
+	};
+
 	plRiftCamera();
 	virtual ~plRiftCamera();
 
@@ -94,12 +101,23 @@ public:
     GETINTERFACE_ANY( plRiftCamera, hsKeyedObject );
 
 	virtual bool MsgReceive(plMessage* msg);
+	void SetFlags(int flag) { fFlags.SetBit(flag); }
+    bool HasFlags(int flag) { return fFlags.IsBitSet(flag); }
+    void ClearFlags(int flag) { fFlags.ClearBit(flag); }
 
 	void initRift(int width, int height);
 	void SetCameraManager(plVirtualCam1* camManager){ fVirtualCam = camManager; };
 	void SetPipeline(plPipeline* pipe){ fPipe = pipe; };
-	hsMatrix44 RawRiftRotation(hsPoint3 camPosition);
-	hsMatrix44 CalculateRiftCameraOrientation(hsPoint3 camPosition);
+	hsMatrix44 RawRiftRotation();
+	hsMatrix44 EulerRiftRotation();
+	void SetRawRotation(){
+		ClearFlags(kUseEulerInput);
+		SetFlags(kUseRawInput);
+	}
+	void SetEulerRotation(){
+		ClearFlags(kUseRawInput);
+		SetFlags(kUseEulerInput);
+	}
 
 	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
 	void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
@@ -123,9 +141,9 @@ public:
 	//Utils
 	hsMatrix44* OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44* hsMat);
 
-	void SetXOffsetRotation(float offset){fXRotOffset = 3.1415926 * offset;};
-	void SetYOffsetRotation(float offset){fYRotOffset = 3.1415926 * offset;};
-	void SetZOffsetRotation(float offset){fZRotOffset = 3.1415926 * offset;};
+	void SetXOffsetRotation(float offset){fXRotOffset = 3.1415926f * offset;};
+	void SetYOffsetRotation(float offset){fYRotOffset = 3.1415926f * offset;};
+	void SetZOffsetRotation(float offset){fZRotOffset = 3.1415926f * offset;};
 
 private:
 
@@ -157,6 +175,8 @@ private:
 	Vector3f			fUpVector;
 	Vector3f			fForwardVector;
 	Vector3f			fRightVector;
+	hsBitVector         fFlags;
+
 };
 
 #endif

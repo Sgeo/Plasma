@@ -56,13 +56,29 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plMessage/plLayRefMsg.h"
 
 
+plPostPipeline* plPostPipeline::fInstance=nil;
+
 plPostPipeline::plPostPipeline(): 
 	fEnablePost(true), 
-	fRenderScale(1.0f)
+	fRenderScale(DEFAULT_RIFTSCALE)
 {
 }
 
 plPostPipeline::~plPostPipeline(){
+	delete(fVsShader);
+	delete(fPsShader);
+	ReleaseGeometry();
+	ReleaseTextures();
+	fPipe = nil;
+	fInstance = nil;
+}
+
+void plPostPipeline::ReleaseGeometry(){
+}
+
+void plPostPipeline::ReleaseTextures(){
+	delete(fPostRT);
+	fPostRT = nil;
 }
 
 bool plPostPipeline::MsgReceive(plMessage* msg)
@@ -74,9 +90,14 @@ void plPostPipeline::CreateShaders(){
 	int numVSConsts = 8;
 	int numPSConsts = 5;
 
+	//if(fVsShader)
+		//delete(fVsShader);
+	//if(fPsShader)
+		//delete(fPsShader);
+
 	fVsShader = new plShader;
-	plString buff = plString::Format("%s_PassthroughVS", GetKey()->GetName().c_str());
-	hsgResMgr::ResMgr()->NewKey(buff, fVsShader, GetKey()->GetUoid().GetLocation());
+	//plString buff = plString::Format("%s_PassthroughVS", GetKey()->GetName().c_str());
+	//hsgResMgr::ResMgr()->NewKey(buff, fVsShader, GetKey()->GetUoid().GetLocation());
 	fVsShader->SetIsPixelShader(false);
 	fVsShader->SetInputFormat(1);
 	fVsShader->SetOutputFormat(0);
@@ -84,18 +105,18 @@ void plPostPipeline::CreateShaders(){
 	fVsShader->SetNumPipeConsts(0);
 	//fVsShader->SetPipeConst(0, plPipeConst::kLocalToNDC, plGrassVS::kLocalToNDC);
 	fVsShader->SetDecl(plShaderTable::Decl(plShaderID::vs_RiftDistortAssembly));
-	hsgResMgr::ResMgr()->SendRef(fVsShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, kRefPassthroughVS), plRefFlags::kActiveRef);
+	//hsgResMgr::ResMgr()->SendRef(fVsShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, kRefPassthroughVS), plRefFlags::kActiveRef);
 
 	fPsShader = new plShader;
-	buff = plString::Format("%s_RiftDistortPS", GetKey()->GetName().c_str());
-	hsgResMgr::ResMgr()->NewKey(buff, fPsShader, GetKey()->GetUoid().GetLocation());
+	//buff = plString::Format("%s_RiftDistortPS", GetKey()->GetName().c_str());
+	//hsgResMgr::ResMgr()->NewKey(buff, fPsShader, GetKey()->GetUoid().GetLocation());
 	fPsShader->SetIsPixelShader(true);
 	fPsShader->SetNumConsts(numPSConsts);
 	fPsShader->SetInputFormat(0);
 	fPsShader->SetOutputFormat(0);
 	fPsShader->SetDecl(plShaderTable::Decl(plShaderID::ps_RiftDistortAssembly));
 	//fPsShader->SetDecl(plShaderTable::Decl(plShaderID::ps_RiftDistortAssembly));
-	hsgResMgr::ResMgr()->SendRef(fPsShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, kRefRiftDistortPS), plRefFlags::kActiveRef);
+	//hsgResMgr::ResMgr()->SendRef(fPsShader->GetKey(), new plGenRefMsg(GetKey(), plRefMsg::kOnRequest, 0, kRefRiftDistortPS), plRefFlags::kActiveRef);
 }
 
 void plPostPipeline::UpdateShaders()
@@ -166,13 +187,13 @@ void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
     const uint8_t bitDepth(32);
     const uint8_t zDepth(-1);
     const uint8_t stencilDepth(-1);
-   fPostRT = new plRenderTarget(flags, width, height, bitDepth, zDepth, stencilDepth);
-   //fPostRT->SetViewport(width/2,0,width,height);
-   fPostRT->SetScreenRenderTarget(true);
 
-    static int idx=0;
-    plString buff = plString::Format("tRT%d", idx++);
-    hsgResMgr::ResMgr()->NewKey(buff, fPostRT, this->GetKey()->GetUoid().GetLocation());
+	fPostRT = new plRenderTarget(flags, (uint16_t)(width * fRenderScale), (uint16_t)(height * fRenderScale), bitDepth, zDepth, stencilDepth);
+    fPostRT->SetScreenRenderTarget(true);
+
+    //static int idx=0;
+    //plString buff = plString::Format("tRT%d", idx++);
+    //hsgResMgr::ResMgr()->NewKey(buff, fPostRT, this->GetKey()->GetUoid().GetLocation());
 }
 
 void plPostPipeline::SetViewport(OVR::Util::Render::Viewport vp, bool resetProjection = false)

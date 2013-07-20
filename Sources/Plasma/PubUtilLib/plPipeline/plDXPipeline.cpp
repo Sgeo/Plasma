@@ -146,6 +146,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pfCamera/plCameraModifier.h"
 #include "plResMgr/plLocalization.h"
 
+#ifdef BUILD_RIFT_SUPPORT
+#include "plPostPipeline/plPostPipeline.h"
+#endif
 
 // mf horse - test hack, nuke this later
 #include "plSurface/plLayerDepth.h"
@@ -591,6 +594,7 @@ plDXPipeline::plDXPipeline( hsWinRef hWnd, const hsG3DDeviceModeRecord *devModeR
 :   fManagedAlloced(false),
 #ifdef BUILD_RIFT_SUPPORT	
 	PLD3D_SCREENQUADFVF( D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1 | D3DFVF_TEXCOORDSIZE3(0) ),		//Vertex format flags for post processing screen quad
+	fPostMgr(nil),
 #endif
     fAllocUnManaged(false)
 {
@@ -746,6 +750,9 @@ void    plDXPipeline::IClearMembers()
     fBoundsSpans = nil;
 #endif
     fPlateMgr = nil;
+#ifdef BUILD_RIFT_SUPPORT
+	fPostMgr = nil;
+#endif
     fLogDrawer = nil;
     fDebugTextMgr = nil;
     fCurrLightingMethod = plSpan::kLiteMaterial;
@@ -1358,6 +1365,10 @@ bool  plDXPipeline::ICreateDeviceObjects()
     fPlateMgr = new plDXPlateManager( this, fD3DDevice );
     if( fPlateMgr == nil || !fPlateMgr->IsValid() )
         return true;
+
+#if BUILD_RIFT_SUPPORT
+	fPostMgr = plPostPipeline::GetInstance();
+#endif
 
     // We've got everything created now, initialize to a known state.
     IInitDeviceState();
@@ -2064,6 +2075,10 @@ void    plDXPipeline::IReleaseDeviceObjects()
     delete fPlateMgr;
     fPlateMgr = nil;
 
+#ifdef BUILD_RIFT_SUPPORT
+	fPostMgr = nil;
+#endif
+
     if( fD3DDevice != nil )
     {
         LONG ret;
@@ -2150,6 +2165,15 @@ void plDXPipeline::IReleaseDynamicBuffers()
     // PlateMgr has a POOL_DEFAULT vertex buffer for drawing quads.
     if( fPlateMgr )
         fPlateMgr->IReleaseGeometry();
+
+	
+	#if BUILD_RIFT_SUPPORT
+	//if(fScreenQuadVertBuffer){
+		//delete(fScreenQuadVertBuffer);
+		//fScreenQuadVertBuffer = nil;
+	//}
+	//fPostMgr->ReleaseTextures();
+	#endif
 
     // Also has POOL_DEFAULT vertex buffer.
     plDXTextFont::ReleaseShared(fD3DDevice);
@@ -5334,6 +5358,9 @@ bool plDXPipeline::IGetClearViewPort(D3DRECT& r)
 
 
 #ifdef BUILD_RIFT_SUPPORT
+void plDXPipeline::SetPostProcessingManager(plPostPipeline* postMgr){
+	fPostMgr = postMgr; 
+};
 
 void plDXPipeline::CreateScreenQuadGeometry()
 {
@@ -5423,9 +5450,6 @@ void plDXPipeline::RenderPostScene(plRenderTarget* screenRender, plShader* vsSha
     fD3DDevice->SetVertexShader( fSettings.fCurrVertexShader = NULL);
     fD3DDevice->SetFVF(fSettings.fCurrFVFFormat = PLD3D_SCREENQUADFVF);
     fD3DDevice->SetStreamSource( 0, fScreenQuadVertBuffer, 0, sizeof( plScreenQuadVertex ) );  
-    // To get plates properly pixel-aligned, we need to compensate for D3D9's weird half-pixel
-    // offset (see http://drilian.com/2008/11/25/understanding-half-pixel-and-half-texel-offsets/
-    // or http://msdn.microsoft.com/en-us/library/bb219690(VS.85).aspx).
 	D3DXMatrixTranslation(&mat, -0.5f/scrnWidthDiv2, -0.5f/scrnHeightDiv2, 0.0f);
     fD3DDevice->SetTransform( D3DTS_VIEW, &mat );
     oldCullMode = fCurrCullMode;
@@ -10757,6 +10781,12 @@ void plDXPipeline::LoadResources()
     // This can be a bit of a mem hog and will use more mem if available, so keep it last in the
     // POOL_DEFAULT allocs.
     IFillAvRTPool();
+
+	
+#if BUILD_RIFT_SUPPORT
+	fPostMgr->CreatePostRT(Width(), Height());
+	fPostMgr->CreateShaders();
+#endif
 
     // We should have everything POOL_DEFAULT we need now.
     IEndAllocUnManaged();

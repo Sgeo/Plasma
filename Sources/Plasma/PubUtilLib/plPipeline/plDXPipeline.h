@@ -172,6 +172,9 @@ class plCubicEnvironmap;
 class plDXRenderTargetRef;
 class plStatusLogDrawer;
 class plBinkPlayer;
+#ifdef BUILD_RIFT_SUPPORT
+class plpostPipeline;
+#endif
 
 class plDXPipeline : public plPipeline
 {
@@ -556,6 +559,7 @@ protected:
 #ifdef BUILD_RIFT_SUPPORT
 	//Post processing variables in here. 
 	IDirect3DVertexBuffer9  *fScreenQuadVertBuffer;
+	plPostPipeline* fPostMgr;	//Pointer to post processing manager
 
 	const long  PLD3D_SCREENQUADFVF;
 
@@ -657,6 +661,8 @@ public:
 
 #ifdef BUILD_RIFT_SUPPORT
 	virtual void						CreateScreenQuadGeometry();
+	virtual void					    SetPostProcessingManager(plPostPipeline* postMgr);
+
 	virtual void						BeginScene();
 	virtual void						RenderPostScene(plRenderTarget* screenRender, plShader* vsShader, plShader* psShader);
 	virtual void						ClearBackbuffer();

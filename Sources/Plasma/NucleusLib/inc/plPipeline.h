@@ -91,6 +91,9 @@ class plLightInfo;
 class plMipmap;
 class plVisMgr;
 class plShader;
+#ifdef BUILD_RIFT_SUPPORT
+class plPostPipeline;
+#endif
 
 class plViewTransform;
 
@@ -218,6 +221,7 @@ public:
 
 #ifdef BUILD_RIFT_SUPPORT
 	virtual void						CreateScreenQuadGeometry() = 0;
+	virtual void					    SetPostProcessingManager(plPostPipeline* postMgr) = 0;
 	virtual void						BeginScene() = 0;
 	virtual void						RenderPostScene(plRenderTarget* screenRender, plShader* vsShader, plShader* psShader) = 0;
 	virtual void						ClearBackbuffer() = 0;

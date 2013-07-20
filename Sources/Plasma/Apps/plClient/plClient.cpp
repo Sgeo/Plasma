@@ -406,6 +406,18 @@ bool plClient::Shutdown()
 
 	PythonInterface::finiPython();
 
+#ifdef BUILD_RIFT_SUPPORT
+	if(fRiftCamera){
+		fRiftCamera->UnRegisterAs(kRiftCamera_KEY);
+		delete(fRiftCamera);
+	}
+
+	if (fPostProcessingMgr){
+		//fPostProcessingMgr->UnRegisterAs(kPostProcessingMgr_KEY);
+		delete(fPostProcessingMgr);
+	}
+#endif
+
 	if (fNewCamera)
 		fNewCamera->UnRegisterAs( kVirtualCamera1_KEY );
 
@@ -590,8 +602,18 @@ bool plClient::InitPipeline()
 
 	plAccessGeometry::Init(pipe);
 
+#ifdef BUILD_RIFT_SUPPORT
+	fPostProcessingMgr = plPostPipeline::GetInstance();
+	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
+	fPostProcessingMgr->SetPipeline(pipe);
+	fPostProcessingMgr->SetRealViewport(OVR::Util::Render::Viewport(0,0,pipe->Width(),pipe->Height() ));
+	//fPostProcessingMgr->SetRenderScale(fRiftCamera->GetRenderScale()); 
+#endif
+
 	if( fPipeline )
 		fPipeline->LoadResources();
+
+
 
 	return false;
 }
@@ -1617,12 +1639,15 @@ bool plClient::StartInit()
 	fRiftCamera->SetCameraManager(fNewCamera);
 	fRiftCamera->SetPipeline(fPipeline);
 
-	fPostProcessingMgr = new plPostPipeline;
-	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
-	fPostProcessingMgr->SetPipeline(fPipeline);
-	fPostProcessingMgr->SetRealViewport(OVR::Util::Render::Viewport(0,0,fPipeline->Width(),fPipeline->Height() ));
-	fPostProcessingMgr->CreatePostRT(fPipeline->Width() * fRiftCamera->GetRenderScale(), fPipeline->Height() * fRiftCamera->GetRenderScale());
-	fPostProcessingMgr->CreateShaders();
+	fPostProcessingMgr = plPostPipeline::GetInstance();
+	//fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
+	//fPostProcessingMgr->SetPipeline(fPipeline);
+	//fPostProcessingMgr->SetRealViewport(OVR::Util::Render::Viewport(0,0,fPipeline->Width(),fPipeline->Height() ));
+	//fPostProcessingMgr->SetRenderScale(fRiftCamera->GetRenderScale()); 
+	//fPostProcessingMgr->CreatePostRT(fPipeline->Width(), fPipeline->Height());
+	//fPostProcessingMgr->CreateShaders();
+
+	//fPipeline->SetPostProcessingManager(fPostProcessingMgr);
 	//fPostProcessingMgr->CreatePostSurface();
 #endif
 

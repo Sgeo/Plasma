@@ -52,10 +52,21 @@ class plShader;
 class plRenderTarget;
 class plViewTransform;
 
+#define DEFAULT_RIFTSCALE 1.71460557
+
 class plPostPipeline : public hsKeyedObject{
 public:
 	plPostPipeline();
 	virtual ~plPostPipeline();
+
+	static plPostPipeline*    GetInstance() { 
+		if(plPostPipeline::fInstance == nil) 
+			plPostPipeline::fInstance = new plPostPipeline;
+		return plPostPipeline::fInstance; 
+	}
+
+	void ReleaseGeometry();
+	void ReleaseTextures();
 
 	CLASSNAME_REGISTER( plPostPipeline );
     GETINTERFACE_ANY( plPostPipeline, hsKeyedObject );
@@ -103,13 +114,14 @@ public:
 	void SetDistortionConfig(OVR::Util::Render::DistortionConfig config, OVR::Util::Render::StereoEye eye = OVR::Util::Render::StereoEye_Left)
     {
         fDistortion = config;
-        if (eye ==OVR::Util::Render:: StereoEye_Right)
+        if (eye == OVR::Util::Render:: StereoEye_Right)
             fDistortion.XCenterOffset = -fDistortion.XCenterOffset;
     }	
 
 	
 
 private:
+	static plPostPipeline* fInstance;
 	plPipeline* fPipe;
 	plRenderTarget* fPostRT;
 

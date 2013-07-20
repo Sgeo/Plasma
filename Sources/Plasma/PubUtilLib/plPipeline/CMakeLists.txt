@@ -4,6 +4,10 @@ include_directories("../../NucleusLib/inc")
 include_directories("../../NucleusLib")
 include_directories("../../PubUtilLib")
 
+if(LibOVR_FOUND)
+    include_directories(${LibOVR_INCLUDE_DIR})
+endif(LibOVR_FOUND)  
+
 if(Bink_SDK_AVAILABLE)
     include_directories(${Bink_INCLUDE_DIR})
 endif()

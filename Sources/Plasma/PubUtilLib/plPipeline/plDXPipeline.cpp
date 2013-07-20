@@ -595,6 +595,7 @@ plDXPipeline::plDXPipeline( hsWinRef hWnd, const hsG3DDeviceModeRecord *devModeR
 #ifdef BUILD_RIFT_SUPPORT	
 	PLD3D_SCREENQUADFVF( D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1 | D3DFVF_TEXCOORDSIZE3(0) ),		//Vertex format flags for post processing screen quad
 	fPostMgr(nil),
+	fScreenQuadVertBuffer(nil),
 #endif
     fAllocUnManaged(false)
 {
@@ -1339,6 +1340,10 @@ bool plDXPipeline::ICreateDynDeviceObjects()
     if( fDebugTextMgr == nil )
         return true;
 
+#if BUILD_RIFT_SUPPORT
+	fPostMgr = plPostPipeline::GetInstance();
+#endif
+
     // Vertex buffers, index buffers, textures, etc.
     LoadResources();
 
@@ -1365,10 +1370,6 @@ bool  plDXPipeline::ICreateDeviceObjects()
     fPlateMgr = new plDXPlateManager( this, fD3DDevice );
     if( fPlateMgr == nil || !fPlateMgr->IsValid() )
         return true;
-
-#if BUILD_RIFT_SUPPORT
-	fPostMgr = plPostPipeline::GetInstance();
-#endif
 
     // We've got everything created now, initialize to a known state.
     IInitDeviceState();
@@ -1956,6 +1957,13 @@ void plDXPipeline::IReleaseDynDeviceObjects()
         rtRef->Unlink();
     }
 
+#if BUILD_RIFT_SUPPORT
+	plDXRenderTargetRef* rtRef = (plDXRenderTargetRef*)fPostMgr->GetRenderTargetRef();
+	rtRef->Release();
+	//rtRef->Unlink();
+	fPostMgr->SetRenderTargetRef(nil);
+#endif
+
     // The shared dynamic vertex buffers used by things like objects skinned on CPU, or
     // particle systems.
     IReleaseDynamicBuffers();
@@ -2166,14 +2174,17 @@ void plDXPipeline::IReleaseDynamicBuffers()
     if( fPlateMgr )
         fPlateMgr->IReleaseGeometry();
 
+#ifdef BUILD_RIFT_SUPPORT
+	//Clear the screenspace quad used for post-processing
+
+		if (fScreenQuadVertBuffer){
+
+			ReleaseObject(fScreenQuadVertBuffer);
+			PROFILE_POOL_MEM(D3DPOOL_DEFAULT, 4 * sizeof(plScreenQuadVertex), false, "ScreenQuadVtxBuff");
+			fScreenQuadVertBuffer = nil;
+		}
 	
-	#if BUILD_RIFT_SUPPORT
-	//if(fScreenQuadVertBuffer){
-		//delete(fScreenQuadVertBuffer);
-		//fScreenQuadVertBuffer = nil;
-	//}
-	//fPostMgr->ReleaseTextures();
-	#endif
+#endif
 
     // Also has POOL_DEFAULT vertex buffer.
     plDXTextFont::ReleaseShared(fD3DDevice);
@@ -2198,6 +2209,8 @@ void plDXPipeline::ICreateDynamicBuffers()
         fPlateMgr->ICreateGeometry(this);
 
 #ifdef BUILD_RIFT_SUPPORT
+	plDXRenderTargetRef* rtRef = (plDXRenderTargetRef*)MakeRenderTargetRef( fPostMgr->CreatePostRT(Width(), Height()) );	//Need to create the render target reference at we're currently allocating unmanaged
+	fPostMgr->SetRenderTargetRef(rtRef);
 	CreateScreenQuadGeometry();
 #endif
 
@@ -4445,7 +4458,7 @@ hsGDeviceRef    *plDXPipeline::MakeRenderTargetRef( plRenderTarget *owner)
     D3DFORMAT               surfFormat = D3DFMT_UNKNOWN, depthFormat = D3DFMT_UNKNOWN;
     D3DRESOURCETYPE         resType;
     plCubicRenderTarget     *cubicRT;
-
+	
     hsAssert(!fManagedAlloced, "Allocating non-managed resource with managed resources alloc'd");
 
     // If we have Shader Model 3 and support non-POT textures, let's make reflections the pipe size
@@ -5386,25 +5399,6 @@ void plDXPipeline::CreateScreenQuadGeometry()
         //fCreatedSucessfully = false;
         return;
     }
-    
-    /// Set 'em up
-    /*
-	ptr[ 0 ].fPoint.Set( -0.5f, -0.5f, 0.0f );
-    ptr[ 0 ].fColor = 0xffffffff;
-    ptr[ 0 ].fUV.Set( 0.0f, 0.0f, 0.0f );
-
-    ptr[ 1 ].fPoint.Set( -0.5f, 0.5f, 0.0f );
-    ptr[ 1 ].fColor = 0xffffffff;
-    ptr[ 1 ].fUV.Set( 0.0f, 1.0f, 0.0f );
-
-    ptr[ 2 ].fPoint.Set( 0.5f, -0.5f, 0.0f );
-    ptr[ 2 ].fColor = 0xffffffff;
-    ptr[ 2 ].fUV.Set( 1.0f, 0.0f, 0.0f );
-
-    ptr[ 3 ].fPoint.Set( 0.5f, 0.5f, 0.0f );
-    ptr[ 3 ].fColor = 0xffffffff;
-    ptr[ 3 ].fUV.Set( 1.0f, 1.0f, 0.0f );
-	*/
 
 	ptr[ 0 ].fPoint.Set( -1.0f, -1.0f, 0.0f );
     ptr[ 0 ].fColor = 0xffffffff;
@@ -10783,10 +10777,7 @@ void plDXPipeline::LoadResources()
     IFillAvRTPool();
 
 	
-#if BUILD_RIFT_SUPPORT
-	fPostMgr->CreatePostRT(Width(), Height());
-	fPostMgr->CreateShaders();
-#endif
+
 
     // We should have everything POOL_DEFAULT we need now.
     IEndAllocUnManaged();

@@ -54,6 +54,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plResMgr/plResManager.h"
 #include "plResMgr/plKeyFinder.h"
 #include "plMessage/plLayRefMsg.h"
+#include "hsTemplates.h"
+//#include "plPipeline/plDXRenderTargetRef.h"
 
 
 plPostPipeline* plPostPipeline::fInstance=nil;
@@ -62,6 +64,7 @@ plPostPipeline::plPostPipeline():
 	fEnablePost(true), 
 	fRenderScale(DEFAULT_RIFTSCALE)
 {
+		CreateShaders();
 }
 
 plPostPipeline::~plPostPipeline(){
@@ -77,7 +80,7 @@ void plPostPipeline::ReleaseGeometry(){
 }
 
 void plPostPipeline::ReleaseTextures(){
-	delete(fPostRT);
+	fPostRT->UnRef();
 	fPostRT = nil;
 }
 
@@ -181,7 +184,7 @@ void plPostPipeline::UpdateShaders()
 	//fVsShader->SetMatrix44(kRiftShaderView, view);
 }
 
-void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
+plRenderTarget* plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
 	// Create our render target
     const uint16_t flags = plRenderTarget::kIsOffscreen;
     const uint8_t bitDepth(32);
@@ -190,6 +193,8 @@ void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
 
 	fPostRT = new plRenderTarget(flags, (uint16_t)(width * fRenderScale), (uint16_t)(height * fRenderScale), bitDepth, zDepth, stencilDepth);
     fPostRT->SetScreenRenderTarget(true);
+
+	return fPostRT;
 
     //static int idx=0;
     //plString buff = plString::Format("tRT%d", idx++);

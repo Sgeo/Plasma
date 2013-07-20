@@ -46,11 +46,13 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnKeyedObject/hsKeyedObject.h" 
 #include "pfOculusRift/plRiftCamera.h"
 #include "plPipeline.h"
+//#include "plPipeline/plDXRenderTargetRef.h"
 
 class plPipeline;
 class plShader;
 class plRenderTarget;
 class plViewTransform;
+class hsGDeviceRef;
 
 #define DEFAULT_RIFTSCALE 1.71460557
 
@@ -103,7 +105,9 @@ public:
 	bool GetPostProcessingState(){ return fEnablePost; };
 
 	void SetPipeline(plPipeline* pipe){fPipe = pipe; };
-	void CreatePostRT(uint16_t width, uint16_t height);
+	void SetRenderTargetRef(hsGDeviceRef* ref){ fPostRTref = ref; };
+	hsGDeviceRef* GetRenderTargetRef(){return fPostRTref; };
+	plRenderTarget* CreatePostRT(uint16_t width, uint16_t height);
 
 	void SetRealViewport(OVR::Util::Render::Viewport vp){ fRealVP = vp; };
 	void SetViewport(OVR::Util::Render::Viewport vp, bool resetProjection);
@@ -124,6 +128,7 @@ private:
 	static plPostPipeline* fInstance;
 	plPipeline* fPipe;
 	plRenderTarget* fPostRT;
+	hsGDeviceRef* fPostRTref;
 
 	float fRenderScale;
 	OVR::Util::Render::DistortionConfig fDistortion;

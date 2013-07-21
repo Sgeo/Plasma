@@ -68,8 +68,8 @@ plPostPipeline::plPostPipeline():
 }
 
 plPostPipeline::~plPostPipeline(){
-	delete(fVsShader);
-	delete(fPsShader);
+	delete fVsShader;
+	delete fPsShader;
 	ReleaseGeometry();
 	ReleaseTextures();
 	fPipe = nil;

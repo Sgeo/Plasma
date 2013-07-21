@@ -69,29 +69,25 @@ plRiftCamera::plRiftCamera() :
 	fEnableStereoRendering(true),
 	fRenderScale(1.0f),
 	fEyeToRender(EYE_LEFT),
-	fXRotOffset(3.1415926),
-	fYRotOffset(3.1415926),
-	fZRotOffset(3.1415926),
+	fXRotOffset(M_PI),
+	fYRotOffset(M_PI),
+	fZRotOffset(M_PI),
 	fEyeYaw(0.0f),
 	fUpVector(0.0f, 1.0f, 0.0f),
 	fForwardVector(0.0f,0.0f,1.0f),
-	fRightVector(1.0f, 0.0f, 0.0f)
+	fRightVector(1.0f, 0.0f, 0.0f),
+	fNear(0.3f),
+	fFar(10000.0f)
 {
-	SetFlags(kUseRawInput);
-	/*
-	YawInitial = 3.141592f;
-	EyePos = Vector3f(0.0f, 1.6f, -5.0f),
-    EyeYaw = YawInitial;
-	EyePitch = 0.0f;
-	EyeRoll = 0.0f;
-    LastSensorYaw = 0.0f;
-	UpVector = Vector3f(0.0f, 0.0f, 1.0f);
-	ForwardVector = Vector3f(0.0f, 1.0f, 0.0f);
-	RightVector = Vector3f(1.0f, 0.0f, 0.0f);
-	*/
+	SetFlags(kUseEulerInput);
 }
 
 plRiftCamera::~plRiftCamera(){
+	pSensor.Clear();
+    pHMD.Clear();
+	pManager.Clear();
+	fVirtualCam = nil;
+	fPipe = nil;
 }
 
 void plRiftCamera::initRift(int width, int height){
@@ -167,8 +163,8 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 	vt.SetHeight(eyeParams.VP.h * fRenderScale);
 	vt.SetHeight(eyeParams.VP.h * fRenderScale);
 	hsPoint2 depth;
-	depth.Set(0.3f, 10000.0f);
-	vt.SetDepth(depth);
+	depth.Set(fNear, fFar);
+	//vt.SetDepth(depth);
 	
 
 	//Projection matrix stuff
@@ -176,7 +172,7 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 	hsMatrix44 projMatrix;
 
 	hsMatrix44 oldCamNDC = vt.GetCameraToNDC();
-
+	
 	OVRTransformToHSTransform(eyeParams.Projection, &projMatrix);
 	vt.SetProjectionMatrix(&projMatrix);
 
@@ -220,7 +216,7 @@ hsMatrix44 plRiftCamera::EulerRiftRotation(){
 	fEyeYaw += (yaw - fLastSensorYaw);
     fLastSensorYaw = yaw;
 
-	Matrix4f rollPitchYaw = Matrix4f::RotationY(fEyeYaw) * Matrix4f::RotationX(-fEyePitch) * Matrix4f::RotationZ(-fEyeRoll);
+	Matrix4f rollPitchYaw = Matrix4f::RotationY( ReverseRadians(yaw) ) * Matrix4f::RotationX(-fEyePitch) * Matrix4f::RotationZ(fEyeRoll);
 	Vector3f up      = rollPitchYaw.Transform(fUpVector);
 	Vector3f forward = rollPitchYaw.Transform(fForwardVector);
 

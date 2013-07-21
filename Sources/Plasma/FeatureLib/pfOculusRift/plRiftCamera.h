@@ -119,6 +119,12 @@ public:
 		SetFlags(kUseEulerInput);
 	}
 
+	void SetNear(float distance){ fNear = distance; };
+	void SetFar(float distance){ fFar = distance; };
+
+
+	float ReverseRadians(float angle){ return 2 * M_PI - angle; };
+
 	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
 	void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
 	void ApplyStereoViewport(Util::Render::StereoEye);
@@ -163,7 +169,6 @@ private:
 	bool fEnableStereoRendering;
 	float fRenderScale;
 
-	
 	float fXRotOffset, fYRotOffset, fZRotOffset;
 
 	Vector3f            fEyePos;
@@ -176,6 +181,7 @@ private:
 	Vector3f			fForwardVector;
 	Vector3f			fRightVector;
 	hsBitVector         fFlags;
+	float fNear, fFar;
 
 };
 

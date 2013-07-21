@@ -7204,6 +7204,35 @@ PF_CONSOLE_CMD( Rift,										// Group name
 }
 
 
+PF_CONSOLE_CMD( Rift,										// Group name
+                SetNear,							// Function name
+                "float near",											// Params
+                "Near camera clip" )   // Help string
+{
+	plUoid pU1( kRiftCamera_KEY );
+    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
+    if (fRiftCameraKey)
+    {
+		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetNear((float)params[0]);
+		return;
+    }
+}
+
+PF_CONSOLE_CMD( Rift,										// Group name
+                SetFar,							// Function name
+                "float far",											// Params
+                "Far camera clip" )   // Help string
+{
+	plUoid pU1( kRiftCamera_KEY );
+    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
+    if (fRiftCameraKey)
+    {
+		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetFar((float)params[0]);
+		return;
+    }
+}
+
+
 
 //////////////////////////////////////////////////////////////////////////////
 // End.

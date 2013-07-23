@@ -143,7 +143,7 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 	
 	hsMatrix44 eyeTransform, transposed, w2c, inverse;
 	OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
-	eyeTransform.fMap[0][3] *= -0.3048;	//Convert Rift meters to feet
+	eyeTransform.fMap[0][3] *= 0.3048;	//Convert Rift meters to feet
 
 	hsMatrix44 riftOrientation;
 

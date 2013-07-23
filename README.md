@@ -37,7 +37,7 @@ The following libraries are optional:
 - (for building resource.dat) PyGTK - http://www.pygtk.org/downloads.html
 - (for building resource.dat) PIL - http://www.pythonware.com/products/pil/
 - (for plFontConverter) Freetype - http://freetype.org/
-- (for building Oculus Rift support) - https://github.com/Mystfit/LibOVR/(includes changes made to the sdk for compatibility with Plasma's left-handed coordinate system. Original SDK is located at http://developer.oculus.com
+- (for building Oculus Rift support) - https://github.com/Mystfit/LibOVR/ - Includes changes made to the sdk for compatibility with Plasma's left-handed coordinate system. (Original SDK is located at http://developer.oculus.com)
 
 Reducing the use of proprietary libraries is a focus of development and should be expected to change.
 

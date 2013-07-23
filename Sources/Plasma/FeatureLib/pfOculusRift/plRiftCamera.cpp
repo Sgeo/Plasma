@@ -101,6 +101,7 @@ void plRiftCamera::initRift(int width, int height){
 	SConfig.SetFullViewport(Util::Render::Viewport(0, 0, width, height));
 	SConfig.SetStereoMode(Util::Render::Stereo_LeftRight_Multipass);
 	SConfig.SetDistortionFitPointVP(-1.0f, 0.0f);
+	SConfig.SetZClipDistance(0.03f, 10000.0f);
 	fRenderScale = SConfig.GetDistortionScale();
 
 	pfConsole::AddLine("-- Initializing Rift --");

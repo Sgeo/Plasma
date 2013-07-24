@@ -65,20 +65,21 @@ plPostPipeline::plPostPipeline():
 }
 
 plPostPipeline::~plPostPipeline(){
-	delete fVsShader;
-	delete fPsShader;
+	hsRefCnt_SafeUnRef( fVsShader );
+	hsRefCnt_SafeUnRef( fPsShader );
 	ReleaseGeometry();
 	ReleaseTextures();
 	fPipe = nil;
 	fInstance = nil;
+	fVsShader = nil;
+	fPsShader = nil;
 }
 
 void plPostPipeline::ReleaseGeometry(){
 }
 
 void plPostPipeline::ReleaseTextures(){
-	fPostRT->UnRef();
-	delete fPostRT;
+	hsRefCnt_SafeUnRef(fPostRT);
 	fPostRT = nil;
 }
 

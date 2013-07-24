@@ -2107,8 +2107,6 @@ void    plDXPipeline::IReleaseDeviceObjects()
     fPlateMgr = nil;
 
 #ifdef BUILD_RIFT_SUPPORT
-	fPostMgr->UnRegisterAs(kPostProcessingMgr_KEY);
-	delete fPostMgr;
 	fPostMgr = nil;
 #endif
 

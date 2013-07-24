@@ -69,9 +69,9 @@ plRiftCamera::plRiftCamera() :
 	fEnableStereoRendering(true),
 	fRenderScale(1.0f),
 	fEyeToRender(EYE_LEFT),
-	fXRotOffset(PI7),
-	fYRotOffset(PI7),
-	fZRotOffset(PI7),
+	fXRotOffset(M_PI),
+	fYRotOffset(M_PI),
+	fZRotOffset(M_PI),
 	fEyeYaw(0.0f),
 	fUpVector(0.0f, 1.0f, 0.0f),
 	fForwardVector(0.0f,0.0f,1.0f),
@@ -79,18 +79,7 @@ plRiftCamera::plRiftCamera() :
 	fNear(0.3f),
 	fFar(10000.0f)
 {
-	SetFlags(kUseRawInput);
-	/*
-	YawInitial = 3.141592f;
-	EyePos = Vector3f(0.0f, 1.6f, -5.0f),
-    EyeYaw = YawInitial;
-	EyePitch = 0.0f;
-	EyeRoll = 0.0f;
-    LastSensorYaw = 0.0f;
-	UpVector = Vector3f(0.0f, 0.0f, 1.0f);
-	ForwardVector = Vector3f(0.0f, 1.0f, 0.0f);
-	RightVector = Vector3f(1.0f, 0.0f, 0.0f);
-	*/
+	SetFlags(kUseEulerInput);
 }
 
 plRiftCamera::~plRiftCamera(){
@@ -155,7 +144,7 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 	
 	hsMatrix44 eyeTransform, transposed, w2c, inverse;
 	OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
-	eyeTransform.fMap[0][3] *= -0.3048;	//Convert Rift meters to feet
+	eyeTransform.fMap[0][3] *= 0.3048;	//Convert Rift meters to feet
 
 	hsMatrix44 riftOrientation;
 

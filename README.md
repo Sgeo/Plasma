@@ -37,6 +37,7 @@ The following libraries are optional:
 - (for building resource.dat) PyGTK - http://www.pygtk.org/downloads.html
 - (for building resource.dat) PIL - http://www.pythonware.com/products/pil/
 - (for plFontConverter) Freetype - http://freetype.org/
+- (for building Oculus Rift support) - https://github.com/Mystfit/LibOVR/ - Includes changes made to the sdk for compatibility with Plasma's left-handed coordinate system. (Original SDK is located at http://developer.oculus.com)
 
 Reducing the use of proprietary libraries is a focus of development and should be expected to change.
 
@@ -64,9 +65,10 @@ To compile:
 9.  Press **Configure** again.
 10. Set the *PHYSX_SDK_PATH* option under PHYSX. 
     - Default Path: `C:\Program Files\AGEIA Technologies\AGEIA PhysX SDK\v2.6.4\SDKs`
-11. Press **Configure**... For the last time!
-12. Press **Generate**. You will now have a Visual Studio solution file (.sln) in the folder that you specified to build the binaries in.
-13. Open the solution in Visual Studio. You can compile CyanWorlds.com Engine by pressing *Build -> Build Solution*. This will take some time. 
+11. If you are planning building support for the Oculus Rift, set the location of the libOVR library and include directories underneath 'libOVR'. 
+12. Press **Configure**... For the last time!
+13. Press **Generate**. You will now have a Visual Studio solution file (.sln) in the folder that you specified to build the binaries in.
+14. Open the solution in Visual Studio. You can compile CyanWorlds.com Engine by pressing *Build -> Build Solution*. This will take some time. 
 
 
 Running Instructions
@@ -90,6 +92,8 @@ Alternatively, if you wish to be able to debug using a single content folder fro
 3. Select *Configuration Properties->Debugging*.
 4. Enter `/LocalData` in the *Command Arguments* field.
 5. Enter your *MOUL-OS* folder path in the *Working Directory* field.
+
+*Note for VS2012 users*: Changing the working directory will not pick up the DLLs located in the *MOUL-OS* folder. Set the Output directory underneath *Configuration Properties->General* to the *MOUL-OS* folder as a workaround.
 
 
 Additional Information

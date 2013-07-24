@@ -72,8 +72,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "ovr.h"
 using namespace OVR;
 
-#define PI7 3.1415926
-
 class plPipeline;
 class plCameraModifier1;
 class plCameraBrain1;
@@ -124,8 +122,7 @@ public:
 	void SetNear(float distance){ fNear = distance; };
 	void SetFar(float distance){ fFar = distance; };
 
-
-	float ReverseRadians(float angle){ return 2 * PI7 - angle; };
+	float ReverseRadians(float angle){ return 2 * M_PI - angle; };
 
 	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
 	void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
@@ -171,7 +168,6 @@ private:
 	bool fEnableStereoRendering;
 	float fRenderScale;
 
-	
 	float fXRotOffset, fYRotOffset, fZRotOffset;
 
 	Vector3f            fEyePos;

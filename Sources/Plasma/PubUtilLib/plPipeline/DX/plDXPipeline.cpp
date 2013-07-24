@@ -11956,7 +11956,7 @@ void    plDXPlateManager::IDrawToDevice( plPipeline *pipe )
     // To get plates properly pixel-aligned, we need to compensate for D3D9's weird half-pixel
     // offset (see http://drilian.com/2008/11/25/understanding-half-pixel-and-half-texel-offsets/
     // or http://msdn.microsoft.com/en-us/library/bb219690(VS.85).aspx).
-    D3DXMatrixTranslation(&mat, -0.5f/scrnWidthDiv2, -0.5f/scrnHeightDiv2, 0.0f);
+	D3DXMatrixTranslation(&mat, -0.5f/scrnWidthDiv2, -0.5f/scrnHeightDiv2, 0.0f);
     fD3DDevice->SetTransform( D3DTS_VIEW, &mat );
     oldCullMode = dxPipe->fCurrCullMode;
 
@@ -12028,9 +12028,15 @@ void    plDXPipeline::IDrawPlate( plPlate *plate )
     hsGMaterial *material = plate->GetMaterial();
     D3DXMATRIX  mat;
 
+	hsMatrix44 plateTrans = plate->GetTransform();
+
+#ifdef BUILD_RIFT_SUPPORT	
+	hsVector3 depthOffset(0.0f, 0.0f, 0.0f);
+	plateTrans.Translate(&depthOffset);		//Move plate forwards to give plate depth in stereoscopic rendering. TODO - replace with LibOVR implementation
+#endif
 
     /// Set up the D3D transform directly
-    IMatrix44ToD3DMatrix( mat, plate->GetTransform() );
+    IMatrix44ToD3DMatrix( mat, plateTrans );
     fD3DDevice->SetTransform( D3DTS_WORLD, &mat );
     mat = d3dIdentityMatrix;
     mat(1,1) = -1.0f;
@@ -12049,12 +12055,12 @@ void    plDXPipeline::IDrawPlate( plPlate *plate )
         // Taking this out. If the plates are causing more material changes, they should
         // show up in the stats. mf
 
-
         i = IHandleMaterial( material, i, nil );
         ISetShaders(nil, nil);
 
-        // To override the transform done by the z-bias
+		// To override the transform done by the z-bias
         fD3DDevice->SetTransform( D3DTS_PROJECTION, &mat );
+
         // And this to override cullmode set based on material 2-sidedness.
         fD3DDevice->SetRenderState( D3DRS_CULLMODE, fCurrCullMode = D3DCULL_CW );
 

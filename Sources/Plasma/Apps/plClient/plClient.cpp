@@ -1996,6 +1996,10 @@ bool plClient::IDraw()
 		fPageMgr->Render(fPipeline);
 	plProfile_EndTiming(MainRender);
 
+	plProfile_BeginTiming(ScreenElem);
+	fPipeline->RenderScreenElements();
+	plProfile_EndTiming(ScreenElem);
+
 	
 	//-------------------------------------------------------
 	/*
@@ -2072,6 +2076,11 @@ bool plClient::IDraw()
 			fPageMgr->Render(fPipeline);
 		plProfile_EndTiming(MainRender);
 
+		plProfile_BeginTiming(ScreenElem);
+		fPipeline->RenderScreenElements();
+		plProfile_EndTiming(ScreenElem);
+		//Stop pre-post render
+
 
 
 		// pre-post render
@@ -2133,6 +2142,7 @@ plProfile_BeginTiming(Movies);
 
 		fLastProgressUpdate = hsTimer::GetSeconds();
 
+		/*
 		plProfile_BeginTiming(ScreenElem);
 		fPipeline->RenderScreenElements();
 		plProfile_EndTiming(ScreenElem);

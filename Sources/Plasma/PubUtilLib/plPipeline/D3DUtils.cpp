@@ -15,6 +15,14 @@ namespace D3DUtils
 		srand( static_cast< unsigned >( time( NULL ) ) );
 	}
 
+	void SetMarker(WCHAR *Name)
+	{
+		WCHAR wc[ MAX_PATH ];
+		StringCchPrintfW( wc, MAX_PATH, L"%s\0", Name );
+		D3DPERF_SetMarker( D3DCOLOR_XRGB( rand() % 255, rand() % 255, rand() % 255 ), wc);
+		srand( static_cast< unsigned >( time( NULL ) ) );
+	}
+
 	// Makes sure that the BeginEvent() has a matching EndEvent()
 	// if used via the macro in D3DUtils.h this will be called when
 	// the variable goes out of scope.

@@ -2,6 +2,7 @@
 #include <d3dx9.h>
 #include <Windows.h>
 #include <math.h>
+#include <string>
 
 #ifndef INC_D3DUTILS_H
 #define INC_D3DUTILS_H
@@ -32,6 +33,8 @@ namespace D3DUtils
 		private:
 			ScopeProfiler( );
 	};
+
+	void SetMarker( WCHAR *Name);
 }
 
 #endif

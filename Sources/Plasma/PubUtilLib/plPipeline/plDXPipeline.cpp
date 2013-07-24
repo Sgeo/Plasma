@@ -690,6 +690,14 @@ plDXPipeline::plDXPipeline( hsWinRef hWnd, const hsG3DDeviceModeRecord *devModeR
         IShowErrorMessage( "Cannot create Direct3D device" );
         return;
     }
+
+#ifdef BUILD_RIFT_SUPPORT
+	//create post processing quad geometry. 
+	D3DUtils::SetMarker(L"Creating VB start");
+	CreateScreenQuadGeometry();
+	D3DUtils::SetMarker(L"Creating VB end");
+#endif
+
     /*plStatusLog::AddLineS("pipeline.log", "Supported Resolutions:");
     std::vector<plDisplayMode> temp;
     GetSupportedDisplayModes( &temp, 16 );
@@ -1933,6 +1941,9 @@ void plDXPipeline::IReleaseRenderTargetPools()
 // that persist through unloading one age and loading the next.
 void plDXPipeline::IReleaseDynDeviceObjects()
 {
+#ifdef BUILD_RIFT_SUPPORT
+	D3DUtils::SetMarker(L"resource_release_start");
+#endif
     // We should do this earlier, but the textFont objects don't remove
     // themselves from their parent objects yet
     delete fDebugTextMgr;
@@ -1949,6 +1960,17 @@ void plDXPipeline::IReleaseDynDeviceObjects()
     fSettings.fCurrVertexBuffRef = nil;
     hsRefCnt_SafeUnRef( fSettings.fCurrIndexBuffRef );
     fSettings.fCurrIndexBuffRef = nil;
+
+#ifdef BUILD_RIFT_SUPPORT
+	//PROFILE_BLOCK
+	//D3DUtils::ScopeProfiler( L"Clearing rendertarget", __LINE__ );
+	plDXRenderTargetRef* rtRef = (plDXRenderTargetRef*) fPostMgr->GetPostRT()->GetDeviceRef();
+
+	D3DUtils::SetMarker(L"Begin RT Clear");
+	rtRef->Release();
+	D3DUtils::SetMarker(L"Finish RT Clear");
+	rtRef = nil;
+#endif
 
     while( fTextFontRefList )
         delete fTextFontRefList;
@@ -1988,6 +2010,10 @@ void plDXPipeline::IReleaseDynDeviceObjects()
     ReleaseObject( fD3DDepthSurface );
     ReleaseObject( fD3DMainSurface );
 
+#ifdef BUILD_RIFT_SUPPORT
+	D3DUtils::SetMarker(L"resource_release_end");
+#endif
+
 }
 
 // IReleaseShaders ///////////////////////////////////////////////////////////////
@@ -2024,16 +2050,6 @@ void    plDXPipeline::IReleaseDeviceObjects()
     if( fBoundsMat )
         fBoundsMat->GetKey()->UnRefObject();
     fBoundsMat = nil;
-#endif
-
-#ifdef BUILD_RIFT_SUPPORT
-	if(true){
-		PROFILE_BLOCK
-		D3DUtils::ScopeProfiler( L"Clearing rendertarget", __LINE__ );
-		plDXRenderTargetRef* rtRef = (plDXRenderTargetRef*) fPostMgr->GetPostRT()->GetDeviceRef();
-		rtRef->ReleaseScreenRT();
-		rtRef = nil;
-	}
 #endif
 
     plStatusLogMgr::GetInstance().SetDrawer( nil );
@@ -2091,7 +2107,7 @@ void    plDXPipeline::IReleaseDeviceObjects()
     fPlateMgr = nil;
 
 #ifdef BUILD_RIFT_SUPPORT
-	fPostMgr->UnRef();
+	fPostMgr->UnRegisterAs(kPostProcessingMgr_KEY);
 	delete fPostMgr;
 	fPostMgr = nil;
 #endif
@@ -2183,16 +2199,16 @@ void plDXPipeline::IReleaseDynamicBuffers()
     if( fPlateMgr )
         fPlateMgr->IReleaseGeometry();
 
-	
-#if BUILD_RIFT_SUPPORT
-	if(fScreenQuadVertBuffer != nil)	
+#ifdef BUILD_RIFT_SUPPORT
+	if(fScreenQuadVertBuffer)	
     {
-		PROFILE_BLOCK
-        ReleaseObject(fScreenQuadVertBuffer);
-        PROFILE_POOL_MEM(D3DPOOL_DEFAULT, 4 * sizeof(plScreenQuadVertex), false, "ScreenQuadVtxBuff");
-        fScreenQuadVertBuffer = nil;
+		//PROFILE_BLOCK
+		//D3DUtils::SetMarker(L"Begin Screen VB clear");
+		//ReleaseObject(fScreenQuadVertBuffer);
+        //PROFILE_POOL_MEM(D3DPOOL_MANAGED, 4 * sizeof(plScreenQuadVertex), false, "ScreenQuadVtxBuff");
+        //fScreenQuadVertBuffer = nil;
+		//D3DUtils::SetMarker(L"End Screen VB clear");
     }
-	//fPostMgr->ReleaseTextures();
 #endif
 
     // Also has POOL_DEFAULT vertex buffer.
@@ -2216,10 +2232,6 @@ void plDXPipeline::ICreateDynamicBuffers()
 
     if( fPlateMgr )
         fPlateMgr->ICreateGeometry(this);
-
-#ifdef BUILD_RIFT_SUPPORT
-	CreateScreenQuadGeometry();
-#endif
 
     fNextDynVtx = 0;
 
@@ -4459,7 +4471,7 @@ bool  plDXPipeline::CaptureScreen( plMipmap *dest, bool flipVertical, uint16_t d
 hsGDeviceRef    *plDXPipeline::MakeRenderTargetRef( plRenderTarget *owner)
 {
     plDXRenderTargetRef *ref = nil;
-    IDirect3DSurface9       *surface = nil, *depthSurface = nil;
+    IDirect3DSurface9       *surface = nil, *depthSurface = nil, *renderSurface;
     IDirect3DTexture9       *texture = nil;
     IDirect3DCubeTexture9   *cTexture = nil;
     D3DFORMAT               surfFormat = D3DFMT_UNKNOWN, depthFormat = D3DFMT_UNKNOWN;
@@ -4650,8 +4662,8 @@ hsGDeviceRef    *plDXPipeline::MakeRenderTargetRef( plRenderTarget *owner)
 				//The RT class has been modified to allow for both values to be set at the same time, so let's create our screen texture here.
 				LPDIRECT3DTEXTURE9 renderTexture = NULL;
 				fD3DDevice->CreateTexture(owner->GetWidth(), owner->GetHeight(), 1, D3DUSAGE_RENDERTARGET, D3DFMT_X8R8G8B8, D3DPOOL_DEFAULT, &renderTexture, NULL);
-				renderTexture->GetSurfaceLevel(0, &surface);
-				ref->SetTexture( surface, renderTexture, depthSurface );
+				renderTexture->GetSurfaceLevel(0, &renderSurface);
+				ref->SetTexture( surface, renderTexture, renderSurface, depthSurface );
 			}
 #endif
 #ifndef BUILD_RIFT_SUPPORT
@@ -5385,7 +5397,7 @@ void plDXPipeline::SetPostProcessingManager(plPostPipeline* postMgr){
 void plDXPipeline::CreateScreenQuadGeometry()
 {
     uint32_t fvfFormat = PLD3D_SCREENQUADFVF;
-    D3DPOOL poolType = D3DPOOL_DEFAULT;
+    D3DPOOL poolType = D3DPOOL_MANAGED;
     hsAssert(!ManagedAlloced(), "Alloc default with managed alloc'd");
     if( FAILED( fD3DDevice->CreateVertexBuffer( 4 * sizeof( plScreenQuadVertex ),
                                                 D3DUSAGE_WRITEONLY, 
@@ -5406,25 +5418,6 @@ void plDXPipeline::CreateScreenQuadGeometry()
         //fCreatedSucessfully = false;
         return;
     }
-    
-    /// Set 'em up
-    /*
-	ptr[ 0 ].fPoint.Set( -0.5f, -0.5f, 0.0f );
-    ptr[ 0 ].fColor = 0xffffffff;
-    ptr[ 0 ].fUV.Set( 0.0f, 0.0f, 0.0f );
-
-    ptr[ 1 ].fPoint.Set( -0.5f, 0.5f, 0.0f );
-    ptr[ 1 ].fColor = 0xffffffff;
-    ptr[ 1 ].fUV.Set( 0.0f, 1.0f, 0.0f );
-
-    ptr[ 2 ].fPoint.Set( 0.5f, -0.5f, 0.0f );
-    ptr[ 2 ].fColor = 0xffffffff;
-    ptr[ 2 ].fUV.Set( 1.0f, 0.0f, 0.0f );
-
-    ptr[ 3 ].fPoint.Set( 0.5f, 0.5f, 0.0f );
-    ptr[ 3 ].fColor = 0xffffffff;
-    ptr[ 3 ].fUV.Set( 1.0f, 1.0f, 0.0f );
-	*/
 
 	ptr[ 0 ].fPoint.Set( -1.0f, -1.0f, 0.0f );
     ptr[ 0 ].fColor = 0xffffffff;
@@ -5449,7 +5442,7 @@ void plDXPipeline::CreateScreenQuadGeometry()
 	fScreenQuadMatrix.Reset();
 	
 	hsVector3 screenQuadPos(0.0f, 0.0f, 0.0f);
-	hsVector3 screenQuadScale(1.0f,1.0f,1.0f);		//Quad is flipped cause the RT draws upside down
+	hsVector3 screenQuadScale(1.0f,1.0f,1.0f);
 
 	fScreenQuadMatrix.SetTranslate( &screenQuadPos );
 	fScreenQuadMatrix.SetScale( &screenQuadScale); 
@@ -10789,6 +10782,13 @@ void plDXPipeline::LoadResources()
     plPipeRTMakeMsg* rtMake = new plPipeRTMakeMsg(this);
     rtMake->Send();
 
+#ifdef BUILD_RIFT_SUPPORT
+	D3DUtils::SetMarker(L"Creating RT start");
+	MakeRenderTargetRef( fPostMgr->CreatePostRT(Width(), Height()) );
+	D3DUtils::SetMarker(L"Creating RT end");
+	fPostMgr->CreateShaders();
+#endif
+
     // Create all our shadow render targets and pipeline specific POOL_DEFAULT vertex buffers.
     // This includes our single dynamic vertex buffer that we cycle through for software
     // skinned, particle systems, etc.
@@ -10801,12 +10801,6 @@ void plDXPipeline::LoadResources()
     // This can be a bit of a mem hog and will use more mem if available, so keep it last in the
     // POOL_DEFAULT allocs.
     IFillAvRTPool();
-
-	
-#ifdef BUILD_RIFT_SUPPORT
-	MakeRenderTargetRef( fPostMgr->CreatePostRT(Width(), Height()) );
-	fPostMgr->CreateShaders();
-#endif
 
     // We should have everything POOL_DEFAULT we need now.
     IEndAllocUnManaged();

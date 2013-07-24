@@ -371,6 +371,9 @@ plDXRenderTargetRef::plDXRenderTargetRef( D3DFORMAT tp, uint32_t ml, plRenderTar
 {
     fD3DColorSurface = nil;
     fD3DDepthSurface = nil;
+#ifdef BUILD_RIFT_SUPPORT
+	fD3DRenderSurface = nil;
+#endif
     fReleaseDepth = releaseDepthOnDelete;
     fOwner = owner;
 
@@ -422,6 +425,15 @@ plDXRenderTargetRef& plDXRenderTargetRef::Set( D3DFORMAT tp, uint32_t ml, plRend
 //// SetTexture ///////////////////////////////////////////////////////////////
 
 #ifdef BUILD_RIFT_SUPPORT
+
+void	plDXRenderTargetRef::SetTexture(  IDirect3DSurface9 *surface, IDirect3DTexture9 *texture, IDirect3DSurface9 *renderSurface, IDirect3DSurface9 *depth )
+{
+    fD3DColorSurface = surface;
+    fD3DTexture = texture;
+    fD3DDepthSurface = depth;
+	fD3DRenderSurface = renderSurface;
+}
+
 void    plDXRenderTargetRef::SetTexture(  IDirect3DSurface9 *surface, IDirect3DTexture9 *texture, IDirect3DSurface9 *depth )
 {
     fD3DColorSurface = surface;
@@ -515,6 +527,13 @@ void    plDXRenderTargetRef::Release( void )
 
 	D3DSURF_MEMDEL(fD3DColorSurface);
     ReleaseObject( fD3DColorSurface );
+
+#ifdef BUILD_RIFT_SUPPORT
+	if(fD3DRenderSurface != nil){
+		D3DSURF_MEMDEL(fD3DRenderSurface);
+		ReleaseObject( fD3DRenderSurface );
+	}
+#endif
 
     if( fReleaseDepth )
     {

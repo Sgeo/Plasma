@@ -233,6 +233,7 @@ void    plDXTextureRef::Release( void )
     fDataSize = 0;
 
     ReleaseObject( fD3DTexture );
+
     SetDirty( true );
 }
 
@@ -512,8 +513,9 @@ void    plDXRenderTargetRef::Release( void )
         D3DSURF_MEMDEL((IDirect3DTexture9*)fD3DTexture);
     }
 
-    D3DSURF_MEMDEL(fD3DColorSurface);
+	D3DSURF_MEMDEL(fD3DColorSurface);
     ReleaseObject( fD3DColorSurface );
+
     if( fReleaseDepth )
     {
         // TODO:
@@ -523,6 +525,7 @@ void    plDXRenderTargetRef::Release( void )
         // counter is ignoring it.
         //D3DSURF_MEMDEL(fD3DDepthSurface);
         ReleaseObject( fD3DDepthSurface );
+
     }
 
     plDXTextureRef::Release();
@@ -530,3 +533,25 @@ void    plDXRenderTargetRef::Release( void )
     SetDirty( true );
 }
 
+#ifdef BUILD_RIFT_SUPPORT
+void plDXRenderTargetRef::ReleaseScreenRT( void )
+{
+	//D3DSURF_MEMDEL(fD3DColorSurface);
+	if(fD3DColorSurface != nil)
+		fD3DColorSurface->Release();
+	//delete fD3DColorSurface;
+	fD3DColorSurface = nil;
+
+	//D3DSURF_MEMDEL(fD3DDepthSurface);
+	if(fD3DDepthSurface != nil)
+		fD3DDepthSurface->Release();
+	//delete fD3DColorSurface;
+	fD3DColorSurface = nil;
+
+	if(fD3DTexture != nil)
+		fD3DTexture->Release();
+	//delete fD3DTexture;
+	fD3DTexture = nil;
+	SetDirty( true );
+}
+#endif

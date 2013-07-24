@@ -52,7 +52,7 @@ class plShader;
 class plRenderTarget;
 class plViewTransform;
 
-#define DEFAULT_RIFTSCALE 1.71460557
+#define DEFAULT_RIFTSCALE 1.71460557f
 
 class plPostPipeline : public hsKeyedObject{
 public:
@@ -103,7 +103,8 @@ public:
 	bool GetPostProcessingState(){ return fEnablePost; };
 
 	void SetPipeline(plPipeline* pipe){fPipe = pipe; };
-	void CreatePostRT(uint16_t width, uint16_t height);
+	plRenderTarget* CreatePostRT(uint16_t width, uint16_t height);
+	plRenderTarget* GetPostRT(){ return fPostRT; };
 
 	void SetRealViewport(OVR::Util::Render::Viewport vp){ fRealVP = vp; };
 	void SetViewport(OVR::Util::Render::Viewport vp, bool resetProjection);

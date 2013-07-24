@@ -102,6 +102,9 @@ class plDXRenderTargetRef: public plDXTextureRef
 
         virtual ~plDXRenderTargetRef();
         void    Release( void );
+#ifdef BUILD_RIFT_SUPPORT
+		void ReleaseScreenRT( void );
+#endif
 };
 
 

@@ -409,12 +409,13 @@ bool plClient::Shutdown()
 #ifdef BUILD_RIFT_SUPPORT
 	if(fRiftCamera){
 		fRiftCamera->UnRegisterAs(kRiftCamera_KEY);
-		delete(fRiftCamera);
+		fRiftCamera->UnRef();
+		fRiftCamera = nil;
 	}
 
 	if (fPostProcessingMgr){
 		//fPostProcessingMgr->UnRegisterAs(kPostProcessingMgr_KEY);
-		delete(fPostProcessingMgr);
+		delete fPostProcessingMgr ;
 	}
 #endif
 

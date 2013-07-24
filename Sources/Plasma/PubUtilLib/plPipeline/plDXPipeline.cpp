@@ -147,6 +147,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plResMgr/plLocalization.h"
 
 #ifdef BUILD_RIFT_SUPPORT
+#include "D3DUtils.h"
 #include "plPostPipeline/plPostPipeline.h"
 #endif
 
@@ -595,6 +596,7 @@ plDXPipeline::plDXPipeline( hsWinRef hWnd, const hsG3DDeviceModeRecord *devModeR
 #ifdef BUILD_RIFT_SUPPORT	
 	PLD3D_SCREENQUADFVF( D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1 | D3DFVF_TEXCOORDSIZE3(0) ),		//Vertex format flags for post processing screen quad
 	fPostMgr(nil),
+	fScreenQuadVertBuffer(nil),
 #endif
     fAllocUnManaged(false)
 {
@@ -1355,6 +1357,10 @@ bool  plDXPipeline::ICreateDeviceObjects()
     if( ICreateDevice(!fSettings.fFullscreen) )
         return true;
 
+#if BUILD_RIFT_SUPPORT
+	fPostMgr = plPostPipeline::GetInstance();
+#endif
+
     // Most everything else D3D
     if( ICreateDynDeviceObjects() )
         return true;
@@ -1366,9 +1372,7 @@ bool  plDXPipeline::ICreateDeviceObjects()
     if( fPlateMgr == nil || !fPlateMgr->IsValid() )
         return true;
 
-#if BUILD_RIFT_SUPPORT
-	fPostMgr = plPostPipeline::GetInstance();
-#endif
+
 
     // We've got everything created now, initialize to a known state.
     IInitDeviceState();
@@ -1956,6 +1960,7 @@ void plDXPipeline::IReleaseDynDeviceObjects()
         rtRef->Unlink();
     }
 
+
     // The shared dynamic vertex buffers used by things like objects skinned on CPU, or
     // particle systems.
     IReleaseDynamicBuffers();
@@ -2021,6 +2026,16 @@ void    plDXPipeline::IReleaseDeviceObjects()
     fBoundsMat = nil;
 #endif
 
+#ifdef BUILD_RIFT_SUPPORT
+	if(true){
+		PROFILE_BLOCK
+		D3DUtils::ScopeProfiler( L"Clearing rendertarget", __LINE__ );
+		plDXRenderTargetRef* rtRef = (plDXRenderTargetRef*) fPostMgr->GetPostRT()->GetDeviceRef();
+		rtRef->ReleaseScreenRT();
+		rtRef = nil;
+	}
+#endif
+
     plStatusLogMgr::GetInstance().SetDrawer( nil );
     delete fLogDrawer;
     fLogDrawer = nil;
@@ -2076,6 +2091,8 @@ void    plDXPipeline::IReleaseDeviceObjects()
     fPlateMgr = nil;
 
 #ifdef BUILD_RIFT_SUPPORT
+	fPostMgr->UnRef();
+	delete fPostMgr;
 	fPostMgr = nil;
 #endif
 
@@ -2167,13 +2184,16 @@ void plDXPipeline::IReleaseDynamicBuffers()
         fPlateMgr->IReleaseGeometry();
 
 	
-	#if BUILD_RIFT_SUPPORT
-	//if(fScreenQuadVertBuffer){
-		//delete(fScreenQuadVertBuffer);
-		//fScreenQuadVertBuffer = nil;
-	//}
+#if BUILD_RIFT_SUPPORT
+	if(fScreenQuadVertBuffer != nil)	
+    {
+		PROFILE_BLOCK
+        ReleaseObject(fScreenQuadVertBuffer);
+        PROFILE_POOL_MEM(D3DPOOL_DEFAULT, 4 * sizeof(plScreenQuadVertex), false, "ScreenQuadVtxBuff");
+        fScreenQuadVertBuffer = nil;
+    }
 	//fPostMgr->ReleaseTextures();
-	#endif
+#endif
 
     // Also has POOL_DEFAULT vertex buffer.
     plDXTextFont::ReleaseShared(fD3DDevice);
@@ -10783,8 +10803,8 @@ void plDXPipeline::LoadResources()
     IFillAvRTPool();
 
 	
-#if BUILD_RIFT_SUPPORT
-	fPostMgr->CreatePostRT(Width(), Height());
+#ifdef BUILD_RIFT_SUPPORT
+	MakeRenderTargetRef( fPostMgr->CreatePostRT(Width(), Height()) );
 	fPostMgr->CreateShaders();
 #endif
 

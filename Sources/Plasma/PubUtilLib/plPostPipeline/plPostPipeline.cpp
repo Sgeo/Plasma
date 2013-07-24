@@ -65,8 +65,8 @@ plPostPipeline::plPostPipeline():
 }
 
 plPostPipeline::~plPostPipeline(){
-	delete(fVsShader);
-	delete(fPsShader);
+	delete fVsShader;
+	delete fPsShader;
 	ReleaseGeometry();
 	ReleaseTextures();
 	fPipe = nil;
@@ -77,7 +77,8 @@ void plPostPipeline::ReleaseGeometry(){
 }
 
 void plPostPipeline::ReleaseTextures(){
-	delete(fPostRT);
+	fPostRT->UnRef();
+	delete fPostRT;
 	fPostRT = nil;
 }
 
@@ -181,7 +182,7 @@ void plPostPipeline::UpdateShaders()
 	//fVsShader->SetMatrix44(kRiftShaderView, view);
 }
 
-void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
+plRenderTarget* plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
 	// Create our render target
     const uint16_t flags = plRenderTarget::kIsOffscreen;
     const uint8_t bitDepth(32);
@@ -194,6 +195,8 @@ void plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
     //static int idx=0;
     //plString buff = plString::Format("tRT%d", idx++);
     //hsgResMgr::ResMgr()->NewKey(buff, fPostRT, this->GetKey()->GetUoid().GetLocation());
+
+	return fPostRT;
 }
 
 void plPostPipeline::SetViewport(OVR::Util::Render::Viewport vp, bool resetProjection = false)

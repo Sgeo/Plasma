@@ -40,6 +40,7 @@ set(plPipeline_SOURCES
     plTextGenerator.cpp
     plTransitionMgr.cpp
     plVertCoder.cpp
+	D3DUtils.cpp
 )
 
 set(plPipeline_HEADERS
@@ -78,6 +79,7 @@ set(plPipeline_HEADERS
     plTextGenerator.h
     plTransitionMgr.h
     plVertCoder.h
+	D3DUtils.h
 )
 
 set(plPipeline_DEVICEREFS

@@ -1964,14 +1964,13 @@ bool plClient::IDraw()
 		fRiftCamera->SetOriginalCamera(fPipeline->GetViewTransform().GetWorldToCamera());
 		fPipeline->ClearRenderTarget();
 
-		//fPipeline->MakeRenderRequestsStereo(fPostRenderRequests);
 
 		if(fPostProcessingMgr->GetPostProcessingState()){
 			fPostProcessingMgr->EnablePostRT();
 
 			fPostProcessingMgr->SetViewport(plStereoViewport(0,0,fPipeline->Width() * fRiftCamera->GetRenderScale(), fPipeline->Height() * fRiftCamera->GetRenderScale()), false);
 			
-			fRiftCamera->ApplyLeftEyeViewport();	
+			fRiftCamera->ApplyLeftEyeViewport();
 		}
 	}
 #endif
@@ -1998,10 +1997,13 @@ bool plClient::IDraw()
 		fPageMgr->Render(fPipeline);
 	plProfile_EndTiming(MainRender);
 
+	StereoUtils::MakeRenderRequestsStereo(fPostRenderRequests, fRiftCamera->MakeLeftGuiViewport(), fPostProcessingMgr->GetPostRT() );
+	//fPostProcessingMgr->EnablePostRT();
+	IProcessPostStereoRenderRequests(fPostRenderRequests);
+
 	plProfile_BeginTiming(ScreenElem);
 	fPipeline->RenderScreenElements();
 	plProfile_EndTiming(ScreenElem);
-
 	
 	//-------------------------------------------------------
 	/*
@@ -2056,6 +2058,7 @@ bool plClient::IDraw()
 
 		fRiftCamera->ApplyRightEyeViewport();
 
+
 		plProfile_BeginTiming(BeginRender);
 		if( fPipeline->BeginRender() )
 		{
@@ -2078,21 +2081,15 @@ bool plClient::IDraw()
 			fPageMgr->Render(fPipeline);
 		plProfile_EndTiming(MainRender);
 
+		StereoUtils::MakeRenderRequestsStereo(fPostRenderRequests, fRiftCamera->MakeRightGuiViewport(), fPostProcessingMgr->GetPostRT() );
+		//fPostProcessingMgr->EnablePostRT();
+		IProcessPostRenderRequests();
+
 		plProfile_BeginTiming(ScreenElem);
 		fPipeline->RenderScreenElements();
 		plProfile_EndTiming(ScreenElem);
 		//Stop pre-post render
 
-
-
-		// pre-post render
-		/*(PostRender);
-		if( !fFlags.IsBitSet( kFlagDBGDisableRRequests ) )
-			IProcessPostRenderRequests();
-		plProfile_EndTiming(PostRender);*/
-		//-------------------------------------------------------
-
-		
 
 
 
@@ -2112,7 +2109,6 @@ bool plClient::IDraw()
 			fPostProcessingMgr->RenderPostEffects();
 
 			fPostProcessingMgr->SetViewport(plStereoViewport(0,0,1280,800), false);
-
 		}
 
 	}
@@ -2120,10 +2116,11 @@ bool plClient::IDraw()
 #endif
 
 	// pre-post render
+	/*
 	plProfile_BeginTiming(PostRender);
 	if( !fFlags.IsBitSet( kFlagDBGDisableRRequests ) )
 		IProcessPostRenderRequests();
-	plProfile_EndTiming(PostRender);
+	plProfile_EndTiming(PostRender);*/
 
 plProfile_BeginTiming(Movies);
 		IServiceMovies();
@@ -2261,10 +2258,20 @@ void plClient::IProcessRenderRequests(hsTArray<plRenderRequest*>& reqs)
 		hsRefCnt_SafeUnRef(reqs[i]);
 	}
 
-#ifdef BUILD_RIFT_SUPPORT
 	reqs.SetCount(0);
-#endif
 }
+
+#ifdef BUILD_RIFT_SUPPORT
+//Run through the render request but DON'T remove them! We need to save them for stereoscopic rendering
+void plClient::IProcessPostStereoRenderRequests(hsTArray<plRenderRequest*>& reqs)
+{
+	int i;
+	for( i = 0; i < reqs.GetCount(); i++ )
+	{
+		reqs[i]->Render(fPipeline, fPageMgr);
+	}
+}
+#endif
 
 void plClient::IProcessPreRenderRequests()
 {

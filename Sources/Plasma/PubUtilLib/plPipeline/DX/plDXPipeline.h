@@ -669,7 +669,6 @@ public:
 	virtual void						EndScene();
 	virtual void						SetViewport();
 	virtual void						ReverseCulling();
-	virtual void						MakeRenderRequestsStereo( hsTArray<plRenderRequest*> renderRequests, plViewTransform stereoTransform);
 
 #endif
 

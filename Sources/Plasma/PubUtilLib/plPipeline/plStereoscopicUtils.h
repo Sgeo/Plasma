@@ -7,6 +7,10 @@
 #include "plScene/plRenderRequest.h"
 #include "plStereoscopicUtils.h"
 
+class plViewTransform;
+class hsMatrix44;
+class plRenderRequest;
+
 struct plStereoViewport
 {
 	int x, y;
@@ -30,7 +34,7 @@ namespace StereoUtils {
 	void ApplyStereoProjectionToTransform(plViewTransform * vt, hsMatrix44 projMatrix);
 	void ApplyStereoViewportToTransform(plViewTransform * vt, int xMin, int yMin, int xMax, int yMax, float renderScale);
 	
-	void MakeRenderRequestsStereo( hsTArray<plRenderRequest*> renderRequests, plViewTransform stereoTransform);
+	void MakeRenderRequestsStereo( hsTArray<plRenderRequest*> renderRequests, plViewTransform stereoTransform, plRenderTarget * stereoRT);
 }
 
 #endif

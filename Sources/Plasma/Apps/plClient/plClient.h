@@ -205,6 +205,9 @@ protected:
     void                    IProcessPreRenderRequests();
     void                    IProcessPostRenderRequests();
     void                    IProcessRenderRequests(hsTArray<plRenderRequest*>& reqs);
+#ifdef BUILD_RIFT_SUPPORT
+	void					IProcessPostStereoRenderRequests(hsTArray<plRenderRequest*>& reqs);
+#endif
     void                    IAddRenderRequest(plRenderRequest* req);
 
     bool                    IPlayIntroBink(const char* movieName, float endDelay, float posX, float posY, float scaleX, float scaleY, float volume = 1.0);

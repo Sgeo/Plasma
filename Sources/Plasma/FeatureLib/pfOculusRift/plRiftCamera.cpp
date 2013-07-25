@@ -127,7 +127,7 @@ bool plRiftCamera::MsgReceive(plMessage* msg)
 	return true;
 }
 
-void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
+plViewTransform plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 {
 	Util::Render::StereoEyeParams eyeParams = SConfig.GetEyeRenderParams(eye);
 
@@ -169,7 +169,46 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 	fPipe->RefreshMatrices();
 	fPipe->SetViewTransform(vt);	
 	fPipe->SetViewport();
+
+	return vt;
 }
+
+
+plViewTransform plRiftCamera::MakeGuiViewport(Util::Render::StereoEye eye){
+
+	Util::Render::StereoEyeParams eyeParams = SConfig.GetEyeRenderParams(eye);
+
+	fRenderScale = 1.0f;
+	fRenderScale = SConfig.GetDistortionScale();
+
+	plViewTransform vt = fPipe->GetViewTransform();
+
+	StereoUtils::ApplyStereoViewportToTransform(&vt, eyeParams.VP.x, 
+									eyeParams.VP.y, 
+									eyeParams.VP.x + 
+									eyeParams.VP.w, 
+									eyeParams.VP.y + 
+									eyeParams.VP.h, 
+									fRenderScale);
+	
+	hsMatrix44 eyeTransform;
+	hsVector3 depthOffset(0.0f, 0.0f, 0.0f);
+	eyeTransform.Reset();
+	//OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
+	//eyeTransform.fMap[0][3] *= -0.3048;	//Convert Rift meters to feet
+	eyeTransform.Translate(&depthOffset);
+
+	hsMatrix44 inverse;
+	eyeTransform.GetInverse(&inverse);
+	vt.SetCameraTransform( eyeTransform, inverse );
+
+	hsMatrix44 projMatrix;
+	OVRTransformToHSTransform(eyeParams.OrthoProjection, &projMatrix);
+	StereoUtils::ApplyStereoProjectionToTransform(&vt, projMatrix);
+
+	return vt;
+}
+
 
 
 plStereoViewport plRiftCamera::ConvertOVRViewportToHSViewport(OVR::Util::Render::Viewport * ovrVp){

@@ -114,9 +114,13 @@ public:
 
 	float ReverseRadians(float angle){ return 2 * M_PI - angle; };
 
-	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
-	void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
-	void ApplyStereoViewport(Util::Render::StereoEye);
+	plViewTransform ApplyLeftEyeViewport(){ return ApplyStereoViewport(Util::Render::StereoEye_Left); };
+	plViewTransform ApplyRightEyeViewport(){ return ApplyStereoViewport(Util::Render::StereoEye_Right); };
+	plViewTransform ApplyStereoViewport(Util::Render::StereoEye);
+	
+	plViewTransform MakeLeftGuiViewport(){return MakeGuiViewport(Util::Render::StereoEye_Left);};
+	plViewTransform MakeRightGuiViewport(){return MakeGuiViewport(Util::Render::StereoEye_Right);};
+	plViewTransform MakeGuiViewport(Util::Render::StereoEye eye);
 
 	plStereoViewport ConvertOVRViewportToHSViewport(OVR::Util::Render::Viewport * ovrVp);
 

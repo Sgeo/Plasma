@@ -121,7 +121,7 @@ void plViewTransform::SetProjectionMatrix(hsMatrix44* projectionMatrix)
 {
 	fCameraToNDC.Reset();
     fCameraToNDC.NotIdentity();
-
+	
 	fCameraToNDC = *(projectionMatrix);
 	
 	ISetFlag(kCameraToNDCSet);

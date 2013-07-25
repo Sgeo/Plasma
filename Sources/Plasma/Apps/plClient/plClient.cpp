@@ -1796,6 +1796,11 @@ bool plClient::IUpdate()
 	if (hsTimer::GetSysSeconds()==0 && hsTimer::IsRealTime() && hsTimer::GetTimeClamp()==0)
 		hsTimer::SetRealTime(true);
 
+#ifdef BUILD_RIFT_SUPPORT
+	//fPostProcessingMgr->SetViewport(plStereoViewport(0,0,640,800), false);
+	plVirtualCam1::SetFOV(fRiftCamera->GetXFov() , fRiftCamera->GetYFov() );
+#endif
+
 	plProfile_BeginTiming(DispatchQueue);
 	plgDispatch::Dispatch()->MsgQueueProcess();
 	plProfile_EndTiming(DispatchQueue);
@@ -2082,7 +2087,6 @@ bool plClient::IDraw()
 		plProfile_EndTiming(MainRender);
 
 		StereoUtils::MakeRenderRequestsStereo(fPostRenderRequests, fRiftCamera->MakeRightGuiViewport(), fPostProcessingMgr->GetPostRT() );
-		//fPostProcessingMgr->EnablePostRT();
 		IProcessPostRenderRequests();
 
 		plProfile_BeginTiming(ScreenElem);
@@ -2108,7 +2112,7 @@ bool plClient::IDraw()
 			fPostProcessingMgr->UpdateShaders();
 			fPostProcessingMgr->RenderPostEffects();
 
-			fPostProcessingMgr->SetViewport(plStereoViewport(0,0,1280,800), false);
+			//fPostProcessingMgr->SetViewport(plStereoViewport(0,0,1280,800), false);
 		}
 
 	}

@@ -206,6 +206,8 @@ plViewTransform plRiftCamera::MakeGuiViewport(Util::Render::StereoEye eye){
 	OVRTransformToHSTransform(eyeParams.OrthoProjection, &projMatrix);
 	StereoUtils::ApplyStereoProjectionToTransform(&vt, projMatrix);
 
+	//plVirtualCam1::SetFOV(vt.GetFovX(), vt.GetFovY());
+
 	return vt;
 }
 

@@ -131,6 +131,15 @@ public:
 	void EnableBothEyeRender(bool state){ fEyeToRender = EYE_BOTH; };
 	int GetEyeToRender(){return fEyeToRender; };
 
+	float GetXFov(){ 
+		float xFov;
+		float w = GetEyeParams(Util::Render::StereoEye_Left).VP.w * fRenderScale;
+		float h = GetEyeParams(Util::Render::StereoEye_Left).VP.h * fRenderScale;
+		xFov = SConfig.GetYFOVDegrees() * ( w / h );
+		return xFov; 
+	};
+	float GetYFov(){ return SConfig.GetYFOVDegrees(); };
+
 	void EnableStereoRendering(bool state){ fEnableStereoRendering = state; };
 	bool GetStereoRenderingState(){ return fEnableStereoRendering; };
 	float GetRenderScale(){return fRenderScale;};

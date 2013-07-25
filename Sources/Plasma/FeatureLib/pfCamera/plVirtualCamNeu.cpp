@@ -292,7 +292,8 @@ void plVirtualCam1::SetFOV(float w, float h)
         fFOVw = w;
     else
     {
-        float scale = fAspectRatio / fourXthree;
+        //float scale = fAspectRatio / fourXthree;
+		float scale = fAspectRatio;
         fFOVw = 2 * hsRadiansToDegrees(atan(scale * tan(hsDegreesToRadians(w/2))));
     }
     plVirtualCam1::Instance()->SetFlags(plVirtualCam1::kSetFOV);

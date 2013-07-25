@@ -34,8 +34,9 @@ void StereoUtils::MakeRenderRequestsStereo( hsTArray<plRenderRequest*> renderReq
 		renderRequests[i]->SetRenderTarget(stereoRT);
 		
 		//hsMatrix44 projMatrix = stereoTransform.GetCameraToNDC();
-
-		vt.SetProjectionMatrix(&projMatrix);
+		//renderRequests[i]->SetFovX(stereoTransform.GetFovX());
+		//renderRequests[i]->SetFovY(stereoTransform.GetFovY());
+		//vt.SetProjectionMatrix(&projMatrix);
 		
 		vt.SetViewPort(stereoTransform.GetViewPortLoX(),
 			stereoTransform.GetViewPortLoY(), 

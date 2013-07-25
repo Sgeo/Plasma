@@ -34,7 +34,6 @@ set(plPipeline_SOURCES
     plTextGenerator.cpp
     plTransitionMgr.cpp
     plVertCoder.cpp
-	D3DUtils.cpp
 )
 
 set(plDXPipeline_SOURCES
@@ -45,6 +44,7 @@ set(plDXPipeline_SOURCES
     DX/plDXShader.cpp
     DX/plDXTextFont.cpp
     DX/plDXVertexShader.cpp
+	DX/D3DUtils.cpp
 )
 
 set(plPipeline_HEADERS
@@ -77,7 +77,6 @@ set(plPipeline_HEADERS
     plTextGenerator.h
     plTransitionMgr.h
     plVertCoder.h
-	D3DUtils.h
 )
 
 set(plDXPipeline_HEADERS
@@ -93,6 +92,7 @@ set(plDXPipeline_HEADERS
     DX/plDXTextFont.h
     DX/plDXTextureRef.h
     DX/plDXVertexShader.h
+	DX/D3DUtils.h
 )
 
 if(WIN32)

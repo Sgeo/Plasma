@@ -51,6 +51,7 @@ class plPipeline;
 class plShader;
 class plRenderTarget;
 class plViewTransform;
+struct plStereoViewport;
 
 #define DEFAULT_RIFTSCALE 1.71460557f
 
@@ -106,9 +107,9 @@ public:
 	plRenderTarget* CreatePostRT(uint16_t width, uint16_t height);
 	plRenderTarget* GetPostRT(){ return fPostRT; };
 
-	void SetRealViewport(OVR::Util::Render::Viewport vp){ fRealVP = vp; };
-	void SetViewport(OVR::Util::Render::Viewport vp, bool resetProjection);
-	void SetPrescaledViewport(OVR::Util::Render::Viewport vp){ fVP = vp; };
+	void SetRealViewport(plStereoViewport vp){ fRealVP = vp; };
+	void SetViewport(plStereoViewport vp, bool resetProjection);
+	void SetPrescaledViewport(plStereoViewport vp){ fVP = vp; };
 	
 	void RestoreViewport(){ SetViewport(fRealVP, true); };
 	void SetRenderScale(float scale){fRenderScale = scale; };
@@ -118,8 +119,6 @@ public:
         if (eye == OVR::Util::Render:: StereoEye_Right)
             fDistortion.XCenterOffset = -fDistortion.XCenterOffset;
     }	
-
-	
 
 private:
 	static plPostPipeline* fInstance;
@@ -132,8 +131,8 @@ private:
 	plShader* fVsShader;
 	plShader* fPsShader;
 
-	OVR::Util::Render::Viewport fVP;
-	OVR::Util::Render::Viewport fRealVP;
+	plStereoViewport fVP;
+	plStereoViewport fRealVP;
 
 	bool fEnablePost;
 };

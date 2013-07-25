@@ -8,6 +8,7 @@ if(LibOVR_FOUND)
     include_directories(${LibOVR_INCLUDE_DIR})
 endif(LibOVR_FOUND)  
 
+
 if(Bink_SDK_AVAILABLE)
     include_directories(${Bink_INCLUDE_DIR})
 endif()
@@ -34,6 +35,7 @@ set(plPipeline_SOURCES
     plTextGenerator.cpp
     plTransitionMgr.cpp
     plVertCoder.cpp
+	plStereoscopicUtils.cpp
 )
 
 set(plDXPipeline_SOURCES
@@ -77,6 +79,7 @@ set(plPipeline_HEADERS
     plTextGenerator.h
     plTransitionMgr.h
     plVertCoder.h
+	plStereoscopicUtils.h
 )
 
 set(plDXPipeline_HEADERS

@@ -5529,6 +5529,21 @@ void plDXPipeline::ClearBackbuffer()
 void plDXPipeline::ReverseCulling(){
 	ISetCullMode(true);
 }
+
+// MakeRenderRequestsStereo //////////////////////////////////////////////////////////////////////////////
+// Sets the viewtransform of a render request list to follow the correct format for stereoscopic rendering
+void plDXPipeline::MakeRenderRequestsStereo( hsTArray<plRenderRequest*> renderRequests, plViewTransform stereoTransform){
+	
+	int i;
+	for( i = 0; i < renderRequests.GetCount(); i++ )
+	{
+		plViewTransform vt = renderRequests[i]->GetViewTransform();
+
+
+		renderRequests[i]->SetViewTransform(vt);
+	}
+}
+
 #endif
 
 

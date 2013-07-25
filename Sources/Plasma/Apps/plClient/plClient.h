@@ -91,6 +91,7 @@ class plResPatcherMsg;
 #define D3DXSHADER_SKIPOPTIMIZATION 
 class plRiftCamera;						//Rift manager
 class plPostPipeline;
+struct plStereoViewport;
 #endif
 
 typedef void (*plMessagePumpProc)( void );

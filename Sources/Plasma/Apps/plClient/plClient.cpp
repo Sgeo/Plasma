@@ -606,7 +606,7 @@ bool plClient::InitPipeline()
 	fPostProcessingMgr = plPostPipeline::GetInstance();
 	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
 	fPostProcessingMgr->SetPipeline(pipe);
-	fPostProcessingMgr->SetRealViewport(OVR::Util::Render::Viewport(0,0,pipe->Width(),pipe->Height() ));
+	fPostProcessingMgr->SetRealViewport(plStereoViewport(0,0,pipe->Width(),pipe->Height() ));
 	//fPostProcessingMgr->SetRenderScale(fRiftCamera->GetRenderScale()); 
 #endif
 
@@ -1960,14 +1960,16 @@ bool plClient::IDraw()
 
 	if(fRiftCamera->GetStereoRenderingState()){
 
-		fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,1280,800), true);
+		fPostProcessingMgr->SetViewport(plStereoViewport(0,0,1280,800), true);
 		fRiftCamera->SetOriginalCamera(fPipeline->GetViewTransform().GetWorldToCamera());
 		fPipeline->ClearRenderTarget();
+
+		//fPipeline->MakeRenderRequestsStereo(fPostRenderRequests);
 
 		if(fPostProcessingMgr->GetPostProcessingState()){
 			fPostProcessingMgr->EnablePostRT();
 
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,fPipeline->Width() * fRiftCamera->GetRenderScale(), fPipeline->Height() * fRiftCamera->GetRenderScale()), false);
+			fPostProcessingMgr->SetViewport(plStereoViewport(0,0,fPipeline->Width() * fRiftCamera->GetRenderScale(), fPipeline->Height() * fRiftCamera->GetRenderScale()), false);
 			
 			fRiftCamera->ApplyLeftEyeViewport();	
 		}
@@ -2039,7 +2041,7 @@ bool plClient::IDraw()
 		{
 			fPostProcessingMgr->DisablePostRT();
 
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,640,800), false);
+			fPostProcessingMgr->SetViewport(plStereoViewport(0,0,640,800), false);
 			hsColorRGBA resetCol;
 			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
 			fPipeline->ClearRenderTarget(&resetCol);
@@ -2099,7 +2101,7 @@ bool plClient::IDraw()
 		{
 			fPostProcessingMgr->DisablePostRT();
 
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(640,0,640,800), false);
+			fPostProcessingMgr->SetViewport(plStereoViewport(640,0,640,800), false);
 			hsColorRGBA resetCol;
 			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
 			fPipeline->ClearRenderTarget(&resetCol);
@@ -2109,7 +2111,7 @@ bool plClient::IDraw()
 			fPostProcessingMgr->UpdateShaders();
 			fPostProcessingMgr->RenderPostEffects();
 
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,1280,800), false);
+			fPostProcessingMgr->SetViewport(plStereoViewport(0,0,1280,800), false);
 
 		}
 
@@ -2258,7 +2260,10 @@ void plClient::IProcessRenderRequests(hsTArray<plRenderRequest*>& reqs)
 		reqs[i]->Render(fPipeline, fPageMgr);
 		hsRefCnt_SafeUnRef(reqs[i]);
 	}
+
+#ifdef BUILD_RIFT_SUPPORT
 	reqs.SetCount(0);
+#endif
 }
 
 void plClient::IProcessPreRenderRequests()

@@ -173,7 +173,7 @@ class plDXRenderTargetRef;
 class plStatusLogDrawer;
 class plBinkPlayer;
 #ifdef BUILD_RIFT_SUPPORT
-class plpostPipeline;
+class plPostPipeline;
 #endif
 
 class plDXPipeline : public plPipeline
@@ -669,6 +669,8 @@ public:
 	virtual void						EndScene();
 	virtual void						SetViewport();
 	virtual void						ReverseCulling();
+	virtual void						MakeRenderRequestsStereo( hsTArray<plRenderRequest*> renderRequests, plViewTransform stereoTransform);
+
 #endif
 
     virtual void                        ClearRenderTarget( plDrawable* d );

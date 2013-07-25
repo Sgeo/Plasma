@@ -51,7 +51,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsMatrix44.h"
 #include "plstring.h"
 #include "plGImage/plMipmap.h"
-
+#include "plViewTransform.h"
 	
 #include "plSurface/hsGMaterial.h"
 #include "plMessage/plLayRefMsg.h"
@@ -66,6 +66,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnKeyedObject/plKey.h"
 #include "pnKeyedObject/plFixedKey.h"
 #include "pnKeyedObject/plUoid.h"
+
+#include "plPipeline/plStereoscopicUtils.h"
 //#include "../../FeatureLib/pfCamera/plVirtualCamNeu.h"
 
 //Rift namespace
@@ -84,15 +86,11 @@ class plSceneNode;
 class plDebugInputInterface;
 class plPlate;
 class plShader;
+class plViewTransform;
+struct plStereoViewport;
 
 class plRiftCamera : public hsKeyedObject{
 public:
-
-	//Flags
-	enum {
-		kUseRawInput,		
-		kUseEulerInput
-	};
 
 	plRiftCamera();
 	virtual ~plRiftCamera();
@@ -110,14 +108,6 @@ public:
 	void SetPipeline(plPipeline* pipe){ fPipe = pipe; };
 	hsMatrix44 RawRiftRotation();
 	hsMatrix44 EulerRiftRotation();
-	void SetRawRotation(){
-		ClearFlags(kUseEulerInput);
-		SetFlags(kUseRawInput);
-	}
-	void SetEulerRotation(){
-		ClearFlags(kUseRawInput);
-		SetFlags(kUseEulerInput);
-	}
 
 	void SetNear(float distance){ fNear = distance; };
 	void SetFar(float distance){ fFar = distance; };
@@ -127,6 +117,8 @@ public:
 	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
 	void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
 	void ApplyStereoViewport(Util::Render::StereoEye);
+
+	plStereoViewport ConvertOVRViewportToHSViewport(OVR::Util::Render::Viewport * ovrVp);
 
 	void SetOriginalCamera(hsMatrix44 cam){ fWorldToCam = cam; };
 	

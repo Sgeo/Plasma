@@ -64,6 +64,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnKeyedObject/plKey.h"
 #include "pnKeyedObject/plFixedKey.h"
 #include "pnKeyedObject/plUoid.h"
+#include "plPipeline/plStereoscopicUtils.h"
 
 plRiftCamera::plRiftCamera() : 
 	fEnableStereoRendering(true),
@@ -79,7 +80,6 @@ plRiftCamera::plRiftCamera() :
 	fNear(0.3f),
 	fFar(10000.0f)
 {
-	SetFlags(kUseEulerInput);
 }
 
 plRiftCamera::~plRiftCamera(){
@@ -134,56 +134,49 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 	fRenderScale = 1.0f;
 	fRenderScale = SConfig.GetDistortionScale();
 
-	//Viewport stuff
+	//Viewport
 	//--------------
 	plViewTransform vt = fPipe->GetViewTransform();
-	vt.SetViewPort(eyeParams.VP.x * fRenderScale,
-					eyeParams.VP.y * fRenderScale, 
-					(eyeParams.VP.x + eyeParams.VP.w)  * fRenderScale, 
-					(eyeParams.VP.y + eyeParams.VP.h) * fRenderScale, false);
+
 	
-	hsMatrix44 eyeTransform, transposed, w2c, inverse;
+	StereoUtils::ApplyStereoViewportToTransform(&vt, eyeParams.VP.x, 
+									eyeParams.VP.y, 
+									eyeParams.VP.x + 
+									eyeParams.VP.w, 
+									eyeParams.VP.y + 
+									eyeParams.VP.h, 
+									fRenderScale);
+	
+	
+	//Eye transform
+	//--------------
+	hsMatrix44 eyeTransform;
 	OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
 	eyeTransform.fMap[0][3] *= 0.3048;	//Convert Rift meters to feet
 
-	hsMatrix44 riftOrientation;
-
-	if(HasFlags(kUseRawInput)){
-		riftOrientation = RawRiftRotation();
-	} else if(HasFlags(kUseEulerInput)){
-		riftOrientation = EulerRiftRotation();
-	}
+	hsMatrix44 riftOrientation = EulerRiftRotation();
 
 	eyeTransform = riftOrientation * eyeTransform;
-	hsMatrix44 origW2c = fWorldToCam;
+	StereoUtils::ApplyStereoViewToTransform(&vt, eyeTransform, fWorldToCam);
 
-	w2c = eyeTransform * origW2c;
-	w2c.GetInverse(&inverse);
-	vt.SetCameraTransform( w2c, inverse );
-	vt.SetWidth(eyeParams.VP.w * fRenderScale);
-	vt.SetHeight(eyeParams.VP.h * fRenderScale);
-	vt.SetHeight(eyeParams.VP.h * fRenderScale);
-	hsPoint2 depth;
-	depth.Set(fNear, fFar);
-	//vt.SetDepth(depth);
-	
 
-	//Projection matrix stuff
+	//Projection matrix
 	//-------------------------
 	hsMatrix44 projMatrix;
-
-	hsMatrix44 oldCamNDC = vt.GetCameraToNDC();
-	
 	OVRTransformToHSTransform(eyeParams.Projection, &projMatrix);
-	vt.SetProjectionMatrix(&projMatrix);
-
-	//fPipe->ReverseCulling();
+	StereoUtils::ApplyStereoProjectionToTransform(&vt, projMatrix);
 
 	fPipe->RefreshMatrices();
-    
 	fPipe->SetViewTransform(vt);	
 	fPipe->SetViewport();
 }
+
+
+plStereoViewport plRiftCamera::ConvertOVRViewportToHSViewport(OVR::Util::Render::Viewport * ovrVp){
+	plStereoViewport hsViewport(ovrVp->x, ovrVp->y, ovrVp->w, ovrVp->h);
+	return hsViewport;
+}
+
 
 hsMatrix44 plRiftCamera::RawRiftRotation(){
 	hsMatrix44 outView;

@@ -7175,34 +7175,6 @@ PF_CONSOLE_CMD( Rift,										// Group name
 }
 
 
-PF_CONSOLE_CMD( Rift,										// Group name
-                UseRawRotation,							// Function name
-                "",											// Params
-                "Use raw quaterion HMD input" )   // Help string
-{
-	plUoid pU1( kRiftCamera_KEY );
-    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
-    if (fRiftCameraKey)
-    {
-		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetRawRotation();
-		return;
-    }
-}
-
-PF_CONSOLE_CMD( Rift,										// Group name
-                UseEulerRotation,							// Function name
-                "",											// Params
-                "Use euler converted HMD input" )   // Help string
-{
-	plUoid pU1( kRiftCamera_KEY );
-    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
-    if (fRiftCameraKey)
-    {
-		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetEulerRotation();
-		return;
-    }
-}
-
 
 PF_CONSOLE_CMD( Rift,										// Group name
                 SetNear,							// Function name

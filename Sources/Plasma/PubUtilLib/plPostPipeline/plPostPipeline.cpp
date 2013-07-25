@@ -200,7 +200,7 @@ plRenderTarget* plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
 	return fPostRT;
 }
 
-void plPostPipeline::SetViewport(OVR::Util::Render::Viewport vp, bool resetProjection = false)
+void plPostPipeline::SetViewport(plStereoViewport vp, bool resetProjection = false)
 {
 	fVP = vp;
 

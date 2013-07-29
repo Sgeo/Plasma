@@ -192,15 +192,9 @@ plViewTransform plRiftCamera::MakeGuiViewport(Util::Render::StereoEye eye){
 									fRenderScale);
 	
 	hsMatrix44 eyeTransform;
-	hsVector3 depthOffset(0.0f, 0.0f, 0.0f);
-	eyeTransform.Reset();
-	//OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
-	//eyeTransform.fMap[0][3] *= -0.3048;	//Convert Rift meters to feet
-	eyeTransform.Translate(&depthOffset);
-
-	hsMatrix44 inverse;
-	eyeTransform.GetInverse(&inverse);
-	vt.SetCameraTransform( eyeTransform, inverse );
+	OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
+	eyeTransform.fMap[0][3] *= 0.3048;	//Convert Rift meters to feet
+	StereoUtils::ApplyStereoViewToTransform(&vt, eyeTransform, fWorldToCam);
 
 	hsMatrix44 projMatrix;
 	OVRTransformToHSTransform(eyeParams.OrthoProjection, &projMatrix);

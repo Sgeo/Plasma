@@ -206,7 +206,7 @@ protected:
     void                    IProcessPostRenderRequests();
     void                    IProcessRenderRequests(hsTArray<plRenderRequest*>& reqs);
 #ifdef BUILD_RIFT_SUPPORT
-	void					IProcessPostStereoRenderRequests(hsTArray<plRenderRequest*>& reqs);
+	void					IProcessStereoRenderRequests(hsTArray<plRenderRequest*>& reqs);
 #endif
     void                    IAddRenderRequest(plRenderRequest* req);
 

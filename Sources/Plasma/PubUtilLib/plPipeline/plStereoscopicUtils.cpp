@@ -26,17 +26,24 @@ void StereoUtils::ApplyStereoViewToTransform(plViewTransform * vt, hsMatrix44 ey
 
 // MakeRenderRequestsStereo //////////////////////////////////////////////////////////////////////////////
 // Sets the viewtransform of a render request list to follow the correct format for stereoscopic rendering
-void StereoUtils::MakeRenderRequestsStereo( hsTArray<plRenderRequest*> renderRequests, plViewTransform stereoTransform, plRenderTarget * stereoRT){
+void StereoUtils::MakeRenderRequestsStereo( hsTArray<plRenderRequest*> renderRequests, plViewTransform stereoTransform, plRenderTarget * stereoRT, bool skip = false){
 	int i;
 	for( i = 0; i < renderRequests.GetCount(); i++ )
 	{
 		plViewTransform vt = renderRequests[i]->GetViewTransform();
 		renderRequests[i]->SetRenderTarget(stereoRT);
-		
-		//hsMatrix44 projMatrix = stereoTransform.GetCameraToNDC();
+
+		hsMatrix44 origNDC = vt.GetCameraToNDC();
+		hsMatrix44 projMatrix = stereoTransform.GetCameraToNDC();
+		projMatrix.fMap[0][0] = origNDC.fMap[0][0];
+		projMatrix.fMap[1][1] = origNDC.fMap[1][1];
+		projMatrix.fMap[2][2] = 1.0f;
+		projMatrix.fMap[2][3] = origNDC.fMap[2][3];
+		projMatrix.fMap[3][2] = 1.0f;
+		projMatrix.fMap[3][3] = 0.0f;
 		//renderRequests[i]->SetFovX(stereoTransform.GetFovX());
 		//renderRequests[i]->SetFovY(stereoTransform.GetFovY());
-		//vt.SetProjectionMatrix(&projMatrix);
+		//vt.SetProjectionMatrix(&origNDC);
 		
 		vt.SetViewPort(stereoTransform.GetViewPortLoX(),
 			stereoTransform.GetViewPortLoY(), 
@@ -45,11 +52,20 @@ void StereoUtils::MakeRenderRequestsStereo( hsTArray<plRenderRequest*> renderReq
 		//vt.SetWidth(stereoTransform.GetViewPortHiX() - stereoTransform.GetViewPortLoX());
 		//vt.SetHeight(stereoTransform.GetViewPortHiY() - stereoTransform.GetViewPortLoY());
 
-		hsMatrix44 camMat = vt.GetWorldToCamera();
-		hsMatrix44 inv;
-		camMat.GetInverse(&inv);
+		//float depth =0.0f;
+		//if(!skip)
+			//depth = 50.0f;
 
-		vt.SetCameraTransform(camMat, inv );
+		//hsVector3 camPos;
+		//stereoTransform.GetWorldToCamera().GetTranslate(&camPos);
+		
+		hsMatrix44 origCam = vt.GetWorldToCamera();
+		hsMatrix44 newCam = stereoTransform.GetWorldToCamera();
+		//origCam.Translate(&offsetDepth);
+		//hsMatrix44 inv;
+		//stereoTransform.GetWorldToCamera().GetInverse(&inv);
+		
+		//vt.SetCameraTransform(stereoTransform.GetWorldToCamera(), stereoTransform.GetCameraToWorld() );
 
 		renderRequests[i]->SetViewTransform(vt);
 		

@@ -123,7 +123,9 @@ void ErrorAssert(int line, const char file[], const char fmt[], ...)
     if (s_GuiAsserts)
     {
         if(_CrtDbgReport(_CRT_ASSERT, file, line, NULL, msg))
-            DebugBreak();
+
+			
+			DebugBreak();
     } else
 #endif // HS_DEBUGGING
       if (DebugIsDebuggerPresent()) {

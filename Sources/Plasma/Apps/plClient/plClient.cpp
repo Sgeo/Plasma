@@ -1798,7 +1798,7 @@ bool plClient::IUpdate()
 
 #ifdef BUILD_RIFT_SUPPORT
 	//fPostProcessingMgr->SetViewport(plStereoViewport(0,0,640,800), false);
-	plVirtualCam1::SetFOV(fRiftCamera->GetXFov() , fRiftCamera->GetYFov() );
+	//plVirtualCam1::SetFOV(fRiftCamera->GetXFov() , fRiftCamera->GetYFov() );
 #endif
 
 	plProfile_BeginTiming(DispatchQueue);
@@ -1994,7 +1994,11 @@ bool plClient::IDraw()
 
 	plProfile_BeginTiming(PreRender);
 	if( !fFlags.IsBitSet( kFlagDBGDisableRRequests ) )
+#ifdef BUILD_RIFT_SUPPORT
+		IProcessStereoRenderRequests(fPreRenderRequests);
+#else
 		IProcessPreRenderRequests();
+#endif
 	plProfile_EndTiming(PreRender);
 
 	plProfile_BeginTiming(MainRender);
@@ -2002,78 +2006,59 @@ bool plClient::IDraw()
 		fPageMgr->Render(fPipeline);
 	plProfile_EndTiming(MainRender);
 
-	StereoUtils::MakeRenderRequestsStereo(fPostRenderRequests, fRiftCamera->MakeLeftGuiViewport(), fPostProcessingMgr->GetPostRT() );
-	//fPostProcessingMgr->EnablePostRT();
-	IProcessPostStereoRenderRequests(fPostRenderRequests);
+#ifdef BUILD_RIFT_SUPPORT
+	StereoUtils::MakeRenderRequestsStereo(fPostRenderRequests, fRiftCamera->MakeLeftGuiViewport(), fPostProcessingMgr->GetPostRT(), false );
+	IProcessStereoRenderRequests(fPostRenderRequests);
+#else
+	plProfile_BeginTiming(PostRender);
+	if( !fFlags.IsBitSet( kFlagDBGDisableRRequests ) )
+		IProcessPostRenderRequests();
+	plProfile_EndTiming(PostRender);
+#endif
 
 	plProfile_BeginTiming(ScreenElem);
 	fPipeline->RenderScreenElements();
 	plProfile_EndTiming(ScreenElem);
-	
-	//-------------------------------------------------------
-	/*
-	plProfile_BeginTiming(Movies);
-	IServiceMovies();
-	plProfile_EndTiming(Movies);
-
-	plProfile_BeginTiming(StatusLog);
-	plStatusLogMgr::GetInstance().Draw();
-	plProfile_EndTiming(StatusLog);
-
-	plProfile_BeginTiming(ProgressMgr);
-	plProgressMgr::GetInstance()->Draw( fPipeline );
-	plProfile_EndTiming(ProgressMgr);
-
-	fLastProgressUpdate = hsTimer::GetSeconds();
-
-	plProfile_BeginTiming(ScreenElem);
-	fPipeline->RenderScreenElements();
-	plProfile_EndTiming(ScreenElem);
-	//Stop pre-post render*/
 
 	plProfile_BeginTiming(EndRender);
 	fPipeline->EndRender();
 	plProfile_EndTiming(EndRender);
 
-	//End first stereo pass
-
-	//-------------------------------
-	//Stereo rendering pass B
-	//-------------------------------
+	
 #ifdef BUILD_RIFT_SUPPORT
 	if(fRiftCamera->GetStereoRenderingState())
 	{
-		//Render last post effects
-		if(fPostProcessingMgr->GetPostProcessingState())
-		{
-			fPostProcessingMgr->DisablePostRT();
+		//Render post effects -- left
+		fPostProcessingMgr->DisablePostRT();
 
-			fPostProcessingMgr->SetViewport(plStereoViewport(0,0,640,800), false);
-			hsColorRGBA resetCol;
-			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
-			fPipeline->ClearRenderTarget(&resetCol);
+		fPostProcessingMgr->SetViewport(plStereoViewport(0,0,640,800), false);
+		hsColorRGBA resetCol;
+		resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
+		fPipeline->ClearRenderTarget(&resetCol);
 
-			fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Left).pDistortion), OVR::Util::Render::StereoEye_Left);
+		fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Left).pDistortion), OVR::Util::Render::StereoEye_Left);
 
-			fPostProcessingMgr->UpdateShaders();
-			fPostProcessingMgr->RenderPostEffects();
+		fPostProcessingMgr->UpdateShaders();
+		fPostProcessingMgr->RenderPostEffects();
 
-			fPostProcessingMgr->EnablePostRT();
-		}
 
+		//-------------------------------
+		//Stereo rendering pass B
+		//-------------------------------
+
+		fPostProcessingMgr->EnablePostRT();
 		fRiftCamera->ApplyRightEyeViewport();
-
 
 		plProfile_BeginTiming(BeginRender);
 		if( fPipeline->BeginRender() )
 		{
 			plProfile_EndTiming(BeginRender);
-			return IFlushRenderRequests();
+			//return IFlushRenderRequests();
 		}
 		plProfile_EndTiming(BeginRender);
 
 		plProfile_BeginTiming(ClearRender);
-		fPipeline->ClearRenderTarget();
+		//fPipeline->ClearRenderTarget();
 		plProfile_EndTiming(ClearRender);
 
 		plProfile_BeginTiming(PreRender);
@@ -2086,42 +2071,36 @@ bool plClient::IDraw()
 			fPageMgr->Render(fPipeline);
 		plProfile_EndTiming(MainRender);
 
-		StereoUtils::MakeRenderRequestsStereo(fPostRenderRequests, fRiftCamera->MakeRightGuiViewport(), fPostProcessingMgr->GetPostRT() );
+		StereoUtils::MakeRenderRequestsStereo(fPostRenderRequests, fRiftCamera->MakeRightGuiViewport(), fPostProcessingMgr->GetPostRT(), true );
 		IProcessPostRenderRequests();
 
 		plProfile_BeginTiming(ScreenElem);
 		fPipeline->RenderScreenElements();
 		plProfile_EndTiming(ScreenElem);
-		//Stop pre-post render
 
 
+		//Render post effects -- right
+		fPostProcessingMgr->DisablePostRT();
 
+		fPostProcessingMgr->SetViewport(plStereoViewport(640,0,640,800), false);
+		fPipeline->ClearRenderTarget(&resetCol);
 
-		//Render last post effects
-		if(fPostProcessingMgr->GetPostProcessingState())
-		{
-			fPostProcessingMgr->DisablePostRT();
+		fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Right).pDistortion), OVR::Util::Render::StereoEye_Right);
 
-			fPostProcessingMgr->SetViewport(plStereoViewport(640,0,640,800), false);
-			hsColorRGBA resetCol;
-			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
-			fPipeline->ClearRenderTarget(&resetCol);
+		fPostProcessingMgr->UpdateShaders();
+		fPostProcessingMgr->RenderPostEffects();
 
-			fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Right).pDistortion), OVR::Util::Render::StereoEye_Right);
+		fPostProcessingMgr->SetViewport(plStereoViewport(0,0,1280,800), false);
 
-			fPostProcessingMgr->UpdateShaders();
-			fPostProcessingMgr->RenderPostEffects();
-
-			//fPostProcessingMgr->SetViewport(plStereoViewport(0,0,1280,800), false);
-		}
 
 	}
 
 #endif
 
+
 	// pre-post render
-	/*
-	plProfile_BeginTiming(PostRender);
+	//Emergency post render!
+	/*plProfile_BeginTiming(PostRender);
 	if( !fFlags.IsBitSet( kFlagDBGDisableRRequests ) )
 		IProcessPostRenderRequests();
 	plProfile_EndTiming(PostRender);*/
@@ -2145,8 +2124,8 @@ plProfile_BeginTiming(Movies);
 
 		fLastProgressUpdate = hsTimer::GetSeconds();
 
-		/*
-		plProfile_BeginTiming(ScreenElem);
+		
+		/*plProfile_BeginTiming(ScreenElem);
 		fPipeline->RenderScreenElements();
 		plProfile_EndTiming(ScreenElem);
 		//Stop pre-post render*/
@@ -2267,7 +2246,7 @@ void plClient::IProcessRenderRequests(hsTArray<plRenderRequest*>& reqs)
 
 #ifdef BUILD_RIFT_SUPPORT
 //Run through the render request but DON'T remove them! We need to save them for stereoscopic rendering
-void plClient::IProcessPostStereoRenderRequests(hsTArray<plRenderRequest*>& reqs)
+void plClient::IProcessStereoRenderRequests(hsTArray<plRenderRequest*>& reqs)
 {
 	int i;
 	for( i = 0; i < reqs.GetCount(); i++ )

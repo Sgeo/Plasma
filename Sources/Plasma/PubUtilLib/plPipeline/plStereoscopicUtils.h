@@ -34,7 +34,7 @@ namespace StereoUtils {
 	void ApplyStereoProjectionToTransform(plViewTransform * vt, hsMatrix44 projMatrix);
 	void ApplyStereoViewportToTransform(plViewTransform * vt, int xMin, int yMin, int xMax, int yMax, float renderScale);
 	
-	void MakeRenderRequestsStereo( hsTArray<plRenderRequest*> renderRequests, plViewTransform stereoTransform, plRenderTarget * stereoRT);
+	void MakeRenderRequestsStereo( hsTArray<plRenderRequest*> renderRequests, plViewTransform stereoTransform, plRenderTarget * stereoRT, bool skip);
 }
 
 #endif

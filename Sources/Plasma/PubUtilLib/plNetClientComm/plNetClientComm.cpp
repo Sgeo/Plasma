@@ -60,6 +60,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plVault/plVault.h"
 #include "plMessage/plAccountUpdateMsg.h"
 #include "plNetClient/plNetClientMgr.h"
+#include "plFile/plStreamSource.h"
 
 #include "pfMessage/pfKIMsg.h"
 
@@ -274,10 +275,9 @@ static void PlayerInitCallback (
         // Ensure the city link has the required spawn points
         plAgeInfoStruct info;
         info.SetAgeFilename(kCityAgeFilename);
-        if (RelVaultNode * rvn = VaultGetOwnedAgeLinkIncRef(&info)) {
+        if (hsRef<RelVaultNode> rvn = VaultGetOwnedAgeLink(&info)) {
             VaultAgeLinkNode acc(rvn);
             acc.AddSpawnPoint(plSpawnPointInfo(kCityFerryTerminalLinkTitle, kCityFerryTerminalLinkSpawnPtName));
-            rvn->DecRef();
         }
         
         VaultProcessPlayerInbox();
@@ -414,6 +414,9 @@ static void INetCliAuthLoginRequestCallback (
             if (!wantsStartUpAge && 0 == StrCmpI(s_players[i].playerName, s_iniStartupPlayerName, (unsigned)-1))
                 s_player = &s_players[i];
         }
+
+        // store this server's encryption key for posterity
+        NetCliAuthGetEncryptionKey(plStreamSource::GetInstance()->GetEncryptionKey(), 4);
     }
     else
         s_account.accountUuid = kNilUuid;
@@ -811,10 +814,10 @@ void NetCommActivatePostInitErrorHandler () {
 //============================================================================
 void NetCommUpdate () {
     // plClient likes to recursively call us on occasion; debounce that crap.
-    static long s_updating;
-    if (0 == AtomicSet(&s_updating, 1)) {
+    static std::atomic_flag s_updating = ATOMIC_FLAG_INIT;
+    if (!s_updating.test_and_set()) {
         NetClientUpdate();
-        AtomicSet(&s_updating, 0);
+        s_updating.clear();
     }
 }
 
@@ -1115,14 +1118,12 @@ void NetCommSetActivePlayer (//--> plNetCommActivePlayerMsg
     unsigned playerInt = 0;
 
     if (s_player) {
-        if (RelVaultNode* rvn = VaultGetPlayerInfoNodeIncRef()) {
+        if (hsRef<RelVaultNode> rvn = VaultGetPlayerInfoNode()) {
             VaultPlayerInfoNode pInfo(rvn);
             pInfo.SetAgeInstName(nil);
             pInfo.SetAgeInstUuid(kNilUuid);
             pInfo.SetOnline(false);
             NetCliAuthVaultNodeSave(rvn, nil, nil);
-
-            rvn->DecRef();
         }
 
         VaultCull(s_player->playerInt);
@@ -1317,10 +1318,9 @@ void NetCommUpgradeVisitorToExplorer (
 void NetCommSetCCRLevel (
     unsigned                ccrLevel
 ) {
-    if (RelVaultNode * rvnInfo = VaultGetPlayerInfoNodeIncRef()) {
+    if (hsRef<RelVaultNode> rvnInfo = VaultGetPlayerInfoNode()) {
         VaultPlayerInfoNode pInfo(rvnInfo);
         pInfo.SetCCRLevel(ccrLevel);
-        rvnInfo->DecRef();
     }
 
     NetCliAuthSetCCRLevel(ccrLevel);

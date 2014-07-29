@@ -145,7 +145,7 @@ int main(int argc, char* argv[])
 class plSoundBufferCollector : public plRegistryPageIterator, public plKeyCollector
 {
 public:
-    plSoundBufferCollector(hsTArray<plKey>& keyArray) 
+    plSoundBufferCollector(std::set<plKey>& keyArray)
                 : plKeyCollector(keyArray) {}
 
     bool EatPage(plRegistryPageNode* page)
@@ -159,14 +159,14 @@ public:
 
 bool DumpSounds()
 {
-    hsTArray<plKey> soundKeys;
+    std::set<plKey> soundKeys;
 
     plSoundBufferCollector soundCollector(soundKeys);
     gResMgr->IterateAllPages(&soundCollector);
 
-    for (int i = 0; i < soundKeys.GetCount(); i++)
+    for (auto it = soundKeys.begin(); it != soundKeys.end(); ++it)
     {
-        plSoundBuffer* buffer = plSoundBuffer::ConvertNoRef(soundKeys[i]->VerifyLoaded());
+        plSoundBuffer* buffer = plSoundBuffer::ConvertNoRef((*it)->VerifyLoaded());
         if (buffer)
         {
             // Ref it...
@@ -197,7 +197,7 @@ bool DumpSounds()
         }
     }
 
-    soundKeys.Reset();
+    soundKeys.clear();
     plIndirectUnloadIterator iter;
     gResMgr->IterateAllPages(&iter);
 
@@ -240,7 +240,7 @@ public:
         const plPageInfo& info = page->GetPageInfo();
 
         plFileName fileName = plFileName::Join(fOutputDir,
-                plString::Format("%s_%s.csv", info.GetAge().c_str(), info.GetPage().c_str()));
+                plFormat("{}_{}.csv", info.GetAge(), info.GetPage()));
         fStream.Open(fileName, "wt");
 
         page->LoadKeys();

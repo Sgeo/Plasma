@@ -198,10 +198,11 @@ void plNetClientMgr::Shutdown()
 
     IRemoveCloneRoom();
 
-    // RATHER BAD DEBUG HACK: Clear the spawn override in armatureMod so there's no memory leak
-    plArmatureMod::SetSpawnPointOverride( nil );
-
     VaultDestroy();
+
+    // commit hara-kiri
+    UnRegisterAs(kNetClientMgr_KEY);
+    SetInstance(nullptr);
 }
 
 //
@@ -254,7 +255,7 @@ void plNetClientMgr::SetNullSend(bool on)
 const char* plNetClientMgr::GetServerLogTimeAsString(plString& timestamp) const
 {
     const plUnifiedTime st=GetServerTime();
-    timestamp = plString::Format("{%02d/%02d %02d:%02d:%02d}",
+    timestamp = plFormat("{{{_02}/{_02} {_02}:{_02}:{_02}}",
         st.GetMonth(), st.GetDay(), st.GetHour(), st.GetMinute(), st.GetSecond());
     return timestamp.c_str();
 }
@@ -267,7 +268,7 @@ const char* ProcessTab(const char* fmt)
     static plString s;
     if (fmt && *fmt=='\t')
     {
-        s = plString::Format("  %s", fmt);
+        s = plFormat("  {}", fmt);
         return s.c_str();
     }
     return fmt;
@@ -282,7 +283,7 @@ bool plNetClientMgr::Log(const char* str) const
         return true;
 
     // prepend raw time
-    plString buf2 = plString::Format("%.2f %s", hsTimer::GetSeconds(), ProcessTab(str));
+    plString buf2 = plFormat("{.2f} {}", hsTimer::GetSeconds(), ProcessTab(str));
 
     if ( GetConsoleOutput() )
         hsStatusMessage(buf2.c_str());
@@ -303,18 +304,14 @@ bool plNetClientMgr::Log(const char* str) const
 //
 // Display OS version info for log
 //
+extern std::vector<plString> DisplaySystemVersion();
+
 void plNetClientMgr::IDumpOSVersionInfo() const
 {
     DebugMsg("*** OS Info");
-    char** versionStrs = DisplaySystemVersion();
-    int i=0;
-    while(versionStrs && versionStrs[i])
-    {
-        DebugMsg(versionStrs[i]);
-        delete [] versionStrs[i];
-        i++;
-    }
-    delete [] versionStrs;
+    std::vector<plString> versionStrs = DisplaySystemVersion();
+    for (auto version = versionStrs.begin(); version != versionStrs.end(); ++version)
+        DebugMsg(version->c_str());
 }
 
 //
@@ -784,7 +781,9 @@ plSynchedObject* plNetClientMgr::GetLocalPlayer(bool forceLoad) const
 
 plSynchedObject* plNetClientMgr::GetNPC(uint32_t i) const
 {
-    return fNPCKeys[i] ? plSynchedObject::ConvertNoRef(fNPCKeys[i]->ObjectIsLoaded()) : nil; 
+    if (i >= fNPCKeys.size())
+        return nullptr;
+    return plSynchedObject::ConvertNoRef(fNPCKeys[i]->ObjectIsLoaded()); 
 }
 
 void plNetClientMgr::AddNPCKey(const plKey& npc)
@@ -1149,7 +1148,7 @@ bool plNetClientMgr::ObjectInLocalAge(const plSynchedObject* obj) const
 //
 // the next age we are going to
 //
-const char* plNetClientMgr::GetNextAgeFilename() 
+plString plNetClientMgr::GetNextAgeFilename() const
 { 
     // set when we start linking to an age.
     plNetLinkingMgr * lm = plNetLinkingMgr::GetInstance();
@@ -1235,7 +1234,7 @@ void plNetClientMgr::IDisableNet () {
             if (!GetFlagsBit(plNetClientApp::kPlayingGame))
             {
                 // KI may not be loaded
-                plString title = plString::Format("%s Error", plProduct::CoreName().c_str());
+                plString title = plFormat("{} Error", plProduct::CoreName());
                 hsMessageBox(fDisableMsg->str, title.c_str(), hsMessageBoxNormal, hsMessageBoxIconError );
                 plClientMsg *quitMsg = new plClientMsg(plClientMsg::kQuit);
                 quitMsg->Send(hsgResMgr::ResMgr()->FindKey(kClient_KEY));
@@ -1361,8 +1360,8 @@ bool plNetClientMgr::IFindModifier(plSynchedObject* obj, int16_t classIdx)
                 cnt++;
     }
 
-    hsAssert(cnt<2, plString::Format("Object %s has multiple SDL modifiers of the same kind (%s)?", 
-        obj->GetKeyName().c_str(), plFactory::GetNameOfClass(classIdx)).c_str());
+    hsAssert(cnt<2, plFormat("Object {} has multiple SDL modifiers of the same kind ({})?",
+             obj->GetKeyName(), plFactory::GetNameOfClass(classIdx)).c_str());
     return cnt==0 ? false : true;
 }
 

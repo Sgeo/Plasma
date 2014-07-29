@@ -108,7 +108,6 @@ bool plSceneInputInterface::fShowLOS = false;
 plSceneInputInterface::plSceneInputInterface()
 {
     fPipe = nil;
-    fSpawnPoint = nil;
     fAgeInstanceGuid.Clear();
     fInstance = this;
     SetEnabled( true );         // Always enabled
@@ -838,13 +837,16 @@ void plSceneInputInterface::ILinkOffereeToAge()
         plString title, desc;
 
         unsigned nameLen = plNetClientMgr::GetInstance()->GetPlayerName().GetSize();
-        if (plNetClientMgr::GetInstance()->GetPlayerName().CharAt(nameLen - 1) == 's' || plNetClientMgr::GetInstance()->GetPlayerName().CharAt(nameLen - 1) == 'S') {
-            title = plString::Format( "%s'", plNetClientMgr::GetInstance()->GetPlayerName().c_str() );
-            desc = plString::Format( "%s' %s", plNetClientMgr::GetInstance()->GetPlayerName().c_str(), link.GetAgeInfo()->GetAgeInstanceName() );
+        if (plNetClientMgr::GetInstance()->GetPlayerName().CharAt(nameLen - 1) == 's'
+                || plNetClientMgr::GetInstance()->GetPlayerName().CharAt(nameLen - 1) == 'S') {
+            title = plFormat("{}'", plNetClientMgr::GetInstance()->GetPlayerName());
+            desc = plFormat("{}' {}", plNetClientMgr::GetInstance()->GetPlayerName(),
+                            link.GetAgeInfo()->GetAgeInstanceName());
         }
         else {
-            title = plString::Format( "%s's", plNetClientMgr::GetInstance()->GetPlayerName().c_str() );
-            desc = plString::Format( "%s's %s", plNetClientMgr::GetInstance()->GetPlayerName().c_str(), link.GetAgeInfo()->GetAgeInstanceName() );
+            title = plFormat("{}'s", plNetClientMgr::GetInstance()->GetPlayerName());
+            desc = plFormat("{}'s {}", plNetClientMgr::GetInstance()->GetPlayerName(),
+                            link.GetAgeInfo()->GetAgeInstanceName());
         }
 
         info.SetAgeUserDefinedName( title.c_str() );
@@ -856,7 +858,7 @@ void plSceneInputInterface::ILinkOffereeToAge()
             return;
         }
     }
-    else if (RelVaultNode * linkNode = VaultGetOwnedAgeLinkIncRef(&info)) {
+    else if (hsRef<RelVaultNode> linkNode = VaultGetOwnedAgeLink(&info)) {
         // We have the age in our AgesIOwnFolder. If its volatile, dump it for the new one.
         VaultAgeLinkNode linkAcc(linkNode);
         if (linkAcc.GetVolatile()) {
@@ -866,10 +868,9 @@ void plSceneInputInterface::ILinkOffereeToAge()
                 VaultRegisterOwnedAgeAndWait(&link);
             }
         }
-        linkNode->DecRef();
     }
 
-    if (fSpawnPoint) {
+    if (!fSpawnPoint.IsEmpty()) {
         plSpawnPointInfo spawnPoint;
         spawnPoint.SetName(fSpawnPoint);
         link.SetSpawnPoint(spawnPoint);
@@ -878,12 +879,12 @@ void plSceneInputInterface::ILinkOffereeToAge()
             
     // We now own the age, offer it
 
-    if (0 == stricmp(fOfferedAgeFile, kPersonalAgeFilename))
+    if (fOfferedAgeFile.CompareI(kPersonalAgeFilename) == 0)
         plNetLinkingMgr::GetInstance()->OfferLinkToPlayer(&link, fOffereeID, fManager->GetKey());
     else
         plNetLinkingMgr::GetInstance()->LinkPlayerToAge(&link, fOffereeID);
         
-    if (!fPendingLink && stricmp(fOfferedAgeFile, kPersonalAgeFilename))
+    if (!fPendingLink && fOfferedAgeFile.CompareI(kPersonalAgeFilename) != 0)
     {   
         // tell our local dialog to pop up again...
         plKey avKey = plNetClientMgr::GetInstance()->GetLocalPlayerKey();

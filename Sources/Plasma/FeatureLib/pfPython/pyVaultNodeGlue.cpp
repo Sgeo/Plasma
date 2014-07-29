@@ -541,11 +541,7 @@ PYTHON_EXPOSE_TYPE_DEFINITION(ptVaultNode, pyVaultNode);
 PyObject *pyVaultNode::New(RelVaultNode* nfsNode)
 {
     ptVaultNode *newObj = (ptVaultNode*)ptVaultNode_type.tp_new(&ptVaultNode_type, NULL, NULL);
-    if (newObj->fThis->fNode)
-        newObj->fThis->fNode->DecRef();
     newObj->fThis->fNode = nfsNode;
-    if (newObj->fThis->fNode)
-        newObj->fThis->fNode->IncRef();
     return (PyObject*)newObj;
 }
 

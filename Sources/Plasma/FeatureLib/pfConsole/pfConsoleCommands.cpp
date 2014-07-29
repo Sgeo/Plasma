@@ -144,7 +144,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plDrawable/plDynaBulletMgr.h"
 
 #include "plGImage/plMipmap.h"
-#include "plGImage/plTGAWriter.h"
 
 #include "plGLight/plShadowCaster.h"
 #include "plGLight/plShadowMaster.h"
@@ -1538,44 +1537,6 @@ static bool MakeUniqueFileName(const char* prefix, const char* ext, char* fileNa
 
 #ifndef LIMIT_CONSOLE_COMMANDS
 
-
-PF_CONSOLE_CMD( Graphics_Renderer, TakeScreenshot, "...", "Takes a shot of the current frame and saves it to the given file" )
-{
-    hsAssert( pfConsole::GetPipeline() != nil, "Cannot use this command before pipeline initialization" );
-
-    plMipmap        myMipmap;
-    char            fileName[ 512 ];
-
-
-    if( numParams > 1 )
-    {
-        PrintString( "Too many parameters to TakeScreenshot" );
-        return;
-    }
-    else if( numParams == 1 )
-        strcpy( fileName, (char *)params[ 0 ] );
-    else
-    {
-        // Think up a filename
-        if (!MakeUniqueFileName("screen", "tga", fileName))
-        {
-            PrintString( "Out of filenames for TakeScreenshot" );
-            return;
-        }
-    }
-
-    if( !pfConsole::GetPipeline()->CaptureScreen( &myMipmap ) )
-        PrintString( "Error capturing screenshot" );
-    else
-    {
-        char    str[ 512 ];
-
-        plTGAWriter::Instance().WriteMipmap( fileName, &myMipmap );
-        sprintf( str, "Screenshot written to '%s'.", fileName );
-        PrintString( str );
-    }
-}
-
 #include "pfSurface/plGrabCubeMap.h"
 
 PF_CONSOLE_CMD( Graphics_Renderer, GrabCubeMap, 
@@ -1608,56 +1569,6 @@ PF_CONSOLE_CMD( Graphics_Renderer, GrabCubeCam,
     const char* pref = params[1];
     plGrabCubeMap grabCube;
     grabCube.GrabCube(pfConsole::GetPipeline(), pos, pref, clearColor);
-}
-
-#include "plGImage/plJPEG.h"
-
-PF_CONSOLE_CMD( Graphics_Renderer, TakeJPEGScreenshot, "...", "Takes a shot of the current frame and saves it to the given file" )
-{
-    hsAssert( pfConsole::GetPipeline() != nil, "Cannot use this command before pipeline initialization" );
-
-    plMipmap        myMipmap;
-    char            fileName[ 512 ];
-
-
-    if( numParams > 2 )
-    {
-        PrintString( "Too many parameters to TakeScreenshot" );
-        return;
-    }
-    else if( numParams > 0 )
-        strcpy( fileName, (char *)params[ 0 ] );
-    else
-    {
-        // Think up a filename
-        if (!MakeUniqueFileName("screen", "jpg", fileName))
-        {
-            PrintString( "Out of filenames for TakeScreenshot" );
-            return;
-        }
-    }
-
-    if( !pfConsole::GetPipeline()->CaptureScreen( &myMipmap ) )
-        PrintString( "Error capturing screenshot" );
-    else
-    {
-        char    str[ 512 ];
-        uint8_t   quality = 75;
-
-
-        if( numParams == 2 )
-            quality = (int)params[ 1 ];
-
-        plJPEG::Instance().SetWriteQuality( quality );
-
-        if( !plJPEG::Instance().WriteToFile( fileName, &myMipmap ) )
-        {
-            sprintf( str, "JPEG write failed (%s).", plJPEG::Instance().GetLastError() );
-        }
-        else
-            sprintf( str, "Screenshot written to '%s', quality of %d%%.", fileName, quality );
-        PrintString( str );
-    }
 }
 
 #include "plGImage/plAVIWriter.h"
@@ -2238,7 +2149,17 @@ PF_CONSOLE_CMD( App,
     if( !stricmp(eventStr, "Time") )
     {
         event = kTime;
+        if (numParams < 2)
+        {
+            PrintString("'Time' expects a timestamp (in seconds)");
+            return;
+        }
         secs = params[2];
+    }
+    else
+    {
+        PrintString("Unknown event type. Options are 'Start', 'Stop', and 'Time'");
+        return;
     }
     if( numParams > 3 )
     {
@@ -2956,7 +2877,7 @@ PF_CONSOLE_CMD( Camera,     // groupName
 PF_CONSOLE_CMD( Camera, SwitchTo, "string cameraName", "Switch to the named camera")
 {
     char str[256];
-    plString foo = plString::Format("%s_", (char*)params[0]);
+    plString foo = plFormat("{}_", (char*)params[0]);
     plKey key = FindObjectByNameAndType(foo, "plCameraModifier1", "", str, true);
     PrintString(str);
 
@@ -3715,7 +3636,7 @@ PF_CONSOLE_CMD( Listener, XMode, "bool b", "Sets velocity and position to avatar
     
     plSetListenerMsg *set = nil;
     plKey pKey = plNetClientMgr::GetInstance()->GetLocalPlayerKey();
-    plListener* pListener;
+    plListener* pListener = nullptr;
 
     if( (bool)params[ 0 ] )
     {
@@ -4288,7 +4209,7 @@ PF_CONSOLE_CMD( Access,
 {
     char str[256];
     char* preFix = params[0];
-    plString name = plString::Format("%s_plMorphSequence_0", preFix);
+    plString name = plFormat("{}_plMorphSequence_0", preFix);
     plKey key = FindObjectByName(name, plMorphSequence::Index(), "", str);
     PrintString(str);
     if (!key)
@@ -4313,7 +4234,7 @@ PF_CONSOLE_CMD( Access,
 {
     char str[256];
     char* preFix = params[0];
-    plString name = plString::Format("%s_plMorphSequence_2", preFix);
+    plString name = plFormat("{}_plMorphSequence_2", preFix);
     plKey key = FindObjectByName(name, plMorphSequence::Index(), "", str);
     PrintString(str);
     if (!key)
@@ -4334,7 +4255,7 @@ PF_CONSOLE_CMD( Access,
 {
     char str[256];
     char* preFix = params[0];
-    plString name = plString::Format("%s_plMorphSequence_2", preFix);
+    plString name = plFormat("{}_plMorphSequence_2", preFix);
     plKey key = FindObjectByName(name, plMorphSequence::Index(), "", str);
     PrintString(str);
     if (!key)
@@ -4489,7 +4410,7 @@ PF_CONSOLE_CMD( Access,
 
     seq->Activate();
 
-    PrintString(plString::Format("%s Active\n", seq->GetKey()->GetName().c_str()).c_str());
+    PrintString(plFormat("{} Active\n", seq->GetKey()->GetName()).c_str());
 }
 
 PF_CONSOLE_CMD( Access,
@@ -4506,7 +4427,7 @@ PF_CONSOLE_CMD( Access,
 
     seq->DeActivate();
 
-    PrintString(plString::Format("%s Unactive\n", seq->GetKey()->GetName().c_str()).c_str());
+    PrintString(plFormat("{} Unactive\n", seq->GetKey()->GetName()).c_str());
 }
 
 PF_CONSOLE_CMD( Access,
@@ -4521,15 +4442,14 @@ PF_CONSOLE_CMD( Access,
         return;
     }
 
-    plClothingItem *item = plClothingMgr::GetClothingMgr()->FindItemByName(params[0]);
+    plClothingItem *item = plClothingMgr::GetClothingMgr()->FindItemByName((const char *)params[0]);
     if( !item )
         return;
 
     seq->SetUseSharedMesh(true);
     seq->AddSharedMesh(item->fMeshes[plClothingItem::kLODHigh]);
 
-    PrintString(plString::Format("%s on item %s\n", seq->GetKey()->GetName().c_str(),
-                                 (char *)params[0]).c_str());
+    PrintString(plFormat("{} on item {}\n", seq->GetKey()->GetName(), (char *)params[0]).c_str());
 }
 
 #include "pfSurface/plFadeOpacityMod.h"
@@ -6016,6 +5936,8 @@ PF_CONSOLE_CMD( Mouse, ForceHide, "bool force", "Forces the mouse to be hidden (
 
 PF_CONSOLE_GROUP( Age )
 
+plPythonSDLModifier* ExternFindAgePySDL();
+
 PF_CONSOLE_CMD(Age, ShowSDL, "", "Prints the age SDL values")
 {
     plStateDataRecord * rec = new plStateDataRecord;
@@ -6087,72 +6009,23 @@ PF_CONSOLE_CMD( Age, GetTimeOfDay, "string agedefnfile", "Gets the elapsed days 
 
 PF_CONSOLE_CMD( Age, SetSDLFloat, "string varName, float value, int index", "Set the value of an age global variable" )
 {
-    int index = (int)params[2];
-
-    extern const plPythonSDLModifier *ExternFindAgePySDL();
-    const plPythonSDLModifier *sdlMod = ExternFindAgePySDL();
-    if (!sdlMod)
-        return;
-
-    plSimpleStateVariable *var = sdlMod->GetStateCache()->FindVar((const char *)params[0]);
-    if (!var)
-        return;
-
-    float v;
-    var->Get(&v, index);
-    var->Set((float)params[1], index);
-    // set the variable in the pythonSDL also
-    ((plPythonSDLModifier*)sdlMod)->SetItemFromSDLVar(var);
-    // set it back to original so that its different
-    plSynchedObject* p = plSynchedObject::ConvertNoRef(((plSDLModifier*)sdlMod)->GetStateOwnerKey()->GetObjectPtr());
-    if (p)
-        p->DirtySynchState(sdlMod->GetSDLName(),plSynchedObject::kSendImmediately|plSynchedObject::kSkipLocalOwnershipCheck|plSynchedObject::kForceFullSend);
+    plPythonSDLModifier* sdlMod = ExternFindAgePySDL();
+    if (sdlMod)
+        sdlMod->SetItem((const char*)params[0], (int)params[2], (float)params[1]);
 }
 
 PF_CONSOLE_CMD( Age, SetSDLInt, "string varName, int value, int index", "Set the value of an age global variable" )
 {
-    int index = (int)params[2];
-
-    extern const plPythonSDLModifier *ExternFindAgePySDL();
-    const plPythonSDLModifier *sdlMod = ExternFindAgePySDL();
-    if (!sdlMod)
-        return;
-
-    plSimpleStateVariable *var = sdlMod->GetStateCache()->FindVar((const char *)params[0]);
-    if (!var)
-        return;
-
-    int v;
-    var->Get(&v, index);
-    var->Set((int)params[1], index);
-    // set the variable in the pythonSDL also
-    ((plPythonSDLModifier*)sdlMod)->SetItemFromSDLVar(var);
-    plSynchedObject* p = plSynchedObject::ConvertNoRef(((plSDLModifier*)sdlMod)->GetStateOwnerKey()->GetObjectPtr());
-    if (p)
-        p->DirtySynchState(sdlMod->GetSDLName(),plSynchedObject::kSendImmediately|plSynchedObject::kSkipLocalOwnershipCheck|plSynchedObject::kForceFullSend);
+    plPythonSDLModifier* sdlMod = ExternFindAgePySDL();
+    if (sdlMod)
+        sdlMod->SetItem((const char*)params[0], (int)params[2], (int)params[1]);
 }
 
 PF_CONSOLE_CMD( Age, SetSDLBool, "string varName, bool value, int index", "Set the value of an age global variable" )
 {
-    int index = (int)params[2];
-    
-    extern const plPythonSDLModifier *ExternFindAgePySDL();
-    const plPythonSDLModifier *sdlMod = ExternFindAgePySDL();
-    if (!sdlMod)
-        return;
-
-    plSimpleStateVariable *var = sdlMod->GetStateCache()->FindVar((const char*)params[0]);
-    if (!var)
-        return;
-
-    bool v;
-    var->Get(&v, index);
-    var->Set((bool)params[1], index);
-    // set the variable in the pythonSDL also
-    ((plPythonSDLModifier*)sdlMod)->SetItemFromSDLVar(var);
-    plSynchedObject* p = plSynchedObject::ConvertNoRef(((plSDLModifier*)sdlMod)->GetStateOwnerKey()->GetObjectPtr());
-    if (p)
-        p->DirtySynchState(sdlMod->GetSDLName(),plSynchedObject::kSendImmediately|plSynchedObject::kSkipLocalOwnershipCheck|plSynchedObject::kForceFullSend);
+    plPythonSDLModifier* sdlMod = ExternFindAgePySDL();
+    if (sdlMod)
+        sdlMod->SetItem((const char*)params[0], (int)params[2], (bool)params[1]);
 }
 
 #endif // LIMIT_CONSOLE_COMMANDS
@@ -6651,7 +6524,7 @@ PF_CONSOLE_CMD( Clothing,                           // Group name
 {
     hsTArray<plClosetItem> items;
     items.SetCount(1);
-    items[0].fItem = plClothingMgr::GetClothingMgr()->FindItemByName(params[0]);
+    items[0].fItem = plClothingMgr::GetClothingMgr()->FindItemByName((const char *)params[0]);
     items[0].fOptions.fTint1.Set(params[1], params[2], params[3], 1.f);
     items[0].fOptions.fTint2.Set(params[4], params[5], params[6], 1.f);
 
@@ -6664,7 +6537,7 @@ PF_CONSOLE_CMD( Clothing,                           // Group name
                 "Has your avatar wear the item of clothing specified" )     // Help string
 {
     plArmatureMod *avMod = plAvatarMgr::GetInstance()->GetLocalAvatar();    
-    plClothingItem *item = plClothingMgr::GetClothingMgr()->FindItemByName(params[0]);
+    plClothingItem *item = plClothingMgr::GetClothingMgr()->FindItemByName((const char *)params[0]);
 
     if (avMod && item)
     {
@@ -6678,7 +6551,7 @@ PF_CONSOLE_CMD( Clothing,                           // Group name
                 "Has your avatar remove the item of clothing specified" )       // Help string
 {
     plArmatureMod *avMod = plAvatarMgr::GetInstance()->GetLocalAvatar();    
-    plClothingItem *item = plClothingMgr::GetClothingMgr()->FindItemByName(params[0]);
+    plClothingItem *item = plClothingMgr::GetClothingMgr()->FindItemByName((const char *)params[0]);
     
     if (avMod && item)
     {
@@ -6692,7 +6565,7 @@ PF_CONSOLE_CMD( Clothing,                           // Group name
                 "Change the color of an item of clothing you're wearing" )      // Help string
 {
     plArmatureMod *avMod = plAvatarMgr::GetInstance()->GetLocalAvatar();    
-    plClothingItem *item = plClothingMgr::GetClothingMgr()->FindItemByName(params[0]);
+    plClothingItem *item = plClothingMgr::GetClothingMgr()->FindItemByName((const char *)params[0]);
     uint8_t layer;
     if ((int)params[4] == 2)
         layer = plClothingElement::kLayerTint2;
@@ -6746,7 +6619,7 @@ PF_CONSOLE_CMD( Clothing,
                "string name",
                "Switch your avatar to a different gender ('Male' / 'Female')" )
 {
-    plClothingMgr::ChangeAvatar(params[0]);
+    plClothingMgr::ChangeAvatar((const char *)params[0]);
 }
 
 PF_CONSOLE_CMD( Clothing,                           // Group name
@@ -6940,7 +6813,7 @@ PF_CONSOLE_CMD( Python,
     const char* extraParms = "";
     if (numParams > 1)
         extraParms = params[1];
-    pfBackdoorMsg *msg = new pfBackdoorMsg( params[0],extraParms );
+    pfBackdoorMsg *msg = new pfBackdoorMsg((const char *)params[0], extraParms);
     // send it off
     plgDispatch::MsgSend( msg );
 }
@@ -6953,8 +6826,7 @@ PF_CONSOLE_CMD( Python,
     plString args;
     if (numParams > 1) 
     {
-        const char* tmp = params[1];
-        args = plString::Format("(%s,)", tmp);
+        args = plFormat("({},)", (char*)params[1]);
     }
     else
         args = "()";

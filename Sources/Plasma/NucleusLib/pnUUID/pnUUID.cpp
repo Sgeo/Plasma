@@ -83,3 +83,8 @@ plString plUUID::AsString() const
     ToString(str);
     return str;
 }
+
+PL_FORMAT_IMPL(const plUUID &)
+{
+    PL_FORMAT_FORWARD(value.AsString());
+}

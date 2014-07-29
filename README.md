@@ -5,6 +5,8 @@ A CMake-based fork of the GPLv3-licensed **CyanWorlds.com Engine** (Headspin/Pla
 
 For more information on Myst Online, see http://mystonline.com/developers/
 
+For a project roadmap, see https://github.com/H-uru/Plasma/wiki/Roadmap
+
 
 Related Projects
 ----------------
@@ -19,17 +21,16 @@ Library Dependencies
 Plasma currently requires the following third-party libraries:
 
 - nVidia PhysX 2.6.4 - http://www.nvidia.com/object/physx_archives.html#SDK
-- Creative Labs' OpenAL SDK 1.1 - http://connect.creativelabs.com/openal/Downloads/OpenAL11CoreSDK.zip
 - Microsoft DirectX SDK - http://www.microsoft.com/downloads/en/details.aspx?familyid=3021d52b-514e-41d3-ad02-438a3ba730ba
 - Python 2.7 - http://www.python.org/download/releases/2.7/
 - libOgg and libVorbis - http://www.xiph.org/downloads/
 - OpenSSL - http://www.slproweb.com/products/Win32OpenSSL.html
+- OpenAL Soft - http://kcat.strangesoft.net/openal.html
 - eXpat - http://expat.sourceforge.net/
-- libJPEG - http://www.ijg.org/
+- libJPEG - http://libjpeg-turbo.virtualgl.org/
 - libPNG - http://www.libpng.org/
 - speex - http://www.speex.org/downloads/
 - zlib - http://zlib.net/
-- PCRE - http://www.pcre.org/
 - libcurl - http://curl.haxx.se/
 
 The following libraries are optional:
@@ -37,17 +38,22 @@ The following libraries are optional:
 - (for building resource.dat) PyGTK - http://www.pygtk.org/downloads.html
 - (for building resource.dat) PIL - http://www.pythonware.com/products/pil/
 - (for plFontConverter) Freetype - http://freetype.org/
+<<<<<<< HEAD
 - (for building Oculus Rift support) - https://github.com/Mystfit/LibOVR/ - Includes changes made to the sdk for compatibility with Plasma's left-handed coordinate system. (Original SDK is located at http://developer.oculus.com)
+=======
+- (for the GUI tools) Qt5 - http://qt-project.org/
+>>>>>>> a1303d6d23f29b0ce910ca005c5e9775d8937845
 
 Reducing the use of proprietary libraries is a focus of development and should be expected to change.
 
-PhysX, OpenAL, and DirectX SDK will need to be acquired through the above links.
+PhysX and DirectX SDK will need to be acquired through the above links.
 All other required libraries are available as precompiled binaries and associated files in the [development libraries bundle](http://guildofwriters.org/tools/devlibs.zip) or can be built using their individual build instructions.
 
 
 Compiling Instructions
 ----------------------
 
+<<<<<<< HEAD
 Currently, compilation only targets Windows systems and requires Visual Studio 2010 or Visual Studio 2012 (including Express Editions).
 
 To compile:
@@ -69,6 +75,37 @@ To compile:
 12. Press **Configure**... For the last time!
 13. Press **Generate**. You will now have a Visual Studio solution file (.sln) in the folder that you specified to build the binaries in.
 14. Open the solution in Visual Studio. You can compile CyanWorlds.com Engine by pressing *Build -> Build Solution*. This will take some time. 
+=======
+Currently, compilation only targets Windows systems and requires Visual Studio
+2013 (including Visual Studio 2013 Express for Windows Desktop).
+
+**Quick-start instructions:**
+
+1. Run the `prepare_env.bat` script included in the repository.
+2. You should now have a *build* folder with a Visual Studio solution file
+   (.sln) inside.
+3. Open the solution in Visual Studio. You can compile CyanWorlds.com Engine by
+   pressing *Build -> Build Solution*. This will take some time.
+
+
+**To configure manually with CMake and build:**
+
+1. Start **CMake-GUI**.
+2. Set the *Where is the source code* option to the location where you cloned
+   the repository.
+3. Set the *Where to build the binaries* option to a subfolder of the
+   aforementioned location called *build*.
+4. Check the **Grouped** and **Advanced** options.
+5. Press **Configure**. Select *Visual Studio 12* as the generator.
+6. Set the *CMAKE_INSTALL_PREFIX* option under CMAKE to the *cwe-prefix* folder
+   that you extracted from the [development libraries
+   bundle](http://guildofwriters.org/tools/devlibs.zip).
+7. Press **Configure** again.
+8. Press **Generate**. You will now have a Visual Studio solution file (.sln)
+   in the folder that you specified to build the binaries in.
+9. Open the solution in Visual Studio. You can compile CyanWorlds.com Engine by
+   pressing *Build -> Build Solution*. This will take some time.
+>>>>>>> a1303d6d23f29b0ce910ca005c5e9775d8937845
 
 
 Running Instructions

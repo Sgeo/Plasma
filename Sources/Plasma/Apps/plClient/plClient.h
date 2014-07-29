@@ -45,7 +45,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #define plClient_inc
 
 
-
 //#define NEW_CAMERA_CODE
 
 #include "HeadSpin.h"
@@ -86,16 +85,7 @@ class plNetCommAuthMsg;
 class plAgeLoaded2Msg;
 class plResPatcherMsg;
 
-#ifdef BUILD_RIFT_SUPPORT
-#define D3DXSHADER_DEBUG				//Flags for PIX directx debugging
-#define D3DXSHADER_SKIPOPTIMIZATION 
-class plRiftCamera;						//Rift manager
-class plPostPipeline;
-#endif
-
 typedef void (*plMessagePumpProc)( void );
-
-
 
 class plClient : public hsKeyedObject
 {
@@ -133,8 +123,6 @@ protected:
     pfConsoleEngine*        fConsoleEngine;
     pfConsole*              fConsole;
 
-    pfKI                    *fKIGUIGlue;
-
     bool                    fDone;
     bool                    fWindowActive;
 
@@ -144,13 +132,6 @@ protected:
     plOperationProgress     *fProgressBar;
 
     pfGameGUIMgr            *fGameGUIMgr;
-
-#ifdef BUILD_RIFT_SUPPORT
-	plRiftCamera			*fRiftCamera;
-	plPostPipeline			*fPostProcessingMgr;
-#endif
-
-    virtual hsG3DDeviceModeRecord ILoadDevMode(const char* devModeFile);
 
     bool                    IUpdate();
     bool                    IDraw();
@@ -196,7 +177,6 @@ protected:
     void                    ICompleteInit ();
     void                    IOnAsyncInitComplete ();
     void                    IHandlePatcherMsg (plResPatcherMsg * msg);
-    void                    IHandlePreloaderMsg (plPreloaderMsg * msg);
     void                    IHandleNetCommAuthMsg (plNetCommAuthMsg * msg);
     bool                    IHandleAgeLoaded2Msg (plAgeLoaded2Msg * msg);
 
@@ -314,15 +294,6 @@ public:
     void IWriteDefaultGraphicsSettings(const plFileName& destFile);
 
     plAnimDebugList *fAnimDebugList;
-
-#if 0
-    std::string fUsername;
-    std::string fPasswordDigest;
-    std::string fServer;
-    int         fPlayerID;
-    bool        fRecreatePlayer;
-    bool        fAuthPassed;
-#endif
 };
 
 #endif // plClient_inc

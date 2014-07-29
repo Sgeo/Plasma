@@ -50,6 +50,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //
 #include <string>
 #include "hsTemplates.h"
+#include "plFileSystem.h"
 #include "pnKeyedObject/plKey.h"
 
 #include "pyGlueHelpers.h"
@@ -104,6 +105,7 @@ public:
     // oneShot Avatar 
     virtual void RunBehavior(pyKey &behKey, bool netForce, bool netProp);
     virtual void RunBehaviorAndReply(pyKey& behKey, pyKey& replyKey, bool netForce, bool netProp);
+    virtual bool RunCoopAnim(pyKey& targetKey, plString activeAvatarAnim, plString targetAvatarAnim, float range, float dist, bool move);
 
     // for the multistage behaviors
     virtual void NextStage(pyKey &behKey, float transTime, bool setTime, float newTime,
@@ -137,7 +139,7 @@ public:
     //
     //  PURPOSE    : Return a list of the wearable items for this avatar of that clothing_type
     //
-    virtual std::vector<std::string> GetEntireClothingList(int32_t clothing_type);
+    virtual std::vector<plString> GetEntireClothingList(int32_t clothing_type);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -174,7 +176,7 @@ public:
     //
     //  PURPOSE    : To add a clothing item to the avatar's wardrobe (closet)
     //
-    virtual void AddWardrobeClothingItem(const char* clothing_name,pyColor& tint1,pyColor& tint2);
+    virtual void AddWardrobeClothingItem(const plString& clothing_name,pyColor& tint1,pyColor& tint2);
     
     
     /////////////////////////////////////////////////////////////////////////////
@@ -195,7 +197,7 @@ public:
     //  PURPOSE    : Return a list of clothing items that have the same mesh as
     //             : the item passed in
     //
-    virtual std::vector<PyObject*> GetAllWithSameMesh(const char* clothing_name);
+    virtual std::vector<PyObject*> GetAllWithSameMesh(const plString& clothing_name);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -204,7 +206,7 @@ public:
     //
     //  PURPOSE    : Return the clothing item that matches this one
     //
-    virtual PyObject* GetMatchingClothingItem(const char* clothing_name);
+    virtual PyObject* GetMatchingClothingItem(const plString& clothing_name);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -214,7 +216,7 @@ public:
     //  PURPOSE    : Wear a particular piece of clothing based on name of clothing item
     //             : returns 0, if clothing item was not found
     //
-    virtual bool WearClothingItem(const char* clothing_name);
+    virtual bool WearClothingItem(const plString& clothing_name);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -224,7 +226,7 @@ public:
     //  PURPOSE    : Remove (take off) a particular piece of clothing based on name of clothing item
     //             : returns 0, if clothing item was not found
     //
-    virtual bool RemoveClothingItem(const char* clothing_name);
+    virtual bool RemoveClothingItem(const plString& clothing_name);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -233,7 +235,7 @@ public:
     //
     //  PURPOSE    : Tint a clothing item, i.e. change the color of it
     //
-    virtual bool TintClothingItem(const char* clothing_name, pyColor& tint);
+    virtual bool TintClothingItem(const plString& clothing_name, pyColor& tint);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -244,7 +246,7 @@ public:
     //
     //  PURPOSE    : Tint a clothing item, i.e. change the color of it
     //
-    virtual bool TintClothingItemLayer(const char* clothing_name, pyColor& tint, uint8_t layer);
+    virtual bool TintClothingItemLayer(const plString& clothing_name, pyColor& tint, uint8_t layer);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -254,7 +256,7 @@ public:
     //  PURPOSE    : Wear a particular piece of clothing based on name of clothing item
     //             : returns 0, if clothing item was not found
     //
-    virtual bool WearClothingItemU(const char* clothing_name, bool update);
+    virtual bool WearClothingItemU(const plString& clothing_name, bool update);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -264,7 +266,7 @@ public:
     //  PURPOSE    : Remove (take off) a particular piece of clothing based on name of clothing item
     //             : returns 0, if clothing item was not found
     //
-    virtual bool RemoveClothingItemU(const char* clothing_name, bool update);
+    virtual bool RemoveClothingItemU(const plString& clothing_name, bool update);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -273,7 +275,7 @@ public:
     //
     //  PURPOSE    : Tint a clothing item, i.e. change the color of it
     //
-    virtual bool TintClothingItemU(const char* clothing_name, pyColor& tint, bool update);
+    virtual bool TintClothingItemU(const plString& clothing_name, pyColor& tint, bool update);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -284,7 +286,7 @@ public:
     //
     //  PURPOSE    : Tint a clothing item, i.e. change the color of it
     //
-    virtual bool TintClothingItemLayerU(const char* clothing_name, pyColor& tint, uint8_t layer, bool update);
+    virtual bool TintClothingItemLayerU(const plString& clothing_name, pyColor& tint, uint8_t layer, bool update);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -293,7 +295,7 @@ public:
     //
     //  PURPOSE    : Get the custom parameter string for a clothing item
     //
-    virtual const char* GetClothingItemParameterString(const char* clothing_name);
+    virtual plString GetClothingItemParameterString(const plString& clothing_name);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -302,7 +304,7 @@ public:
     //
     //  PURPOSE    : Get the tint a clothing item, i.e. change the color of it
     //
-    virtual PyObject* GetTintClothingItem(const char* clothing_name);
+    virtual PyObject* GetTintClothingItem(const plString& clothing_name);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -311,7 +313,7 @@ public:
     //
     //  PURPOSE    : Get the tint a clothing item, i.e. change the color of it
     //
-    virtual PyObject* GetTintClothingItemL(const char* clothing_name, uint8_t layer);
+    virtual PyObject* GetTintClothingItemL(const plString& clothing_name, uint8_t layer);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -350,7 +352,7 @@ public:
     //
     //  PURPOSE    : Set the morph value of a specific layer of clothing
     //
-    virtual void SetMorph(const char* clothing_name, uint8_t layer, float value);
+    virtual void SetMorph(const plString& clothing_name, uint8_t layer, float value);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -360,7 +362,7 @@ public:
     //
     //  PURPOSE    : Returns the current morph value of the specific layer of clothing
     //
-    virtual float GetMorph(const char* clothing_name, uint8_t layer);
+    virtual float GetMorph(const plString& clothing_name, uint8_t layer);
     
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -409,6 +411,9 @@ public:
     virtual void ExitSubWorld();
 
     virtual void PlaySimpleAnimation(const plString& animName);
+
+    virtual bool SaveClothingToFile(plFileName filename);
+    virtual bool LoadClothingFromFile(plFileName filename);
 
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -507,7 +512,16 @@ public:
     //             : more specific in future version
     //
     static bool ExitPBMode();
-    
+
+    /////////////////////////////////////////////////////////////////////////////
+    //
+    //  Function   : EnterAnimMode
+    //  PARAMETERS : animName - string
+    //
+    //  PURPOSE    : Makes the avatar enter a custom anim loop.
+    //
+    static bool EnterAnimMode(const plString& animName);
+
     /////////////////////////////////////////////////////////////////////////////
     //
     //  Function   : GetCurrentMode()

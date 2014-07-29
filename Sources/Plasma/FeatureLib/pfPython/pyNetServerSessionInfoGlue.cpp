@@ -143,7 +143,7 @@ PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfo, hasServerGuid)
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfo, getServerName)
 {
-    return PyString_FromString(self->fThis->GetServerName());
+    return PyString_FromPlString(self->fThis->GetServerName());
 }
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfo, getServerType)
@@ -153,7 +153,7 @@ PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfo, getServerType)
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfo, getServerAddr)
 {
-    return PyString_FromString(self->fThis->GetServerAddr());
+    return PyString_FromPlString(self->fThis->GetServerAddr());
 }
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfo, getServerPort)
@@ -193,7 +193,7 @@ PYTHON_CLASS_NEW_IMPL(ptNetServerSessionInfo, pyNetServerSessionInfo)
 PyObject *pyNetServerSessionInfo::New(const plNetServerSessionInfo &info)
 {
     ptNetServerSessionInfo *newObj = (ptNetServerSessionInfo*)ptNetServerSessionInfo_type.tp_new(&ptNetServerSessionInfo_type, NULL, NULL);
-    newObj->fThis->fInfo = info;
+    newObj->fThis->fInfo.CopyFrom(&info);
     return (PyObject*)newObj;
 }
 
@@ -306,7 +306,7 @@ PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfoRef, hasServerGuid)
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfoRef, getServerName)
 {
-    return PyString_FromString(self->fThis->GetServerName());
+    return PyString_FromPlString(self->fThis->GetServerName());
 }
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfoRef, getServerType)
@@ -316,7 +316,7 @@ PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfoRef, getServerType)
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfoRef, getServerAddr)
 {
-    return PyString_FromString(self->fThis->GetServerAddr());
+    return PyString_FromPlString(self->fThis->GetServerAddr());
 }
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptNetServerSessionInfoRef, getServerPort)
@@ -354,7 +354,7 @@ PLASMA_DEFAULT_TYPE(ptNetServerSessionInfoRef, "Basic server session info class"
 PyObject *pyNetServerSessionInfoRef::New(plNetServerSessionInfo &info)
 {
     ptNetServerSessionInfoRef *newObj = (ptNetServerSessionInfoRef*)ptNetServerSessionInfoRef_type.tp_new(&ptNetServerSessionInfoRef_type, NULL, NULL);
-    newObj->fThis->fInfo = info;
+    newObj->fThis->fInfo.CopyFrom(&info);
     return (PyObject*)newObj;
 }
 

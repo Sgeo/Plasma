@@ -62,6 +62,7 @@ set(MaxMain_SOURCES
     plGetLocationDlg.cpp
     plMaxAccelerators.cpp
     plMaxCFGFile.cpp
+    plMaxFileData.cpp
     plMaxMenu.cpp
     plMaxMeshExtractor.cpp
     plMaxNode.cpp
@@ -124,7 +125,6 @@ target_link_libraries(MaxMain pfJournalBook)
 target_link_libraries(MaxMain pfLocalizationMgr)
 target_link_libraries(MaxMain pfMessage)
 target_link_libraries(MaxMain pfPython)
-target_link_libraries(MaxMain pfSecurePreloader)
 target_link_libraries(MaxMain pfSurface)
 target_link_libraries(MaxMain plAgeDescription)
 target_link_libraries(MaxMain plAgeLoader)
@@ -191,12 +191,12 @@ target_link_libraries(MaxMain pnUtils)
 target_link_libraries(MaxMain pnUUID)
 
 if (WIN32)
-    target_link_libraries(MaxMain Comctl32)
-    target_link_libraries(MaxMain Rpcrt4)
-    target_link_libraries(MaxMain Shlwapi)
-    target_link_libraries(MaxMain Strmiids)
-    target_link_libraries(MaxMain Vfw32)
-    target_link_libraries(MaxMain Ws2_32)
+    target_link_libraries(MaxMain comctl32)
+    target_link_libraries(MaxMain rpcrt4)
+    target_link_libraries(MaxMain shlwapi)
+    target_link_libraries(MaxMain strmiids)
+    target_link_libraries(MaxMain vfw32)
+    target_link_libraries(MaxMain ws2_32)
     target_link_libraries(MaxMain winmm)
 endif(WIN32)
 

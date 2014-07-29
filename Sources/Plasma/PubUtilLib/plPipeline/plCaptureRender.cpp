@@ -54,6 +54,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsResMgr.h"
 #include "pnKeyedObject/plUoid.h"
 
+#include "pfCamera/plVirtualCamNeu.h"
 #include "pfGameGUIMgr/pfGameGUIMgr.h"
 
 #else // MF_FRONTBUFF_CAPTURE
@@ -89,12 +90,14 @@ void plCaptureRenderRequest::Render(plPipeline* pipe, plPageTreeMgr* pageMgr)
     // Clear our render target
     // Render the scene
     pipe->PushRenderRequest(this);
+    plVirtualCam1::Refresh();
 
     pipe->ClearRenderTarget();
 
     pageMgr->Render(pipe);
 
     pipe->PopRenderRequest(this);
+    plVirtualCam1::Refresh();
 
     // set up state so we can clear the z-buffer for every gui dialog (and therefore not have it
     // be obscured by other geometry)
@@ -138,7 +141,7 @@ bool plCaptureRender::Capture(const plKey& ack, uint16_t width, uint16_t height)
     plRenderTarget* rt = new plRenderTarget(flags, width, height, bitDepth, zDepth, stencilDepth);
 
     static int idx=0;
-    plString buff = plString::Format("tRT%d", idx++);
+    plString buff = plFormat("tRT{}", idx++);
     hsgResMgr::ResMgr()->NewKey(buff, rt, ack->GetUoid().GetLocation());
 
 
@@ -180,7 +183,7 @@ bool plCaptureRender::IProcess(plPipeline* pipe, const plKey& ack, plRenderTarge
     static int currentCapIndex = 0;
 
     // Mipmap isn't created with a key so let's give it one now
-    plString buff = plString::Format("CaptureRender_%d", currentCapIndex++);
+    plString buff = plFormat("CaptureRender_{}", currentCapIndex++);
 
     hsgResMgr::ResMgr()->NewKey(buff, mipMap, plLocation::kGlobalFixedLoc);
     mipMap->Ref();

@@ -48,6 +48,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "HeadSpin.h"
 #include <map>
 
+#include "plFileSystem.h"
 #include "hsGeometry3.h"
 
 #include "pnKeyedObject/hsKeyedObject.h"
@@ -113,9 +114,11 @@ public:
     plOneShotMod *FindOneShot(const plString &name);
     // \}
     
-    plKey LoadPlayer(const char* name, const char *account);
-    plKey LoadPlayer(const char* name, const char *account, const char *linkName);
-    plKey LoadAvatar(const char *name, const char *accountName, bool isPlayer, plKey spawnPoint, plAvTask *initialTask, const char *userStr = nil);
+    plKey LoadPlayer(const plString &name, const plString &account);
+    plKey LoadPlayer(const plString &name, const plString &account, const plString &linkName);
+    plKey LoadPlayerFromFile(const plString &name, const plString &account, const plFileName &clothingFile);
+    plKey LoadAvatar(plString name, plString accountName, bool isPlayer, plKey spawnPoint, plAvTask *initialTask,
+                     const plString &userStr = "", const plFileName &clothingFile = "");
 
     /**
      * Unload an avatar clone
@@ -138,7 +141,7 @@ public:
 
     plArmatureMod *GetLocalAvatar();
     plKey GetLocalAvatarKey();
-    static plArmatureMod *FindAvatar(plKey& avatarKey); // Key of the sceneObject
+    static plArmatureMod *FindAvatar(const plKey& avatarKey); // Key of the sceneObject
     plArmatureMod *FindAvatarByPlayerID(uint32_t pid);
     plArmatureMod *FindAvatarByModelName(const plString& name); // Probably only useful for custom NPCs. All players are
                                                       // either "Male" or "Female".

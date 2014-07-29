@@ -52,7 +52,7 @@ static bool DumpSpecificMsgInfo(plMessage* msg, plString& info);
 
 plDispatchLog::plDispatchLog() :
     fLog(nil),
-    fStartTicks(hsTimer::GetFullTickCount())
+    fStartTicks(hsTimer::GetTicks())
 {
     fLog = plStatusLogMgr::GetInstance().CreateStatusLog(20, "Dispatch.log", plStatusLog::kAlignToTop | plStatusLog::kFilledBackground | plStatusLog::kRawTimeStamp);
     fIncludeTypes.SetSize(plFactory::GetNumClasses());
@@ -130,7 +130,7 @@ void plDispatchLog::DumpMsg(plMessage* msg, int numReceivers, int sendTimeMs, in
         fLog->AddLine("\n");
     }
 
-    float sendTime = hsTimer::FullTicksToMs(hsTimer::GetFullTickCount() - fStartTicks);
+    float sendTime = hsTimer::GetMilliSeconds<float>(hsTimer::GetTicks() - fStartTicks);
 
     char indentStr[50];
     indent = hsMinimum(indent, sizeof(indentStr)-1);
@@ -257,10 +257,10 @@ static bool DumpSpecificMsgInfo(plMessage* msg, plString& info)
         PrintKIType(kGZFlashUpdate);                // flash an update without saving (for animation of GZFill in)
         PrintKIType(kNoCommand);
 
-        info = plString::Format("Type: %s Str: %s User: %s(%d) Delay: %f Int: %d",
+        info = plFormat("Type: {} Str: {} User: {}({}) Delay: {} Int: {}",
             typeName,
-            kiMsg->GetString() != "" ? kiMsg->GetString().c_str() : "(nil)",
-            kiMsg->GetUser() ? kiMsg->GetUser() : "(nil)",
+            kiMsg->GetString(),
+            kiMsg->GetUser(),
             kiMsg->GetPlayerID(),
             kiMsg->GetDelay(),
             kiMsg->GetIntValue());
@@ -298,14 +298,14 @@ static bool DumpSpecificMsgInfo(plMessage* msg, plString& info)
                     const plPageInfo* pageInfo = plKeyFinder::Instance().GetLocationInfo(loc);
 
                     if (pageInfo)
-                        info += plString::Format("%s-%s ", pageInfo->GetAge().c_str(), pageInfo->GetPage().c_str());
+                        info += plFormat("{}-{} ", pageInfo->GetAge(), pageInfo->GetPage());
                 }
             }
             break;
 
         case plClientMsg::kLoadAgeKeys:
         case plClientMsg::kReleaseAgeKeys:
-            info += plString::Format(" - Age: %s", clientMsg->GetAgeName().c_str());
+            info += plFormat(" - Age: {}", clientMsg->GetAgeName());
             break;
         }
         return true;
@@ -321,7 +321,7 @@ static bool DumpSpecificMsgInfo(plMessage* msg, plString& info)
         GetType(kOnRequest);
         GetType(kOnRemove);
         GetType(kOnReplace);
-        info = plString::Format("Obj: %s RefType: %s", refMsg->GetRef()->GetKeyName().c_str(), typeName);
+        info = plFormat("Obj: {} RefType: {}", refMsg->GetRef()->GetKeyName(), typeName);
 
         return true;
     }

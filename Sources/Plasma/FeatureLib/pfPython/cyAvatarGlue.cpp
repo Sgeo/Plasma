@@ -139,6 +139,27 @@ PYTHON_METHOD_DEFINITION(ptAvatar, runBehaviorSetNotify, args)
     PYTHON_RETURN_NONE;
 }
 
+PYTHON_METHOD_DEFINITION(ptAvatar, runCoopAnim, args)
+{
+    PyObject* keyObj;
+    PyObject* animAv1;
+    PyObject* animAv2;
+    float range = 6;
+    float dist = 3;
+    bool move = true;
+    if (!PyArg_ParseTuple(args, "OOO|ffb", &keyObj, &animAv1, &animAv2, &range, &dist, &move) || !pyKey::Check(keyObj) ||
+        !PyString_CheckEx(animAv1) || !PyString_CheckEx(animAv2))
+    {
+        PyErr_SetString(PyExc_TypeError, "runCoopAnim expects a ptkey and two strings and an optional float and boolean");
+        PYTHON_RETURN_ERROR;
+    }
+
+    pyKey* key = pyKey::ConvertFrom(keyObj);
+    const plString& animName1 = PyString_AsStringEx(animAv1);
+    const plString& animName2 = PyString_AsStringEx(animAv2);
+    PYTHON_RETURN_BOOL(self->fThis->RunCoopAnim(*key, animName1, animName2, range, dist, move));
+}
+
 PYTHON_METHOD_DEFINITION(ptAvatar, nextStage, args)
 {
     PyObject* keyObj = NULL;
@@ -223,10 +244,10 @@ PYTHON_METHOD_DEFINITION(ptAvatar, getEntireClothingList, args)
         PYTHON_RETURN_ERROR;
     }
 
-    std::vector<std::string> clothingList = self->fThis->GetEntireClothingList(clothingType);
+    std::vector<plString> clothingList = self->fThis->GetEntireClothingList(clothingType);
     PyObject* retVal = PyList_New(clothingList.size());
     for (int i = 0; i < clothingList.size(); i++)
-        PyList_SetItem(retVal, i, PyString_FromString(clothingList[i].c_str()));
+        PyList_SetItem(retVal, i, PyString_FromPlString(clothingList[i]));
     return retVal;
 }
 
@@ -597,6 +618,30 @@ PYTHON_METHOD_DEFINITION(ptAvatar, playSimpleAnimation, args)
     PYTHON_RETURN_NONE;
 }
 
+PYTHON_METHOD_DEFINITION(ptAvatar, saveClothingToFile, args)
+{
+    PyObject* filename;
+    if (!PyArg_ParseTuple(args, "O", &filename) || !PyString_CheckEx(filename))
+    {
+        PyErr_SetString(PyExc_TypeError, "saveClothingToFile expects a string object");
+        PYTHON_RETURN_ERROR;
+    }
+
+    PYTHON_RETURN_BOOL(self->fThis->SaveClothingToFile(PyString_AsStringEx(filename)));
+}
+
+PYTHON_METHOD_DEFINITION(ptAvatar, loadClothingFromFile, args)
+{
+    PyObject* filename;
+    if (!PyArg_ParseTuple(args, "O", &filename) || !PyString_CheckEx(filename))
+    {
+        PyErr_SetString(PyExc_TypeError, "loadClothingFromFile expects a string object");
+        PYTHON_RETURN_ERROR;
+    }
+
+    PYTHON_RETURN_BOOL(self->fThis->LoadClothingFromFile(PyString_AsStringEx(filename)));
+}
+
 PYTHON_START_METHODS_TABLE(ptAvatar)
     PYTHON_METHOD(ptAvatar, netForce, "Params: forceFlag\nSpecify whether this object needs to use messages that are forced to the network\n"
                 "- This is to be used if your Python program is running on only one client\n"
@@ -605,6 +650,7 @@ PYTHON_START_METHODS_TABLE(ptAvatar)
     PYTHON_METHOD(ptAvatar, oneShot, "Params: seekKey,duration,usePhysicsFlag,animationName,drivableFlag,reversibleFlag\nPlays a one-shot animation on the avatar"),
     PYTHON_METHOD(ptAvatar, runBehavior, "Params: behaviorKey,netForceFlag\nRuns a behavior on the avatar. Can be a single or multi-stage behavior."),
     PYTHON_METHOD(ptAvatar, runBehaviorSetNotify, "Params: behaviorKey,replyKey,netForceFlag\nSame as runBehavior, except send notifications to specified keyed object"),
+    PYTHON_METHOD(ptAvatar, runCoopAnim, "Params: targetKey,activeAvatarAnim,targetAvatarAnim,dist,move\nSeek near another avatar and run animations on both."),
     PYTHON_METHOD(ptAvatar, nextStage, "Params: behaviorKey,transitionTime,setTimeFlag,newTime,SetDirectionFlag,isForward,netForce\nTells a multistage behavior to go to the next stage (Why does Matt like so many parameters?)"),
     PYTHON_METHOD(ptAvatar, previousStage, "Params: behaviorKey,transitionTime,setTimeFlag,newTime,SetDirectionFlag,isForward,netForce\nTells a multistage behavior to go to the previous stage"),
     PYTHON_METHOD(ptAvatar, gotoStage, "Params: behaviorKey,stage,transitionTime,setTimeFlag,newTime,SetDirectionFlag,isForward,netForce\nTells a multistage behavior to go to a particular stage"),
@@ -651,6 +697,9 @@ PYTHON_START_METHODS_TABLE(ptAvatar)
     PYTHON_METHOD(ptAvatar, unRegisterForBehaviorNotify, "Params: selfKey\nThis will unregister behavior notifications"),
 
     PYTHON_METHOD(ptAvatar, playSimpleAnimation, "Params: animName\nPlay simple animation on avatar"),
+
+    PYTHON_METHOD(ptAvatar, saveClothingToFile, "Params: filename\nSave avatar clothing to a file"),
+    PYTHON_METHOD(ptAvatar, loadClothingFromFile, "Params: filename\nLoad avatar clothing from a file"),
 PYTHON_END_METHODS_TABLE;
 
 PYTHON_GLOBAL_METHOD_DEFINITION(PtSetBehaviorLoopCount, args, "Params: behaviorKey,stage,loopCount,netForce\nThis will set the loop count for a particular stage in a multistage behavior")
@@ -750,6 +799,19 @@ PYTHON_GLOBAL_METHOD_DEFINITION_NOARGS(PtAvatarExitAFK, "Tells the local avatar 
     PYTHON_RETURN_BOOL(cyAvatar::ExitAFKMode());
 }
 
+PYTHON_GLOBAL_METHOD_DEFINITION(PtAvatarEnterAnimMode, args, "Params: animName\nEnter a custom anim loop (netpropagated)")
+{
+    PyObject* animNameObj;
+    if (!PyArg_ParseTuple(args, "O", &animNameObj) || !PyString_CheckEx(animNameObj))
+    {
+        PyErr_SetString(PyExc_TypeError, "PtAvatarEnterAnimMode expects a string");
+        PYTHON_RETURN_ERROR;
+    }
+
+    plString animName = PyString_AsStringEx(animNameObj);
+    PYTHON_RETURN_BOOL(cyAvatar::EnterAnimMode(animName));
+}
+
 PYTHON_BASIC_GLOBAL_METHOD_DEFINITION(PtDisableMovementKeys, cyAvatar::DisableMovementControls, "Disable avatar movement input")
 PYTHON_BASIC_GLOBAL_METHOD_DEFINITION(PtEnableMovementKeys, cyAvatar::EnableMovementControls, "Enable avatar movement input")
 PYTHON_BASIC_GLOBAL_METHOD_DEFINITION(PtDisableMouseMovement, cyAvatar::DisableMouseMovement, "Disable avatar mouse movement input")
@@ -843,6 +905,7 @@ void cyAvatar::AddPlasmaMethods(std::vector<PyMethodDef> &methods)
     PYTHON_GLOBAL_METHOD_NOARGS(methods, PtAvatarExitUsePersBook);
     PYTHON_GLOBAL_METHOD_NOARGS(methods, PtAvatarEnterAFK);
     PYTHON_GLOBAL_METHOD_NOARGS(methods, PtAvatarExitAFK);
+    PYTHON_GLOBAL_METHOD(methods, PtAvatarEnterAnimMode);
 
     // Suspend avatar input
     PYTHON_BASIC_GLOBAL_METHOD(methods, PtDisableMovementKeys);

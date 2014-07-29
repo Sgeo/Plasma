@@ -43,11 +43,12 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "HeadSpin.h"
 #include <functional>
 #include <memory>
-#include <wchar.h>
+#include <cwchar>
 #pragma hdrstop
 
 #include "plString.h"
-#include <pcre.h>
+#include "plFormat.h"
+#include <regex>
 
 const plString plString::Null;
 
@@ -56,57 +57,43 @@ const plString plString::Null;
 #endif
 
 #if WCHAR_BYTES == 2
-#define u16slen(str, max) wcsnlen((const wchar_t *)(str), (max))
+#define u16slen(str) wcslen(reinterpret_cast<const wchar_t *>(str))
 #else
-static inline size_t u16slen(const uint16_t *ustr, size_t max)
+static inline size_t u16slen(const uint16_t *ustr)
 {
     size_t length = 0;
-    for ( ; *ustr++ && max--; ++length)
+    for ( ; *ustr++; ++length)
         ;
     return length;
 }
 #endif
 
-/* Provide strnlen and wcsnlen for MinGW which doesn't have them */
-#ifdef __MINGW32__
-size_t strnlen(const char *s, size_t maxlen)
-{
-    size_t len;
-    for (len = 0; len < maxlen && *s; len++, s++) { }
-    return len;
-}
-
-size_t wcsnlen(const wchar_t *s, size_t maxlen)
-{
-    size_t len;
-    for (len = 0; len < maxlen && *s; len++, s++) { }
-    return len;
-}
-#endif
-
 #define BADCHAR_REPLACEMENT (0xFFFDul)
+
+// This is 1GB worth of UTF-8 string data
+#define FREAKING_BIG (0x40000000)
 
 void plString::IConvertFromUtf8(const char *utf8, size_t size)
 {
+    hsAssert(size == STRLEN_AUTO || size < FREAKING_BIG, "Your string is WAAAAAY too big");
+
     if (!utf8) {
         fUtf8Buffer = plStringBuffer<char>();
         return;
     }
 
-    if ((int32_t)size < 0)
-        size = strnlen(utf8, -(int32_t)size);
+    if (size == STRLEN_AUTO)
+        size = strlen(utf8);
 
     operator=(plStringBuffer<char>(utf8, size));
 }
 
-plString &plString::operator=(const plStringBuffer<char> &init)
-{
-    fUtf8Buffer = init;
-
 #ifdef _DEBUG
     // Check to make sure the string is actually valid UTF-8
-    const char *sp = fUtf8Buffer.GetData();
-    while (sp < fUtf8Buffer.GetData() + fUtf8Buffer.GetSize()) {
+static void _check_utf8_buffer(const plStringBuffer<char> &buffer)
+{
+    const char *sp = buffer.GetData();
+    while (sp < buffer.GetData() + buffer.GetSize()) {
         unsigned char unichar = *sp++;
         if ((unichar & 0xF8) == 0xF0) {
             // Four bytes
@@ -126,19 +113,35 @@ plString &plString::operator=(const plStringBuffer<char> &init)
             hsAssert(0, "UTF-8 character out of range");
         }
     }
+}
+#else
+#   define _check_utf8_buffer(buffer)  NULL_STMT
 #endif
 
+plString &plString::operator=(const plStringBuffer<char> &init)
+{
+    fUtf8Buffer = init;
+    _check_utf8_buffer(fUtf8Buffer);
+    return *this;
+}
+
+plString &plString::operator=(plStringBuffer<char> &&init)
+{
+    fUtf8Buffer = std::move(init);
+    _check_utf8_buffer(fUtf8Buffer);
     return *this;
 }
 
 void plString::IConvertFromUtf16(const uint16_t *utf16, size_t size)
 {
+    hsAssert(size == STRLEN_AUTO || size < FREAKING_BIG, "Your string is WAAAAAY too big");
+
     fUtf8Buffer = plStringBuffer<char>();
     if (!utf16)
         return;
 
-    if ((int32_t)size < 0)
-        size = u16slen(utf16, -(int32_t)size);
+    if (size == STRLEN_AUTO)
+        size = u16slen(utf16);
 
     // Calculate the UTF-8 size
     size_t convlen = 0;
@@ -212,12 +215,14 @@ void plString::IConvertFromWchar(const wchar_t *wstr, size_t size)
 
 void plString::IConvertFromUtf32(const UniChar *ustr, size_t size)
 {
+    hsAssert(size == STRLEN_AUTO || size < FREAKING_BIG, "Your string is WAAAAAY too big");
+
     fUtf8Buffer = plStringBuffer<char>();
     if (!ustr)
         return;
 
-    if ((int32_t)size < 0)
-        size = ustrlen(ustr, -(int32_t)size);
+    if (size == STRLEN_AUTO)
+        size = ustrlen(ustr);
 
     // Calculate the UTF-8 size
     size_t convlen = 0;
@@ -270,12 +275,14 @@ void plString::IConvertFromUtf32(const UniChar *ustr, size_t size)
 
 void plString::IConvertFromIso8859_1(const char *astr, size_t size)
 {
+    hsAssert(size == STRLEN_AUTO || size < FREAKING_BIG, "Your string is WAAAAAY too big");
+
     fUtf8Buffer = plStringBuffer<char>();
     if (!astr)
         return;
 
-    if ((int32_t)size < 0)
-        size = strnlen(astr, -(int32_t)size);
+    if (size == STRLEN_AUTO)
+        size = strnlen(astr, size);
 
     // Calculate the UTF-8 size
     size_t convlen = 0;
@@ -496,8 +503,8 @@ double plString::ToDouble() const
     return strtod(c_str(), nullptr);
 }
 
-// Microsoft doesn't provide this for us
-#ifdef _MSC_VER
+// Microsoft doesn't provide this for us until VC++2013
+#if defined(_MSC_VER) && _MSC_VER < 1800
 #define va_copy(dest, src)  (dest) = (src)
 #endif
 
@@ -605,66 +612,44 @@ ssize_t plString::Find(const char *str, CaseSensitivity sense) const
 
 bool plString::REMatch(const char *pattern, CaseSensitivity sense) const
 {
-    int opts = PCRE_UTF8;
+    auto opts = std::regex_constants::ECMAScript;
     if (sense == kCaseInsensitive)
-        opts |= PCRE_CASELESS;
+        opts |= std::regex_constants::icase;
 
-    plString pat_full = plString::Format("(?:%s)\\z", pattern);
-    const char *errptr;
-    int erroffs;
-    std::unique_ptr<pcre, std::function<void (pcre *)>>
-        re(pcre_compile(pat_full.c_str(), opts, &errptr, &erroffs, nullptr), pcre_free);
-    if (!re.get()) {
-        hsAssert(0, plString::Format("Invalid Regex pattern: %s (at %d)", errptr, erroffs).c_str());
-        return false;
+    std::regex re;
+    try {
+        re = std::regex(pattern, opts);
+        if (std::regex_match(c_str(), re))
+            return true;
+    } catch (const std::regex_error& e) {
+        hsAssert(0, plFormat("Regex match error: {}", e.what()).c_str());
     }
 
-    int result = pcre_exec(re.get(), nullptr, c_str(), GetSize(), 0,
-                           PCRE_ANCHORED, nullptr, 0);
-    if (result >= 0)
-        return true;
-
-    hsAssert(result == PCRE_ERROR_NOMATCH, plString::Format("Regex match error: %d", result).c_str());
     return false;
 }
 
 std::vector<plString> plString::RESearch(const char *pattern,
                                          CaseSensitivity sense) const
 {
-    int opts = PCRE_UTF8;
+    auto opts = std::regex_constants::ECMAScript;
     if (sense == kCaseInsensitive)
-        opts |= PCRE_CASELESS;
+        opts |= std::regex_constants::icase;
 
-    const char *errptr;
-    int erroffs;
-    std::unique_ptr<pcre, std::function<void (pcre *)>>
-        re(pcre_compile(pattern, opts, &errptr, &erroffs, nullptr), pcre_free);
-    if (!re.get()) {
-        hsAssert(0, plString::Format("Invalid Regex pattern: %s (at %d)", errptr, erroffs).c_str());
-        return std::vector<plString>();
+    std::vector<plString> substrings;
+
+    try {
+        std::regex re(pattern, opts);
+        std::cmatch matches;
+        std::regex_search(c_str(), matches, re);
+        substrings.resize(matches.size());
+
+        for (size_t i = 0; i < matches.size(); ++i)
+            substrings[i] = matches[i].str().c_str();
+    } catch (const std::regex_error& e) {
+        hsAssert(0, plFormat("Regex search error: {}", e.what()).c_str());
     }
 
-    int ncaps = 0;
-    pcre_fullinfo(re.get(), nullptr, PCRE_INFO_CAPTURECOUNT, &ncaps);
-
-    ncaps += 1;     // For the whole-pattern capture
-    std::unique_ptr<int> outvec(new int[ncaps * 3]);
-    memset(outvec.get(), -1, sizeof(int) * ncaps * 3);
-    int result = pcre_exec(re.get(), nullptr, c_str(), GetSize(), 0, 0,
-                           outvec.get(), ncaps * 3);
-    if (result >= 0) {
-        std::vector<plString> caps;
-        caps.resize(ncaps);
-        for (int i = 0; i < ncaps; ++i) {
-            int start = outvec.get()[i*2], end = outvec.get()[i*2+1];
-            if (start >= 0)
-                caps[i] = Substr(start, end - start);
-        }
-        return caps;
-    }
-
-    hsAssert(result == PCRE_ERROR_NOMATCH, plString::Format("Regex search error: %d", result).c_str());
-    return std::vector<plString>();
+    return substrings;
 }
 
 static bool in_set(char key, const char *charset)
@@ -721,6 +706,9 @@ plString plString::Trim(const char *charset) const
 plString plString::Substr(ssize_t start, size_t size) const
 {
     size_t maxSize = GetSize();
+
+    if (size == STRLEN_AUTO)
+        size = maxSize;
 
     if (start < 0) {
         // Handle negative indexes from the right of the string
@@ -891,28 +879,41 @@ plString operator+(const char *left, const plString &right)
     return cat;
 }
 
+#define EXPAND_BUFFER(addedLength)                      \
+    char *bufp = ICanHasHeap() ? fBuffer : fShort;      \
+                                                        \
+    if (fLength + addedLength > fBufSize) {             \
+        size_t bigSize = fBufSize;                      \
+        do {                                            \
+            bigSize *= 2;                               \
+        } while (fLength + addedLength > bigSize);      \
+                                                        \
+        char *bigger = new char[bigSize];               \
+        memcpy(bigger, GetRawBuffer(), fBufSize);       \
+        if (ICanHasHeap())                              \
+            delete [] fBuffer;                          \
+        fBuffer = bufp = bigger;                        \
+        fBufSize = bigSize;                             \
+    }
+
 plStringStream &plStringStream::append(const char *data, size_t length)
 {
-    char *bufp = ICanHasHeap() ? fBuffer : fShort;
-
-    if (fLength + length > fBufSize) {
-        size_t bigSize = fBufSize;
-        do {
-            bigSize *= 2;
-        } while (fLength + length > bigSize);
-
-        char *bigger = new char[bigSize];
-        memcpy(bigger, GetRawBuffer(), fBufSize);
-        if (ICanHasHeap())
-            delete [] fBuffer;
-        fBuffer = bufp = bigger;
-        fBufSize = bigSize;
-    }
+    EXPAND_BUFFER(length)
 
     memcpy(bufp + fLength, data, length);
     fLength += length;
     return *this;
 }
+
+plStringStream &plStringStream::appendChar(char ch, size_t count)
+{
+    EXPAND_BUFFER(count)
+
+    memset(bufp + fLength, ch, count);
+    fLength += count;
+    return *this;
+}
+
 
 plStringStream &plStringStream::operator<<(const char *text)
 {
@@ -941,10 +942,10 @@ plStringStream &plStringStream::operator<<(double num)
     return operator<<(buffer);
 }
 
-size_t ustrlen(const UniChar *ustr, size_t max)
+size_t ustrlen(const UniChar *ustr)
 {
     size_t length = 0;
-    for ( ; *ustr++ && max--; ++length)
+    for ( ; *ustr++; ++length)
         ;
     return length;
 }

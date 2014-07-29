@@ -336,7 +336,6 @@ bool plPythonFileMod::fAtConvertTime = false;
 //
 plPythonFileMod::plPythonFileMod()
 {
-    fPythonFile = nil;
     fModule = nil;
     fLocalNotify= true;
     fIsFirstTimeEval = true;
@@ -401,12 +400,6 @@ plPythonFileMod::~plPythonFileMod()
         fSelfKey = nil;
     }
 
-    // get rid of the python code
-    if ( fPythonFile )
-    {
-        delete [] fPythonFile;
-        fPythonFile = nil;
-    }
     // then get rid of this module
     //  NOTE: fModule shouldn't be made in the plugin, only at runtime
     if ( !fModuleName.IsNull() && fModule )
@@ -438,14 +431,14 @@ bool plPythonFileMod::ILoadPythonCode()
 #ifndef PLASMA_EXTERNAL_RELEASE
     // get code from file and execute in module
     // see if the file exists first before trying to import it
-    plFileName pyfile = plFileName::Join(".", "python", plString::Format("%s.py", fPythonFile));
+    plFileName pyfile = plFileName::Join(".", "python", plFormat("{}.py", fPythonFile));
     if (plFileInfo(pyfile).Exists())
     {
         char fromLoad[256];
-        //sprintf(fromLoad,"from %s import *", fPythonFile);
+        //sprintf(fromLoad,"from %s import *", fPythonFile.c_str());
         // ok... we can't really use import because Python remembers too much where global variables came from
         // ...and using execfile make it sure that globals are defined in this module and not in the imported module
-        sprintf(fromLoad,"execfile('.\\\\python\\\\%s.py')", fPythonFile);
+        sprintf(fromLoad,"execfile('.\\\\python\\\\%s.py')", fPythonFile.c_str());
         if ( PythonInterface::RunString( fromLoad, fModule) )
         {
             // we've loaded the code into our module
@@ -461,7 +454,7 @@ bool plPythonFileMod::ILoadPythonCode()
         }
         DisplayPythonOutput();
         char errMsg[256];
-        sprintf(errMsg,"Python file %s.py had errors!!! Could not load.",fPythonFile);
+        snprintf(errMsg, arrsize(errMsg), "Python file %s.py had errors!!! Could not load.", fPythonFile.c_str());
         PythonInterface::WriteToLog(errMsg);
         hsAssert(0,errMsg);
         return false;
@@ -476,7 +469,7 @@ bool plPythonFileMod::ILoadPythonCode()
 
     DisplayPythonOutput();
     char errMsg[256];
-    sprintf(errMsg,"Python file %s.py was not found.",fPythonFile);
+    snprintf(errMsg, arrsize(errMsg), "Python file %s.py was not found.", fPythonFile.c_str());
     PythonInterface::WriteToLog(errMsg);
     hsAssert(0,errMsg);
     return false;
@@ -503,7 +496,7 @@ void plPythonFileMod::AddTarget(plSceneObject* sobj)
     if ( !fAtConvertTime )      // if this is just an Add that's during a convert, then don't do anymore
     {
         // was there a python file module with this?
-        if ( fPythonFile )
+        if ( !fPythonFile.IsEmpty() )
         {
             // has the module not been initialized yet
             if ( !fModule )
@@ -523,7 +516,7 @@ void plPythonFileMod::AddTarget(plSceneObject* sobj)
 
             // set the name of the file (in the global dictionary of the module)
                 PyObject* dict = PyModule_GetDict(fModule);
-                PyObject* pfilename = PyString_FromString(fPythonFile);
+                PyObject* pfilename = PyString_FromPlString(fPythonFile);
                 PyDict_SetItemString(dict, "glue_name", pfilename);
             // next we need to:
             //  - create instance of class
@@ -542,7 +535,7 @@ void plPythonFileMod::AddTarget(plSceneObject* sobj)
                 {
                     // display any output (NOTE: this would be disabled in production)
                     char errMsg[256];
-                    sprintf(errMsg,"Python file %s.py, instance not found.",fPythonFile);
+                    snprintf(errMsg, arrsize(errMsg), "Python file %s.py, instance not found.", fPythonFile.c_str());
                     PythonInterface::WriteToLog(errMsg);
                     hsAssert(0, errMsg);
                     return;         // if we can't create the instance then there is nothing to do here
@@ -647,7 +640,7 @@ void plPythonFileMod::AddTarget(plSceneObject* sobj)
                                 // if it wasn't a named string then must be normal string type
                                 if ( isNamedAttr == 0 )
                                     if ( !parameter.fString.IsNull() )
-                                        value = PyString_FromString(parameter.fString.c_str());
+                                        value = PyString_FromPlString(parameter.fString);
                                 break;
                             case plPythonParameter::kSceneObject:
                             case plPythonParameter::kSceneObjectList:
@@ -1009,7 +1002,8 @@ plString plPythonFileMod::IMakeModuleName(plSceneObject* sobj)
     }
 
     modulename[k] = '\0';
-    plString name = plString::FromUtf8(modulename);
+    plStringStream name;
+    name << modulename;
 
     // check to see if we are attaching to a clone?
     plKeyImp* pKeyImp = (plKeyImp*)(sKey);
@@ -1019,7 +1013,7 @@ plString plPythonFileMod::IMakeModuleName(plSceneObject* sobj)
         // add the cloneID to the end of the module name
         // and set the fIAmAClone flag
         uint32_t cloneID = pKeyImp->GetUoid().GetCloneID();
-        name += plString::Format("%d", cloneID);
+        name << cloneID;
         fAmIAttachedToClone = true;
     }
 
@@ -1028,10 +1022,10 @@ plString plPythonFileMod::IMakeModuleName(plSceneObject* sobj)
     {
         // if not unique then add the sequence number to the end of the modulename
         uint32_t seqID = pKeyImp->GetUoid().GetLocation().GetSequenceNumber();
-        name += plString::Format("%d", seqID);
+        name << seqID;
     }
 
-    return name;
+    return name.GetString();
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1383,7 +1377,7 @@ bool plPythonFileMod::MsgReceive(plMessage* msg)
                             // create event list
                             PyObject* event = PyList_New(4);
                             PyList_SetItem(event, 0, PyLong_FromLong((long)proEventData::kVariable));
-                            PyList_SetItem(event, 1, PyString_FromString(eventData->fName));
+                            PyList_SetItem(event, 1, PyString_FromPlString(eventData->fName));
                             PyList_SetItem(event, 2, PyLong_FromLong(eventData->fDataType));
                             
                             // depending on the data type create the data
@@ -1882,7 +1876,7 @@ bool plPythonFileMod::MsgReceive(plMessage* msg)
                 case pfKIMsg::kRateIt:
                     value = PyTuple_New(3);
                     str = pkimsg->GetString().ToWchar();
-                    PyTuple_SetItem(value,0,PyString_FromString(pkimsg->GetUser()));
+                    PyTuple_SetItem(value,0,PyString_FromPlString(pkimsg->GetUser()));
                     PyTuple_SetItem(value,1,PyUnicode_FromWideChar(str, str.GetSize()));
                     PyTuple_SetItem(value,2,PyLong_FromLong(pkimsg->GetIntValue()));
                     break;
@@ -1999,7 +1993,7 @@ bool plPythonFileMod::MsgReceive(plMessage* msg)
                 if ( mbrIndex != -1 )
                 {
                     plNetTransportMember *mbr = plNetClientMgr::GetInstance()->TransportMgr().GetMember( mbrIndex );
-                    player = pyPlayer::New(mbr->GetAvatarKey(), mbr->GetPlayerName().c_str(), mbr->GetPlayerID(), mbr->GetDistSq());
+                    player = pyPlayer::New(mbr->GetAvatarKey(), mbr->GetPlayerName(), mbr->GetPlayerID(), mbr->GetDistSq());
                 }
                 else
                 {
@@ -2085,21 +2079,21 @@ bool plPythonFileMod::MsgReceive(plMessage* msg)
                     case plVaultNotifyMsg::kRegisteredVisitAge:
                     case plVaultNotifyMsg::kUnRegisteredOwnedAge:
                     case plVaultNotifyMsg::kUnRegisteredVisitAge: {
-                        if (RelVaultNode * rvn = VaultGetNodeIncRef(vaultNotifyMsg->GetArgs()->GetInt(plNetCommon::VaultTaskArgs::kAgeLinkNode))) {
+                        if (hsRef<RelVaultNode> rvn = VaultGetNode(vaultNotifyMsg->GetArgs()->GetInt(plNetCommon::VaultTaskArgs::kAgeLinkNode))) {
                             Py_DECREF(ptuple);
                             ptuple = PyTuple_New(1);
                             PyTuple_SetItem(ptuple, 0, pyVaultAgeLinkNode::New(rvn));
-                            rvn->DecRef();
                         }
                     }
                     break;
                     
                     case plVaultNotifyMsg::kPublicAgeCreated:
                     case plVaultNotifyMsg::kPublicAgeRemoved: {
-                        if (const char * ageName = vaultNotifyMsg->GetArgs()->GetString(plNetCommon::VaultTaskArgs::kAgeFilename)) {
+                        plString ageName = vaultNotifyMsg->GetArgs()->GetString(plNetCommon::VaultTaskArgs::kAgeFilename);
+                        if (!ageName.IsEmpty()) {
                             Py_DECREF(ptuple);
                             ptuple = PyTuple_New(1);
-                            PyTuple_SetItem(ptuple, 0, PyString_FromString(ageName));
+                            PyTuple_SetItem(ptuple, 0, PyString_FromPlString(ageName));
                         }
                     }
                     break;
@@ -2155,18 +2149,20 @@ bool plPythonFileMod::MsgReceive(plMessage* msg)
                 else
                 {
                     // else if we could not find the player in our list, then just return a string of the user's name
-                    const char * fromName = pkimsg->GetUser();
-                    if (!fromName)
+                    plString fromName = pkimsg->GetUser();
+                    if (fromName.IsEmpty())
                         fromName = "Anonymous Coward";
                     player = pyPlayer::New(plNetClientMgr::GetInstance()->GetLocalPlayerKey(), fromName, pkimsg->GetPlayerID(), 0.0);
                 }
 
                 plProfile_BeginTiming(PythonUpdate);
+                plStringBuffer<wchar_t> wMessage = pkimsg->GetString().ToWchar();
+                PyObject* uMessage = PyUnicode_FromWideChar(wMessage, wMessage.GetSize());
                 PyObject* retVal = PyObject_CallMethod(
                         fPyFunctionInstances[kfunc_RTChat],
                         (char*)fFunctionNames[kfunc_RTChat],
-                        "Osl", player, pkimsg->GetString().c_str(),
-                        pkimsg->GetFlags());
+                        "OOl", player, uMessage, pkimsg->GetFlags());
+                Py_DECREF(uMessage);
                 if ( retVal == nil )
                 {
 #ifndef PLASMA_EXTERNAL_RELEASE
@@ -2408,7 +2404,7 @@ bool plPythonFileMod::MsgReceive(plMessage* msg)
             PyObject* retVal = PyObject_CallMethod(
                     fPyFunctionInstances[kfunc_OnBackdoorMsg],
                     (char*)fFunctionNames[kfunc_OnBackdoorMsg],
-                    "ss", dt->GetTarget(), dt->GetString());
+                    "ss", dt->GetTarget().c_str(), dt->GetString().c_str());
             if ( retVal == nil )
             {
                 // if there was an error make sure that the stderr gets flushed so it can be seen
@@ -2931,10 +2927,9 @@ void plPythonFileMod::DisplayPythonOutput()
 //             : Compile it into a Python code object
 //             : (This is usually called by the component)
 //
-void plPythonFileMod::SetSourceFile(const char* filename)
+void plPythonFileMod::SetSourceFile(const plString& filename)
 {
-    delete [] fPythonFile;
-    fPythonFile = hsStrcpy(filename);
+    fPythonFile = filename;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -2994,12 +2989,6 @@ void plPythonFileMod::Read(hsStream* stream, hsResMgr* mgr)
     plMultiModifier::Read(stream, mgr);
 
     // read in the compile python code (pyc)
-    if ( fPythonFile )
-    {
-        // if we already have some code, get rid of it!
-        delete [] fPythonFile;
-        fPythonFile = nil;
-    }
     fPythonFile = stream->ReadSafeString();
 
     // then read in the list of receivers that want to be notified

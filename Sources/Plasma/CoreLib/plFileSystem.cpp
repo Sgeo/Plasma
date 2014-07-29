@@ -187,16 +187,19 @@ plFileName plFileName::Join(const plFileName &base, const plFileName &path)
     char last = base.fName.CharAt(base.GetSize() - 1);
     char first = path.fName.CharAt(0);
     if (last != '/' && last != '\\') {
-        if (first != '/' && first != '\\') {
-            return plString::Format("%s" PATH_SEPARATOR_STR "%s",
-                                    base.fName.c_str(), path.fName.c_str());
-        }
+        if (first != '/' && first != '\\')
+            return plFormat("{}" PATH_SEPARATOR_STR "{}", base, path);
         return base.fName + path.fName;
     } else if (first != '/' && first != '\\') {
         return base.fName + path.fName;
     }
     // Both have a slash, but we only need one
     return base.fName + path.fName.Substr(1);
+}
+
+PL_FORMAT_IMPL(const plFileName &)
+{
+    PL_FORMAT_FORWARD(value.AsString());
 }
 
 
@@ -209,11 +212,11 @@ plFileInfo::plFileInfo(const plFileName &filename)
 
 #if HS_BUILD_FOR_WIN32
     struct __stat64 info;
-    if (!_wstat64(filename.AsString().ToWchar(), &info) == 0)
+    if (_wstat64(filename.AsString().ToWchar(), &info) != 0)
         return;
 #else
     struct stat info;
-    if (!stat(filename.AsString().c_str(), &info) == 0)
+    if (stat(filename.AsString().c_str(), &info) != 0)
         return;
 #endif
 
@@ -394,7 +397,7 @@ std::vector<plFileName> plFileSystem::ListDir(const plFileName &path, const char
             continue;
         }
 
-        if (pattern && pattern[0] && fnmatch(pattern, de->d_name, 0))
+        if (pattern && pattern[0] && fnmatch(pattern, de->d_name, 0) == 0)
             contents.push_back(dir_name);
         else if (!pattern || !pattern[0])
             contents.push_back(dir_name);
@@ -540,33 +543,26 @@ plFileName plFileSystem::GetCurrentAppPath()
 #endif
 }
 
-plFileName plFileSystem::GetTempFilename(const char *prefix, const plFileName &path)
+plString plFileSystem::ConvertFileSize(uint64_t size)
 {
-#if HS_BUILD_FOR_WIN32
-    // GetTempFileName() never uses more than 3 chars for the prefix
-    wchar_t wprefix[4];
-    for (size_t i=0; i<4; ++i)
-        wprefix[i] = prefix[i];
-    wprefix[3] = 0;
+    const char* labels[] = { "KiB", "MiB", "GiB", "TiB", "PiB", "EiB" };
+    if (size < 1024)
+        return plFormat("{} B", size);
 
-    wchar_t temp[MAX_PATH];
-    if (GetTempFileNameW(path.AsString().ToWchar(), wprefix, 0, temp))
-        return plString::FromWchar(temp);
+    uint64_t last_div = size;
+    for (size_t i = 0; i < arrsize(labels); ++i) {
+        uint64_t my_div = last_div / 1024;
+        if (my_div < 1024) {
+            float decimal = static_cast<float>(last_div) / 1024.f;
+            // Kilobytes are so small that we only care about whole numbers
+            if (i < 1)
+                return plFormat("{.0f} {}", decimal, labels[i]);
+            else
+                return plFormat("{.2f} {}", decimal, labels[i]);
+        }
+        last_div = my_div;
+    }
 
-    return "";
-#else
-    plFileName tmpdir = path;
-    if (!tmpdir.IsValid())
-        tmpdir = "/tmp";
-
-    // "/tmp/prefixXXXXXX"
-    size_t temp_len = tmpdir.GetSize() + strlen(prefix) + 7;
-    char *temp = new char[temp_len + 1];
-    snprintf(temp, temp_len + 1, "%s/%sXXXXXX", tmpdir.AsString().c_str(), prefix);
-    mktemp(temp);
-    plFileName result = temp;
-    delete [] temp;
-
-    return result;
-#endif
+    // this should never happen
+    return plFormat("{} {}", last_div, labels[arrsize(labels) - 1]);
 }

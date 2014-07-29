@@ -90,7 +90,6 @@ enum plFixedKeyId
 	kRiftCamera_KEY,
 	kPostProcessingMgr_KEY,
 #endif
-
     kLast_Fixed_KEY
 };
 

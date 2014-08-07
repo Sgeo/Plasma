@@ -48,6 +48,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "HeadSpin.h"
 #include "hsTemplates.h"
 #include "hsGeometry3.h"
+#include "hsQuat.h"
 #include "hsMatrix44.h"
 #include "plstring.h"
 #include "plGImage/plMipmap.h"
@@ -62,16 +63,23 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pfConsole/pfConsole.h"
 #include "pfConsole/pfConsoleDirSrc.h"
 #include "plPipeline/plPlates.h"
+#include "plPipeline.h"
+#include <d3d9.h>
 #include "pnKeyedObject/hsKeyedObject.h"
 #include "pnKeyedObject/plKey.h"
 #include "pnKeyedObject/plFixedKey.h"
 #include "pnKeyedObject/plUoid.h"
 //#include "../../FeatureLib/pfCamera/plVirtualCamNeu.h"
 
-//Rift namespace
-#include "ovr.h"
+//Rift 
+#define OVR_D3D_VERSION 9
+#include "OVR.h"
+#include "..\Src\OVR_CAPI.h"
+#include "..\Src\OVR_CAPI_D3D.h"
+
 using namespace OVR;
 
+class plClient;
 class plPipeline;
 class plCameraModifier1;
 class plCameraBrain1;
@@ -84,104 +92,87 @@ class plSceneNode;
 class plDebugInputInterface;
 class plPlate;
 class plShader;
+class plRenderTarget;
 
-class plRiftCamera : public hsKeyedObject{
+struct HmdTransform {
+	hsQuat rotation;
+	hsVector3 position;
+};
+
+class plRiftCamera : public hsKeyedObject
+{
+private:
+
+	//Plasma objects
+	plVirtualCam1* fVirtualCam;
+	plPipeline* fPipe;
+	IDirect3DDevice9* fDirect3DDevice;
+
+	bool fEnableStereoRendering;
+
+	float fXRotOffset, fYRotOffset, fZRotOffset;
+	hsBitVector         fFlags;
+
+	//OVR vars
+	ovrHmd fHmd;
+	plRenderTarget* fSteroRenderTarget;
+	bool bHmdIsDebug = false;
+	ovrRecti fVp;
+
+	ovrEyeRenderDesc    fEyeRenderDesc[2];
+	Matrix4f            fProjection[2];          // Projection matrix for eye.
+	Matrix4f            fOrthoProjection[2];     // Projection for 2D.
+	ovrPosef            fEyeRenderPose[2];       // Poses we used for rendering.
+	ovrD3D9Texture      fEyeTexture[2];
+	Sizei				fRenderTargetSize;
+
+	
 public:
 
 	//Flags
 	enum {
-		kUseRawInput,		
+		kUseRawInput,
 		kUseEulerInput
 	};
 
 	plRiftCamera();
 	virtual ~plRiftCamera();
 
-	CLASSNAME_REGISTER( plRiftCamera );
-    GETINTERFACE_ANY( plRiftCamera, hsKeyedObject );
+	CLASSNAME_REGISTER(plRiftCamera);
+	GETINTERFACE_ANY(plRiftCamera, hsKeyedObject);
 
 	virtual bool MsgReceive(plMessage* msg);
 	void SetFlags(int flag) { fFlags.SetBit(flag); }
-    bool HasFlags(int flag) { return fFlags.IsBitSet(flag); }
-    void ClearFlags(int flag) { fFlags.ClearBit(flag); }
+	bool HasFlags(int flag) { return fFlags.IsBitSet(flag); }
+	void ClearFlags(int flag) { fFlags.ClearBit(flag); }
 
-	void initRift(int width, int height);
+	void InitRift();
+	plRenderTarget* CreateRenderTarget(uint16_t width, uint16_t height);
 	void SetCameraManager(plVirtualCam1* camManager){ fVirtualCam = camManager; };
-	void SetPipeline(plPipeline* pipe){ fPipe = pipe; };
-	hsMatrix44 RawRiftRotation();
-	hsMatrix44 EulerRiftRotation();
-	void SetRawRotation(){
-		ClearFlags(kUseEulerInput);
-		SetFlags(kUseRawInput);
+	void SetPipeline(plPipeline* pipe){
+		fPipe = pipe;
+	};
+	void SetD3DDevice(IDirect3DDevice9 *device){
+		fDirect3DDevice = device;
 	}
-	void SetEulerRotation(){
-		ClearFlags(kUseRawInput);
-		SetFlags(kUseEulerInput);
-	}
-
-	void SetNear(float distance){ fNear = distance; };
-	void SetFar(float distance){ fFar = distance; };
-
-	float ReverseRadians(float angle){ return 2 * M_PI - angle; };
-
-	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
-	void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
-	void ApplyStereoViewport(Util::Render::StereoEye);
-
-	void SetOriginalCamera(hsMatrix44 cam){ fWorldToCam = cam; };
-	
-	void EnableLeftEyeRender(bool state){ fEyeToRender = EYE_LEFT; };
-	void EnableRightEyeRender(bool state){ fEyeToRender = EYE_RIGHT; };
-	void EnableBothEyeRender(bool state){ fEyeToRender = EYE_BOTH; };
-	int GetEyeToRender(){return fEyeToRender; };
+	ovrD3D9Texture GetOVRTex(int index){ return fEyeTexture[index]; }
 
 	void EnableStereoRendering(bool state){ fEnableStereoRendering = state; };
 	bool GetStereoRenderingState(){ return fEnableStereoRendering; };
-	float GetRenderScale(){return fRenderScale;};
-
-	Util::Render::StereoEyeParams GetEyeParams(Util::Render::StereoEye eye){return SConfig.GetEyeRenderParams(eye); };
-
-	enum eye {EYE_LEFT = 1, EYE_RIGHT, EYE_BOTH};
 
 	//Utils
 	hsMatrix44* OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44* hsMat);
 
-	void SetXOffsetRotation(float offset){fXRotOffset = 3.1415926f * offset;};
-	void SetYOffsetRotation(float offset){fYRotOffset = 3.1415926f * offset;};
-	void SetZOffsetRotation(float offset){fZRotOffset = 3.1415926f * offset;};
+	void SetXOffsetRotation(float offset){ fXRotOffset = M_PI * offset; };
+	void SetYOffsetRotation(float offset){ fYRotOffset = M_PI * offset; };
+	void SetZOffsetRotation(float offset){ fZRotOffset = M_PI * offset; };
 
-private:
+	HmdTransform GetHmdTransform();
+	void ApplyViewport();
 
-	//Plasma objects
-	plVirtualCam1* fVirtualCam;
-	plPipeline* fPipe;
-	int fEyeToRender;
-	hsMatrix44 fWorldToCam;
-
-	//Rift objects
-	Ptr<DeviceManager>  pManager;
-	Ptr<HMDDevice>		pHMD;
-	Ptr<SensorDevice>	pSensor;
-	SensorFusion		SFusion;
-	Util::Render::StereoConfig        SConfig;
-
-	bool fEnableStereoRendering;
-	float fRenderScale;
-
-	float fXRotOffset, fYRotOffset, fZRotOffset;
-
-	Vector3f            fEyePos;
-    float               fEyeYaw;         // Rotation around Y, CCW positive when looking at RHS (X,Z) plane.
-    float               fEyePitch;       // Pitch. If sensor is plugged in, only read from sensor.
-    float               fEyeRoll;        // Roll, only accessible from Sensor.
-    float               fLastSensorYaw;  // Stores previous Yaw value from to support computing delta.
-	float				fYawInitial;
-	Vector3f			fUpVector;
-	Vector3f			fForwardVector;
-	Vector3f			fRightVector;
-	hsBitVector         fFlags;
-	float fNear, fFar;
-
+	//Frame rendering
+	void StartFrame();
+	void EndFrame();
 };
 
 #endif

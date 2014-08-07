@@ -166,7 +166,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plResMgr/plLocalization.h"
 
 #ifdef BUILD_RIFT_SUPPORT
-#include "plPostPipeline/plPostPipeline.h"
 #include "pfOculusRift/plRiftCamera.h"
 #endif
 
@@ -6947,26 +6946,13 @@ PF_CONSOLE_CMD( Rift,										// Group name
 {
 }
 
-PF_CONSOLE_CMD( Rift,										// Group name
-                EnablePostProcessing,							// Function name
-                "bool enable",											// Params
-                "Enables post processing" )   // Help string
-{
-	plUoid pU1( kPostProcessingMgr_KEY );
-    plKey fPostProcessingMgrKey = hsgResMgr::ResMgr()->FindKey( pU1 );
-    if (fPostProcessingMgrKey)
-    {
-		plPostPipeline::ConvertNoRef(fPostProcessingMgrKey->GetObjectPtr())->EnablePostProcessing((bool)params[0]);
-        return;
-    }
-}
 
 PF_CONSOLE_CMD( Rift,										// Group name
                 EnableHMDStereo,							// Function name
                 "bool enable",											// Params
                 "Enables stereo rendering" )   // Help string
 {
-	plUoid pU1( kRiftCamera_KEY );
+	plUoid pU1(kRiftSupport_KEY);
     plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
     if (fRiftCameraKey)
     {
@@ -6975,40 +6961,13 @@ PF_CONSOLE_CMD( Rift,										// Group name
     }
 }
 
-PF_CONSOLE_CMD( Rift,										// Group name
-                RenderLeft,							// Function name
-                "bool enable",											// Params
-                "Render Left Viewport only" )   // Help string
-{
-	plUoid pU1( kRiftCamera_KEY );
-    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
-    if (fRiftCameraKey)
-    {
-		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->EnableLeftEyeRender((bool)params[0]);
-		return;
-    }
-}
-
-PF_CONSOLE_CMD( Rift,										// Group name
-                RenderRight,							// Function name
-                "bool enable",											// Params
-                "Render Right Viewport only" )   // Help string
-{
-	plUoid pU1( kRiftCamera_KEY );
-    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
-    if (fRiftCameraKey)
-    {
-		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->EnableRightEyeRender((bool)params[0]);
-		return;
-    }
-}
 
 PF_CONSOLE_CMD( Rift,										// Group name
                 SetXRotationOffset,							// Function name
                 "float offset",											// Params
                 "HMD Orientation offset for the X Axis" )   // Help string
 {
-	plUoid pU1( kRiftCamera_KEY );
+	plUoid pU1(kRiftSupport_KEY);
     plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
     if (fRiftCameraKey)
     {
@@ -7022,7 +6981,7 @@ PF_CONSOLE_CMD( Rift,										// Group name
                 "float offset",											// Params
                 "HMD Orientation offset for the Y Axis" )   // Help string
 {
-	plUoid pU1( kRiftCamera_KEY );
+	plUoid pU1(kRiftSupport_KEY);
     plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
     if (fRiftCameraKey)
     {
@@ -7037,69 +6996,11 @@ PF_CONSOLE_CMD( Rift,										// Group name
                 "float offset",											// Params
                 "HMD Orientation offset for the Z Axis" )   // Help string
 {
-	plUoid pU1( kRiftCamera_KEY );
+	plUoid pU1(kRiftSupport_KEY);
     plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
     if (fRiftCameraKey)
     {
 		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetZOffsetRotation((float)params[0]);
-		return;
-    }
-}
-
-
-PF_CONSOLE_CMD( Rift,										// Group name
-                UseRawRotation,							// Function name
-                "",											// Params
-                "Use raw quaterion HMD input" )   // Help string
-{
-	plUoid pU1( kRiftCamera_KEY );
-    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
-    if (fRiftCameraKey)
-    {
-		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetRawRotation();
-		return;
-    }
-}
-
-PF_CONSOLE_CMD( Rift,										// Group name
-                UseEulerRotation,							// Function name
-                "",											// Params
-                "Use euler converted HMD input" )   // Help string
-{
-	plUoid pU1( kRiftCamera_KEY );
-    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
-    if (fRiftCameraKey)
-    {
-		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetEulerRotation();
-		return;
-    }
-}
-
-
-PF_CONSOLE_CMD( Rift,										// Group name
-                SetNear,							// Function name
-                "float near",											// Params
-                "Near camera clip" )   // Help string
-{
-	plUoid pU1( kRiftCamera_KEY );
-    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
-    if (fRiftCameraKey)
-    {
-		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetNear((float)params[0]);
-		return;
-    }
-}
-
-PF_CONSOLE_CMD( Rift,										// Group name
-                SetFar,							// Function name
-                "float far",											// Params
-                "Far camera clip" )   // Help string
-{
-	plUoid pU1( kRiftCamera_KEY );
-    plKey fRiftCameraKey = hsgResMgr::ResMgr()->FindKey( pU1 );
-    if (fRiftCameraKey)
-    {
-		plRiftCamera::ConvertNoRef(fRiftCameraKey->GetObjectPtr())->SetFar((float)params[0]);
 		return;
     }
 }

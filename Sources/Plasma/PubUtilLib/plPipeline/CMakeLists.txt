@@ -4,16 +4,17 @@ include_directories("../../NucleusLib/inc")
 include_directories("../../NucleusLib")
 include_directories("../../PubUtilLib")
 
-if(LibOVR_FOUND)
-    include_directories(${LibOVR_INCLUDE_DIR})
-endif(LibOVR_FOUND)  
-
 if(Bink_SDK_AVAILABLE)
     include_directories(${Bink_INCLUDE_DIR})
 endif()
 if(WIN32)
     include_directories(${DirectX_INCLUDE_DIR})
 endif(WIN32)
+
+if(LibOVR_FOUND)
+    include_directories(${LibOVR_INCLUDE_DIR})
+    include_directories(${ATL_INCLUDE_DIR})
+endif(LibOVR_FOUND)  
 
 set(plPipeline_SOURCES
     hsG3DDeviceSelector.cpp
@@ -44,7 +45,6 @@ set(plDXPipeline_SOURCES
     DX/plDXShader.cpp
     DX/plDXTextFont.cpp
     DX/plDXVertexShader.cpp
-	DX/D3DUtils.cpp
 )
 
 set(plPipeline_HEADERS
@@ -92,7 +92,6 @@ set(plDXPipeline_HEADERS
     DX/plDXTextFont.h
     DX/plDXTextureRef.h
     DX/plDXVertexShader.h
-	DX/D3DUtils.h
 )
 
 if(WIN32)

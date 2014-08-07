@@ -83,8 +83,10 @@ class plDXRenderTargetRef: public plDXTextureRef
         virtual void    SetOwner( plRenderTarget *targ ) { fOwner = (plBitmap *)targ; }
 
 #ifdef BUILD_RIFT_SUPPORT
+		IDirect3DTexture9   *fD3DRiftRtTexturePtr;
 		void	SetTexture(  IDirect3DSurface9 *surface, IDirect3DTexture9 *texture, IDirect3DSurface9 *renderSurface, IDirect3DSurface9 *depth );
 		void	SetTexture(  IDirect3DSurface9 *surface, IDirect3DTexture9 *texture, IDirect3DSurface9 *depth );
+		void	AttachTextureToRiftCam(ovrD3D9Texture *ovrTex){ ovrTex->D3D9.pTexture = fD3DRiftRtTexturePtr; }
 #endif
         void    SetTexture( IDirect3DSurface9 *surface, IDirect3DSurface9 *depth );
         void    SetTexture( IDirect3DTexture9 *surface, IDirect3DSurface9 *depth );

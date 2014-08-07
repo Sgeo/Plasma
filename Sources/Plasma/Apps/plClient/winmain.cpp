@@ -1213,7 +1213,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nC
         serverIni = plString::FromWchar(cmdParser.GetString(kArgServerIni));
 
     // check to see if we were launched from the patcher
-    bool eventExists = false;
+    bool eventExists = true;
     // we check to see if the event exists that the patcher should have created
     HANDLE hPatcherEvent = CreateEventW(nil, TRUE, FALSE, L"UruPatcherEvent");
     if (hPatcherEvent != NULL)

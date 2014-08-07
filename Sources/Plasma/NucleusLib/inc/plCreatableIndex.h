@@ -367,10 +367,8 @@ CLASS_INDEX_LIST_START
     CLASS_INDEX(plDynamicCamMap),
     CLASS_INDEX(plRidingAnimatedPhysicalDetector),
     CLASS_INDEX(plVolumeSensorConditionalObjectNoArbitration),
-
 #ifdef BUILD_RIFT_SUPPORT
-	CLASS_INDEX(plRiftCamera),	//Rift classes
-	CLASS_INDEX(plPostPipeline),
+	CLASS_INDEX(plRiftCamera),
 #endif
 //---------------------------------------------------------
 // Keyed objects above this line, unkeyed (such as messages) below..

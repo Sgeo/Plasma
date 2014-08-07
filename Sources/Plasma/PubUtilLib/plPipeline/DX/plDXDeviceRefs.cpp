@@ -430,6 +430,7 @@ void	plDXRenderTargetRef::SetTexture(  IDirect3DSurface9 *surface, IDirect3DText
 {
     fD3DColorSurface = surface;
     fD3DTexture = texture;
+	fD3DRiftRtTexturePtr = texture;
     fD3DDepthSurface = depth;
 	fD3DRenderSurface = renderSurface;
 }
@@ -438,6 +439,7 @@ void    plDXRenderTargetRef::SetTexture(  IDirect3DSurface9 *surface, IDirect3DT
 {
     fD3DColorSurface = surface;
     fD3DTexture = texture;
+	fD3DRiftRtTexturePtr = texture;
     fD3DDepthSurface = depth;
 }
 #endif

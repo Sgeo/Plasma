@@ -71,9 +71,5 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plSDL/plSDLCreatable.h"
 #include "plAgeLoader/plAgeLoaderCreatable.h"
 
-#ifdef BUILD_RIFT_SUPPORT
-#include "plPostPipeline/plPostPipelineCreatable.h"
-#endif
-
 #endif // plAllCreatables_inc
  

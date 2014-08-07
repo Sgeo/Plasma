@@ -43,6 +43,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #define _plDX9Pipeline_h
 
 #include "plPipeline.h"
+#ifdef BUILD_RIFT_SUPPORT
+#include "pfOculusRift\plRiftCamera.h"
+#endif
 #include "plDXSettings.h"
 
 #include "plSurface/plLayerInterface.h"
@@ -172,9 +175,6 @@ class plCubicEnvironmap;
 class plDXRenderTargetRef;
 class plStatusLogDrawer;
 class plBinkPlayer;
-#ifdef BUILD_RIFT_SUPPORT
-class plpostPipeline;
-#endif
 
 class plDXPipeline : public plPipeline
 {
@@ -550,23 +550,6 @@ protected:
                                     D3DFORMAT &depthFormat, D3DRESOURCETYPE &resType );
     bool    IFindRenderTargetInfo( plRenderTarget *owner, D3DFORMAT &surfFormat, D3DRESOURCETYPE &resType );
 
-#ifdef BUILD_RIFT_SUPPORT
-	//Post processing variables in here. 
-	IDirect3DVertexBuffer9  *fScreenQuadVertBuffer;
-	plPostPipeline* fPostMgr;	//Pointer to post processing manager
-
-	const long  PLD3D_SCREENQUADFVF;
-
-	struct plScreenQuadVertex
-	{
-		hsPoint3    fPoint;
-		uint32_t      fColor;
-		hsPoint3    fUV;
-	};
-
-	hsMatrix44 fScreenQuadMatrix;
-#endif
-
     // From a D3DFORMAT enumeration, return the string literal for it
     static const char   *IGetDXFormatName( D3DFORMAT format );
 
@@ -653,24 +636,11 @@ public:
 
     void ResetDisplayDevice(int Width, int Height, int ColorDepth, bool Windowed, int NumAASamples, int MaxAnisotropicSamples, bool VSync = false );
 
-#ifdef BUILD_RIFT_SUPPORT
-	virtual void						CreateScreenQuadGeometry();
-	virtual void					    SetPostProcessingManager(plPostPipeline* postMgr);
-
-	virtual void						BeginScene();
-	virtual void						RenderPostScene(plRenderTarget* screenRender, plShader* vsShader, plShader* psShader);
-	virtual void						ClearBackbuffer();
-	virtual void						EndScene();
-	virtual void						SetViewport();
-	virtual void						ReverseCulling();
-#endif
-
     virtual void                        ClearRenderTarget( plDrawable* d );
     virtual void                        ClearRenderTarget( const hsColorRGBA* col = nil, const float* depth = nil );
     virtual void                        SetClear(const hsColorRGBA* col=nil, const float* depth=nil);
     virtual hsColorRGBA                 GetClearColor() const;
     virtual float                    GetClearDepth() const;
-
     virtual hsGDeviceRef*               MakeRenderTargetRef( plRenderTarget *owner );
     virtual hsGDeviceRef*               SharedRenderTargetRef(plRenderTarget* sharer, plRenderTarget *owner);
     virtual void                        PushRenderTarget( plRenderTarget *target );
@@ -827,6 +797,11 @@ public:
     virtual void                        GetSupportedDisplayModes(std::vector<plDisplayMode> *res, int ColorDepth = 32 );
     virtual int                         GetMaxAnisotropicSamples();
     virtual int                         GetMaxAntiAlias(int Width, int Height, int ColorDepth);
+
+#ifdef BUILD_RIFT_SUPPORT
+	virtual void AttachRiftCam(plRiftCamera *riftCam, plRenderTarget *renderTarget);
+	virtual void SetViewport();
+#endif
 
 
     //  CPU-optimized functions

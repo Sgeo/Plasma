@@ -1,5 +1,6 @@
 if(LibOVR_FOUND)
     include_directories(${LibOVR_INCLUDE_DIR})
+    include_directories(${ATL_INCLUDE_DIR})
 endif(LibOVR_FOUND)  
 
 include_directories("../../Apps")
@@ -185,8 +186,9 @@ endif(WIN32)
 if(LibOVR_FOUND)
     target_link_libraries(plClient ${LibOVR_LIBRARY})
     target_link_libraries(plClient ${LibOVR_DEBUG_LIBRARY})
+    target_link_libraries(plClient ${ATL_LIBRARY})
+    target_link_libraries(plClient ${ATL_LIBRARY_DEBUG})
     target_link_libraries(plClient pfOculusRift)
-    target_link_libraries(plClient plPostPipeline)
 endif()
 
 source_group("Source Files" FILES ${plClient_SOURCES})

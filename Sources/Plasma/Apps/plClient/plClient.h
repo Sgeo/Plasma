@@ -84,6 +84,10 @@ class plPreloaderMsg;
 class plNetCommAuthMsg;
 class plAgeLoaded2Msg;
 class plResPatcherMsg;
+#ifdef BUILD_RIFT_SUPPORT
+class plRiftCamera;
+class plDxPipeline;
+#endif
 
 typedef void (*plMessagePumpProc)( void );
 
@@ -138,6 +142,9 @@ protected:
     bool                    IDrawProgress();
     
     plVirtualCam1*          fNewCamera;
+#ifdef BUILD_RIFT_SUPPORT
+	plRiftCamera*			fRiftCam;
+#endif
 
     static plClient*        fInstance;
     char *                  fpAuxInitDir;

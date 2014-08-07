@@ -145,10 +145,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pfCamera/plCameraModifier.h"
 #include "plResMgr/plLocalization.h"
 
-#ifdef BUILD_RIFT_SUPPORT
-#include "D3DUtils.h"
-#include "plPostPipeline/plPostPipeline.h"
-#endif
+#include "pfOculusRift\plRiftCamera.h";
+
 
 // mf horse - test hack, nuke this later
 #include "plSurface/plLayerDepth.h"
@@ -592,11 +590,6 @@ uint32_t plDXPipeline::fVtxManaged(0);
 
 plDXPipeline::plDXPipeline( hsWinRef hWnd, const hsG3DDeviceModeRecord *devModeRec )
 :   fManagedAlloced(false),
-#ifdef BUILD_RIFT_SUPPORT	
-	PLD3D_SCREENQUADFVF( D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1 | D3DFVF_TEXCOORDSIZE3(0) ),		//Vertex format flags for post processing screen quad
-	fPostMgr(nil),
-	fScreenQuadVertBuffer(nil),
-#endif
     fAllocUnManaged(false)
 {
     hsAssert(D3DTSS_TCI_PASSTHRU == plLayerInterface::kUVWPassThru, "D3D Enum has changed. Notify graphics department.");
@@ -679,14 +672,6 @@ plDXPipeline::plDXPipeline( hsWinRef hWnd, const hsG3DDeviceModeRecord *devModeR
         IShowErrorMessage( "Cannot create Direct3D device" );
         return;
     }
-
-#ifdef BUILD_RIFT_SUPPORT
-	//create post processing quad geometry. 
-	D3DUtils::SetMarker(L"Creating VB start");
-	CreateScreenQuadGeometry();
-	D3DUtils::SetMarker(L"Creating VB end");
-#endif
-
     /*plStatusLog::AddLineS("pipeline.log", "Supported Resolutions:");
     std::vector<plDisplayMode> temp;
     GetSupportedDisplayModes( &temp, 16 );
@@ -751,9 +736,6 @@ void    plDXPipeline::IClearMembers()
     fBoundsSpans = nil;
 #endif
     fPlateMgr = nil;
-#ifdef BUILD_RIFT_SUPPORT
-	fPostMgr = nil;
-#endif
     fLogDrawer = nil;
     fDebugTextMgr = nil;
     fCurrLightingMethod = plSpan::kLiteMaterial;
@@ -1328,10 +1310,6 @@ bool  plDXPipeline::ICreateDeviceObjects()
     if( ICreateDevice(!fSettings.fFullscreen) )
         return true;
 
-#if BUILD_RIFT_SUPPORT
-	fPostMgr = plPostPipeline::GetInstance();
-#endif
-
     // Most everything else D3D
     if( ICreateDynDeviceObjects() )
         return true;
@@ -1342,8 +1320,6 @@ bool  plDXPipeline::ICreateDeviceObjects()
     fPlateMgr = new plDXPlateManager( this, fD3DDevice );
     if( fPlateMgr == nil || !fPlateMgr->IsValid() )
         return true;
-
-
 
     // We've got everything created now, initialize to a known state.
     IInitDeviceState();
@@ -1886,9 +1862,6 @@ void plDXPipeline::IReleaseRenderTargetPools()
 // that persist through unloading one age and loading the next.
 void plDXPipeline::IReleaseDynDeviceObjects()
 {
-#ifdef BUILD_RIFT_SUPPORT
-	D3DUtils::SetMarker(L"resource_release_start");
-#endif
     // We should do this earlier, but the textFont objects don't remove
     // themselves from their parent objects yet
     delete fDebugTextMgr;
@@ -1906,17 +1879,6 @@ void plDXPipeline::IReleaseDynDeviceObjects()
     hsRefCnt_SafeUnRef( fSettings.fCurrIndexBuffRef );
     fSettings.fCurrIndexBuffRef = nil;
 
-#ifdef BUILD_RIFT_SUPPORT
-	//PROFILE_BLOCK
-	//D3DUtils::ScopeProfiler( L"Clearing rendertarget", __LINE__ );
-	plDXRenderTargetRef* rtRef = (plDXRenderTargetRef*) fPostMgr->GetPostRT()->GetDeviceRef();
-
-	D3DUtils::SetMarker(L"Begin RT Clear");
-	rtRef->Release();
-	D3DUtils::SetMarker(L"Finish RT Clear");
-	rtRef = nil;
-#endif
-
     while( fTextFontRefList )
         delete fTextFontRefList;
 
@@ -1926,7 +1888,6 @@ void plDXPipeline::IReleaseDynDeviceObjects()
         rtRef->Release();
         rtRef->Unlink();
     }
-
 
     // The shared dynamic vertex buffers used by things like objects skinned on CPU, or
     // particle systems.
@@ -1954,10 +1915,6 @@ void plDXPipeline::IReleaseDynDeviceObjects()
     ReleaseObject( fD3DBackBuff );
     ReleaseObject( fD3DDepthSurface );
     ReleaseObject( fD3DMainSurface );
-
-#ifdef BUILD_RIFT_SUPPORT
-	D3DUtils::SetMarker(L"resource_release_end");
-#endif
 
 }
 
@@ -2051,10 +2008,6 @@ void    plDXPipeline::IReleaseDeviceObjects()
     delete fPlateMgr;
     fPlateMgr = nil;
 
-#ifdef BUILD_RIFT_SUPPORT
-	fPostMgr = nil;
-#endif
-
     if( fD3DDevice != nil )
     {
         LONG ret;
@@ -2131,18 +2084,6 @@ void plDXPipeline::IReleaseDynamicBuffers()
     // PlateMgr has a POOL_DEFAULT vertex buffer for drawing quads.
     if( fPlateMgr )
         fPlateMgr->IReleaseGeometry();
-
-#ifdef BUILD_RIFT_SUPPORT
-	if(fScreenQuadVertBuffer)	
-    {
-		//PROFILE_BLOCK
-		//D3DUtils::SetMarker(L"Begin Screen VB clear");
-		//ReleaseObject(fScreenQuadVertBuffer);
-        //PROFILE_POOL_MEM(D3DPOOL_MANAGED, 4 * sizeof(plScreenQuadVertex), false, "ScreenQuadVtxBuff");
-        //fScreenQuadVertBuffer = nil;
-		//D3DUtils::SetMarker(L"End Screen VB clear");
-    }
-#endif
 
     // Also has POOL_DEFAULT vertex buffer.
     plDXTextFont::ReleaseShared(fD3DDevice);
@@ -4395,8 +4336,7 @@ bool  plDXPipeline::CaptureScreen( plMipmap *dest, bool flipVertical, uint16_t d
 // Note that for ATI boards, we create a single depth surface for them to share.
 // That can actually be 2 depth surfaces, if some color surfaces are 16 bit and
 // others are 24/32 bit, since the ATI's want to match color depth with depth depth.
-
-hsGDeviceRef    *plDXPipeline::MakeRenderTargetRef( plRenderTarget *owner)
+hsGDeviceRef    *plDXPipeline::MakeRenderTargetRef( plRenderTarget *owner )
 {
     plDXRenderTargetRef *ref = nil;
     IDirect3DSurface9       *surface = nil, *depthSurface = nil, *renderSurface;
@@ -4581,23 +4521,23 @@ hsGDeviceRef    *plDXPipeline::MakeRenderTargetRef( plRenderTarget *owner)
             D3DSURF_MEMNEW(surface);
 
 #ifdef BUILD_RIFT_SUPPORT
-			if(!owner->IsScreenRenderTarget())
+			if (!owner->IsScreenRenderTarget())
 			{
-				ref->SetTexture( surface, depthSurface );
-			} else {
+				ref->SetTexture(surface, depthSurface);
+			}
+			else {
 				//In order to render the entire scene to a RT, we need a texture to go along with our surface.
 				//For some reason, the normal RT class will only allow either a surface or a texture to be set, but not both. 
 				//The RT class has been modified to allow for both values to be set at the same time, so let's create our screen texture here.
 				LPDIRECT3DTEXTURE9 renderTexture = NULL;
 				fD3DDevice->CreateTexture(owner->GetWidth(), owner->GetHeight(), 1, D3DUSAGE_RENDERTARGET, D3DFMT_X8R8G8B8, D3DPOOL_DEFAULT, &renderTexture, NULL);
 				renderTexture->GetSurfaceLevel(0, &renderSurface);
-				ref->SetTexture( surface, renderTexture, renderSurface, depthSurface );
+				ref->SetTexture(surface, renderTexture, renderSurface, depthSurface);
 			}
 #endif
 #ifndef BUILD_RIFT_SUPPORT
-			ref->SetTexture( surface, depthSurface );
+			ref->SetTexture(surface, depthSurface);
 #endif
-
         }
         else
         {
@@ -5188,9 +5128,8 @@ void    plDXPipeline::ISetRenderTarget( plRenderTarget *target )
     if( target != nil )
     {
         ref = (plDXRenderTargetRef *)target->GetDeviceRef();
-        if( ref == nil || ref->IsDirty() ){
+        if( ref == nil || ref->IsDirty() )
             ref = (plDXRenderTargetRef *)MakeRenderTargetRef( target );
-		}
     }
 
     if( ref == nil || ref->GetColorSurface() == nil )
@@ -5315,152 +5254,6 @@ bool plDXPipeline::IGetClearViewPort(D3DRECT& r)
 
     return useRect;
 }
-
-
-#ifdef BUILD_RIFT_SUPPORT
-void plDXPipeline::SetPostProcessingManager(plPostPipeline* postMgr){
-	fPostMgr = postMgr; 
-};
-
-void plDXPipeline::CreateScreenQuadGeometry()
-{
-    uint32_t fvfFormat = PLD3D_SCREENQUADFVF;
-    D3DPOOL poolType = D3DPOOL_MANAGED;
-    hsAssert(!ManagedAlloced(), "Alloc default with managed alloc'd");
-    if( FAILED( fD3DDevice->CreateVertexBuffer( 4 * sizeof( plScreenQuadVertex ),
-                                                D3DUSAGE_WRITEONLY, 
-                                                fvfFormat,
-                                                poolType, &fScreenQuadVertBuffer, NULL ) ) )
-    {
-        hsAssert( false, "CreateVertexBuffer() call failed!" );
-        //fCreatedSucessfully = false;
-        return;
-    }
-    PROFILE_POOL_MEM(poolType, 4 * sizeof(plScreenQuadVertex), true, "ScreenQuadVtxBuff");
-
-    /// Lock the buffer
-    plScreenQuadVertex *ptr;
-    if( FAILED( fScreenQuadVertBuffer->Lock( 0, 0, (void **)&ptr, D3DLOCK_NOSYSLOCK ) ) )
-    {
-        hsAssert( false, "Failed to lock vertex buffer for writing" );
-        //fCreatedSucessfully = false;
-        return;
-    }
-
-	ptr[ 0 ].fPoint.Set( -1.0f, -1.0f, 0.0f );
-    ptr[ 0 ].fColor = 0xffffffff;
-    ptr[ 0 ].fUV.Set( 0.0f, 0.0f, 0.0f );
-
-    ptr[ 1 ].fPoint.Set(-1.0f, 1.0f, 0.0f );
-    ptr[ 1 ].fColor = 0xffffffff;
-    ptr[ 1 ].fUV.Set( 0.0f, 1.0f, 0.0f );
-
-    ptr[ 2 ].fPoint.Set( 1.0f, -1.0f, 0.0f );
-    ptr[ 2 ].fColor = 0xffffffff;
-    ptr[ 2 ].fUV.Set( 1.0f, 0.0f, 0.0f );
-
-    ptr[ 3 ].fPoint.Set( 1.0f, 1.0f, 0.0f );
-    ptr[ 3 ].fColor = 0xffffffff;
-    ptr[ 3 ].fUV.Set( 1.0f, 1.0f, 0.0f );
-
-    /// Unlock and we're done!
-    fScreenQuadVertBuffer->Unlock();
-    //fCreatedSucessfully = true;
-
-	fScreenQuadMatrix.Reset();
-	
-	hsVector3 screenQuadPos(0.0f, 0.0f, 0.0f);
-	hsVector3 screenQuadScale(1.0f,1.0f,1.0f);
-
-	fScreenQuadMatrix.SetTranslate( &screenQuadPos );
-	fScreenQuadMatrix.SetScale( &screenQuadScale); 
-}
-
-void plDXPipeline::RenderPostScene(plRenderTarget* screenRender, plShader* vsShader, plShader* psShader){
-
-    uint32_t          scrnWidthDiv2 = Width() >> 1;
-    uint32_t          scrnHeightDiv2 = Height() >> 1;
-    D3DXMATRIX      mat;
-    D3DCULL         oldCullMode;
-    
-    if( !fScreenQuadVertBuffer )
-        return;
-    
-    // Make sure skinning is disabled.
-    //fD3DDevice->SetRenderState(D3DRS_VERTEXBLEND, D3DVBF_DISABLE);
-    fD3DDevice->SetVertexShader( fSettings.fCurrVertexShader = NULL);
-    fD3DDevice->SetFVF(fSettings.fCurrFVFFormat = PLD3D_SCREENQUADFVF);
-    fD3DDevice->SetStreamSource( 0, fScreenQuadVertBuffer, 0, sizeof( plScreenQuadVertex ) );  
-	D3DXMatrixTranslation(&mat, -0.5f/scrnWidthDiv2, -0.5f/scrnHeightDiv2, 0.0f);
-    fD3DDevice->SetTransform( D3DTS_VIEW, &mat );
-    oldCullMode = fCurrCullMode;
-
-	plDXRenderTargetRef* ref = (plDXRenderTargetRef*)screenRender->GetDeviceRef();
-
-	D3DXMATRIX convertMat;
-
-	/// Set up the D3D transform directly
-	IMatrix44ToD3DMatrix( convertMat, fScreenQuadMatrix );
-    fD3DDevice->SetTransform( D3DTS_WORLD, &convertMat );
-    convertMat = d3dIdentityMatrix;
-    //convertMat(1,1) = -1.0f;
-    //convertMat(2,2) = 2.0f;
-    //convertMat(2,3) = 1.0f;
-    //convertMat(3,2) = -2.0f;
-    //convertMat(3,3) = 0.0f;
-
-	// To override the transform done by the z-bias
-    fD3DDevice->SetTransform( D3DTS_PROJECTION, &convertMat );
-
-	//IDirect3DSurface9* backBuffer = NULL;
-	//fD3DDevice->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backBuffer);
-	fD3DDevice->SetTexture(0, ref->fD3DTexture);
-	fD3DDevice->SetTextureStageState(0,D3DTSS_COLOROP,D3DTOP_SELECTARG1);
-    fD3DDevice->SetTextureStageState(0,D3DTSS_COLORARG1,D3DTA_TEXTURE);
-    fD3DDevice->SetTextureStageState(0,D3DTSS_COLORARG2,D3DTA_DIFFUSE);   //Ignored
-	fD3DDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
-    fD3DDevice->SetRenderState(D3DRS_SRCBLEND,  D3DBLEND_ONE );
-    fD3DDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ZERO);
-
-	if(vsShader && psShader){
-		ISetShaders(vsShader, psShader);
-	}
-	
-	//fD3DDevice->StretchRect(ref->GetColorSurface(), NULL, backBuffer, NULL, D3DTEXF_NONE);
-	//backBuffer->Release();
-
-	fD3DDevice->SetRenderState( D3DRS_CULLMODE, fCurrCullMode = D3DCULL_NONE  );
-
-	WEAK_ERROR_CHECK( fD3DDevice->DrawPrimitive( D3DPT_TRIANGLESTRIP, 0, 2 ) );
-}
-
-void plDXPipeline::BeginScene(){
-	//ISetViewport();
-	//RefreshMatrices();
-	fD3DDevice->BeginScene();
-}
-
-void plDXPipeline::EndScene()
-{
-	fD3DDevice->EndScene();
-}
-
-void plDXPipeline::SetViewport()
-{
-	ISetViewport();
-}
-
-void plDXPipeline::ClearBackbuffer()
-{
-	D3DCOLOR clearColour = 0x00000000;
-	fD3DDevice->Clear( 0L, NULL, D3DCLEAR_TARGET, clearColour, 1.0f, 0L );
-}
-
-void plDXPipeline::ReverseCulling(){
-	ISetCullMode(true);
-}
-#endif
-
 
 // ClearRenderTarget //////////////////////////////////////////////////////////////////////////////
 // Flat fill the current render target with the specified color and depth values.
@@ -10700,13 +10493,6 @@ void plDXPipeline::LoadResources()
     plPipeRTMakeMsg* rtMake = new plPipeRTMakeMsg(this);
     rtMake->Send();
 
-#ifdef BUILD_RIFT_SUPPORT
-	D3DUtils::SetMarker(L"Creating RT start");
-	MakeRenderTargetRef( fPostMgr->CreatePostRT(Width(), Height()) );
-	D3DUtils::SetMarker(L"Creating RT end");
-	fPostMgr->CreateShaders();
-#endif
-
     // Create all our shadow render targets and pipeline specific POOL_DEFAULT vertex buffers.
     // This includes our single dynamic vertex buffer that we cycle through for software
     // skinned, particle systems, etc.
@@ -14586,11 +14372,9 @@ void plDXPipeline::IDrawClothingQuad(float x, float y, float w, float h,
 ///////////////////////////////////////////////////////////////////////////////
 //// Functions from Other Classes That Need to Be Here to Compile Right ///////
 ///////////////////////////////////////////////////////////////////////////////
-
 plPipeline  *plPipelineCreate::ICreateDXPipeline( hsWinRef hWnd, const hsG3DDeviceModeRecord *devMode )
 {
     plDXPipeline    *pipe = new plDXPipeline( hWnd, devMode );
-
     // Taken out 8.1.2001 mcn - If we have an error, still return so the client can grab the string
 //  if( pipe->GetErrorString() != nil )
 //  {
@@ -14600,3 +14384,15 @@ plPipeline  *plPipelineCreate::ICreateDXPipeline( hsWinRef hWnd, const hsG3DDevi
 
     return pipe;
 }
+
+#ifdef BUILD_RIFT_SUPPORT
+void plDXPipeline::AttachRiftCam(plRiftCamera *riftCam, plRenderTarget *renderTarget)
+{
+	plDXRenderTargetRef *ref = (plDXRenderTargetRef*)MakeRenderTargetRef(renderTarget);
+	fRiftCam = riftCam;
+	fRiftCam->SetD3DDevice(fD3DDevice);
+	ref->AttachTextureToRiftCam(&fRiftCam->GetOVRTex(0));
+	ref->AttachTextureToRiftCam(&fRiftCam->GetOVRTex(1));
+}
+
+#endif

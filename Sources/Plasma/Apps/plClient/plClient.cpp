@@ -155,6 +155,10 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "plTweak.h"
 
+#ifdef BUILD_RIFT_SUPPORT
+#include "pfOculusRift\plRiftCamera.h"
+#endif
+
 #define MSG_LOADING_BAR
 
 // static hsVector3 gAbsDown(0,0,-1.f);
@@ -385,6 +389,13 @@ bool plClient::Shutdown()
     DumpAGAllocs();
 #endif // TRACK_AG_ALLOCS
 
+#ifdef BUILD_RIFT_SUPPORT
+	if (fRiftCam){
+		fRiftCam->UnRegisterAs(kRiftSupport_KEY);
+		fRiftCam = nil;
+	}
+#endif
+
     // This will destruct the client. Do it last.
     UnRegisterAs(kClient_KEY);
 
@@ -502,7 +513,7 @@ bool plClient::InitPipeline()
 #endif
         delete pipe;
         devSel.GetDefault(&dmr);
-        pipe = plPipelineCreate::CreatePipeline( hWnd, &dmr );
+		pipe = plPipelineCreate::CreatePipeline(hWnd, &dmr);   
         if(pipe->GetErrorString() != nil)
         {
             // not much else we can do
@@ -1467,6 +1478,14 @@ bool plClient::StartInit()
     fNewCamera->RegisterAs( kVirtualCamera1_KEY ); 
     fNewCamera->Init();
     fNewCamera->SetPipeline( GetPipeline() );
+
+#ifdef BUILD_RIFT_SUPPORT
+	fRiftCam = new plRiftCamera();
+	fRiftCam->RegisterAs(kRiftSupport_KEY);
+	fRiftCam->SetCameraManager(fNewCamera);
+	fRiftCam->SetPipeline(fPipeline);
+	fRiftCam->InitRift();	
+#endif
 
     plVirtualCam1::Refresh();
     pfGameGUIMgr::GetInstance()->SetAspectRatio( (float)fPipeline->Width() / (float)fPipeline->Height() );

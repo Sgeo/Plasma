@@ -69,8 +69,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //#include "../../FeatureLib/pfCamera/plVirtualCamNeu.h"
 
 //Rift namespace
-#include "ovr.h"
-using namespace OVR;
+#include "OVR_CAPI.h"
+#include "Extras/OVR_Math.h"
 
 class plPipeline;
 class plCameraModifier1;
@@ -124,9 +124,9 @@ public:
 
 	float ReverseRadians(float angle){ return 2 * M_PI - angle; };
 
-	void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
-	void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
-	void ApplyStereoViewport(Util::Render::StereoEye);
+	//void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
+	//void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
+	//void ApplyStereoViewport(Util::Render::StereoEye);
 
 	void SetOriginalCamera(hsMatrix44 cam){ fWorldToCam = cam; };
 	
@@ -139,12 +139,12 @@ public:
 	bool GetStereoRenderingState(){ return fEnableStereoRendering; };
 	float GetRenderScale(){return fRenderScale;};
 
-	Util::Render::StereoEyeParams GetEyeParams(Util::Render::StereoEye eye){return SConfig.GetEyeRenderParams(eye); };
+	//Util::Render::StereoEyeParams GetEyeParams(Util::Render::StereoEye eye){return SConfig.GetEyeRenderParams(eye); };
 
 	enum eye {EYE_LEFT = 1, EYE_RIGHT, EYE_BOTH};
 
 	//Utils
-	hsMatrix44* OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44* hsMat);
+	hsMatrix44* OVRTransformToHSTransform(ovrMatrix4f OVRmat, hsMatrix44* hsMat);
 
 	void SetXOffsetRotation(float offset){fXRotOffset = 3.1415926f * offset;};
 	void SetYOffsetRotation(float offset){fYRotOffset = 3.1415926f * offset;};
@@ -159,26 +159,22 @@ private:
 	hsMatrix44 fWorldToCam;
 
 	//Rift objects
-	Ptr<DeviceManager>  pManager;
-	Ptr<HMDDevice>		pHMD;
-	Ptr<SensorDevice>	pSensor;
-	SensorFusion		SFusion;
-	Util::Render::StereoConfig        SConfig;
+	ovrSession          pSession;
 
 	bool fEnableStereoRendering;
 	float fRenderScale;
 
 	float fXRotOffset, fYRotOffset, fZRotOffset;
 
-	Vector3f            fEyePos;
+	ovrVector3f            fEyePos;
     float               fEyeYaw;         // Rotation around Y, CCW positive when looking at RHS (X,Z) plane.
     float               fEyePitch;       // Pitch. If sensor is plugged in, only read from sensor.
     float               fEyeRoll;        // Roll, only accessible from Sensor.
     float               fLastSensorYaw;  // Stores previous Yaw value from to support computing delta.
 	float				fYawInitial;
-	Vector3f			fUpVector;
-	Vector3f			fForwardVector;
-	Vector3f			fRightVector;
+	ovrVector3f			fUpVector;
+	ovrVector3f			fForwardVector;
+	ovrVector3f			fRightVector;
 	hsBitVector         fFlags;
 	float fNear, fFar;
 

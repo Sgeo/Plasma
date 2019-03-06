@@ -83,11 +83,10 @@ plRiftCamera::plRiftCamera() :
 }
 
 plRiftCamera::~plRiftCamera(){
-	pSensor.Clear();
-    pHMD.Clear();
-	pManager.Clear();
-	fVirtualCam = nil;
-	fPipe = nil;
+	ovr_Destroy(*pSession);
+	ovr_Shutdown();
+	pSession = NULL;
+	pLuid = NULL;
 }
 
 void plRiftCamera::initRift(int width, int height){

@@ -94,7 +94,7 @@ void plRiftCamera::initRift(int width, int height){
 
 
 	pfConsole::AddLine("-- Attempting to initialize Rift --");
-	ovrInitParams initParams = { ovrInit_RequestVersion | ovrInit_MixedRendering | ovrInit_FocusAware, OVR_MINOR_VERSION, NULL, 0, 0 };
+	ovrInitParams initParams = { ovrInit_RequestVersion | ovrInit_MixedRendering, OVR_MINOR_VERSION, NULL, 0, 0 };
 
 	ovrResult result = ovr_Initialize(&initParams);
 

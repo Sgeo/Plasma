@@ -159,7 +159,8 @@ private:
 	hsMatrix44 fWorldToCam;
 
 	//Rift objects
-	ovrSession          pSession;
+	ovrSession*          pSession;
+	ovrGraphicsLuid*     pLuid;
 
 	bool fEnableStereoRendering;
 	float fRenderScale;

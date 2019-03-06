@@ -92,34 +92,26 @@ plRiftCamera::~plRiftCamera(){
 
 void plRiftCamera::initRift(int width, int height){
 
-	System::Init(Log::ConfigureDefaultLog(LogMask_All));
 
-	pManager = *DeviceManager::Create();
-	pHMD = *pManager->EnumerateDevices<HMDDevice>().CreateDevice();
-	SFusion.SetPredictionEnabled(true);
+	pfConsole::AddLine("-- Attempting to initialize Rift --");
+	ovrInitParams initParams = { ovrInit_RequestVersion | ovrInit_MixedRendering | ovrInit_FocusAware, OVR_MINOR_VERSION, NULL, 0, 0 };
 
-	SConfig.SetFullViewport(Util::Render::Viewport(0, 0, width, height));
-	SConfig.SetStereoMode(Util::Render::Stereo_LeftRight_Multipass);
-	SConfig.SetDistortionFitPointVP(-1.0f, 0.0f);
-	SConfig.SetZClipDistance(0.03f, 10000.0f);
-	fRenderScale = SConfig.GetDistortionScale();
+	ovrResult result = ovr_Initialize(&initParams);
 
-	pfConsole::AddLine("-- Initializing Rift --");
-
-	if(pHMD){
-		pSensor = *pHMD->GetSensor();
-		pfConsole::AddLine("- Found Rift -");
-
-		 OVR::HMDInfo HMDInfo;
-         pHMD->GetDeviceInfo(&HMDInfo);
-	} else {
-		pfConsole::AddLine("- No HMD found -");
+	if (OVR_SUCCESS(result)) {
+		pfConsole::AddLine("-- Rift initialized. Attempting to create session --");
+		result = ovr_Create(pSession, pLuid);
+		if (OVR_SUCCESS(result)) {
+			pfConsole::AddLine("-- Rift Session created --");
+		}
+		else {
+			pfConsole::AddLine("-- Unable to create Rift Session --");
+		}
 	}
-
-	if (pSensor){
-		SFusion.AttachToSensor(pSensor);
-		SFusion.SetPredictionEnabled(true);
+	else {
+		pfConsole::AddLine("-- Unable to initialize LibOVR --");
 	}
+	
 }
 
 bool plRiftCamera::MsgReceive(plMessage* msg)

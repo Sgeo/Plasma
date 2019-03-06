@@ -16,6 +16,7 @@ CMakeFiles
 cmake_install.cmake
 install_manifest.txt
 build/
+devlibs/
 build-*/
 Docs/Doxygen/
 
@@ -29,3 +30,4 @@ Docs/Doxygen/
 [Bb]uild[Ll]og.*
 [Tt]est[Rr]esult*
 [Tt]humbs.db
+devlibs.zip

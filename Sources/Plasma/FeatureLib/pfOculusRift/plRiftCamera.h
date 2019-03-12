@@ -124,9 +124,9 @@ public:
 
 	float ReverseRadians(float angle){ return 2 * M_PI - angle; };
 
-	//void ApplyLeftEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Left); };
-	//void ApplyRightEyeViewport(){ ApplyStereoViewport(Util::Render::StereoEye_Right); };
-	//void ApplyStereoViewport(Util::Render::StereoEye);
+	void ApplyLeftEyeViewport(){ ApplyStereoViewport(ovrEye_Left); };
+	void ApplyRightEyeViewport(){ ApplyStereoViewport(ovrEye_Right); };
+	void ApplyStereoViewport(ovrEyeType);
 
 	void SetOriginalCamera(hsMatrix44 cam){ fWorldToCam = cam; };
 	

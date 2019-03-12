@@ -168,7 +168,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 
 	hsMatrix44 oldCamNDC = vt.GetCameraToNDC();
 	
-	OVRTransformToHSTransform(OVR::CreateProjection(false, true, fovPort, OVR::StereoEye(eye)), &projMatrix);
+	OVRTransformToHSTransform(OVR::CreateProjection(false, false, fovPort, OVR::StereoEye(eye)), &projMatrix);
 	vt.SetProjectionMatrix(&projMatrix);
 
 	//fPipe->ReverseCulling();

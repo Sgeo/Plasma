@@ -71,6 +71,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //Rift namespace
 #include "OVR_CAPI.h"
 #include "Extras/OVR_Math.h"
+#include "Extras/OVR_StereoProjection.h"
 
 class plPipeline;
 class plCameraModifier1;
@@ -173,9 +174,6 @@ private:
     float               fEyeRoll;        // Roll, only accessible from Sensor.
     float               fLastSensorYaw;  // Stores previous Yaw value from to support computing delta.
 	float				fYawInitial;
-	ovrVector3f			fUpVector;
-	ovrVector3f			fForwardVector;
-	ovrVector3f			fRightVector;
 	hsBitVector         fFlags;
 	float fNear, fFar;
 

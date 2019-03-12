@@ -73,9 +73,6 @@ plRiftCamera::plRiftCamera() :
 	fYRotOffset(M_PI),
 	fZRotOffset(M_PI),
 	fEyeYaw(0.0f),
-	fUpVector(0.0f, 1.0f, 0.0f),
-	fForwardVector(0.0f,0.0f,1.0f),
-	fRightVector(1.0f, 0.0f, 0.0f),
 	fNear(0.3f),
 	fFar(10000.0f)
 {
@@ -118,42 +115,48 @@ bool plRiftCamera::MsgReceive(plMessage* msg)
 	return true;
 }
 
-void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
+void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 {
-	Util::Render::StereoEyeParams eyeParams = SConfig.GetEyeRenderParams(eye);
+	plViewTransform vt = fPipe->GetViewTransform();
 
-	fRenderScale = 1.0f;
-	fRenderScale = SConfig.GetDistortionScale();
+	ovrFovPort fovPort;
+	fovPort.DownTan = tan(vt.GetFovY() / 2);
+	fovPort.UpTan = tan(vt.GetFovY() / 2);
+	fovPort.LeftTan = tan(vt.GetFovX() / 2);
+	fovPort.RightTan = tan(vt.GetFovX() / 2);
+	ovrEyeRenderDesc eyeRenderDesc = ovr_GetRenderDesc(*pSession, eye, fovPort);
+
+	
+	//fRenderScale = SConfig.GetDistortionScale();
 
 	//Viewport stuff
 	//--------------
-	plViewTransform vt = fPipe->GetViewTransform();
-	vt.SetViewPort(eyeParams.VP.x * fRenderScale,
-					eyeParams.VP.y * fRenderScale, 
-					(eyeParams.VP.x + eyeParams.VP.w)  * fRenderScale, 
-					(eyeParams.VP.y + eyeParams.VP.h) * fRenderScale, false);
 	
+	//vt.SetViewPort(eyeParams.VP.x * fRenderScale,
+	//				eyeParams.VP.y * fRenderScale, 
+	//				(eyeParams.VP.x + eyeParams.VP.w)  * fRenderScale, 
+	//				(eyeParams.VP.y + eyeParams.VP.h) * fRenderScale, false);
+	//
 	hsMatrix44 eyeTransform, transposed, w2c, inverse;
-	OVRTransformToHSTransform(eyeParams.ViewAdjust, &eyeTransform);
-	eyeTransform.fMap[0][3] *= 0.3048;	//Convert Rift meters to feet
 
-	hsMatrix44 riftOrientation;
+	ovrTrackingState trackingState = ovr_GetTrackingState(*pSession, 0.0, false);
+	ovrPosef eyePoses[2];
+	ovr_CalcEyePoses(trackingState.HeadPose.ThePose, &eyeRenderDesc.HmdToEyePose, eyePoses);
+	OVR::Matrix4f riftEyeTransform(eyePoses[eye]);
+	OVRTransformToHSTransform(riftEyeTransform, &eyeTransform);
+	//eyeTransform.fMap[0][3] *= 0.3048;	//Convert Rift meters to feet
+	eyeTransform.Scale(&hsVector3(0.3048, 0.3048, 0.3048));
 
-	if(HasFlags(kUseRawInput)){
-		riftOrientation = RawRiftRotation();
-	} else if(HasFlags(kUseEulerInput)){
-		riftOrientation = EulerRiftRotation();
-	}
 
-	eyeTransform = riftOrientation * eyeTransform;
+	// eyeTransform
 	hsMatrix44 origW2c = fWorldToCam;
 
 	w2c = eyeTransform * origW2c;
 	w2c.GetInverse(&inverse);
 	vt.SetCameraTransform( w2c, inverse );
-	vt.SetWidth(eyeParams.VP.w * fRenderScale);
-	vt.SetHeight(eyeParams.VP.h * fRenderScale);
-	vt.SetHeight(eyeParams.VP.h * fRenderScale);
+	//vt.SetWidth(eyeParams.VP.w * fRenderScale);
+	//vt.SetHeight(eyeParams.VP.h * fRenderScale);
+	//vt.SetHeight(eyeParams.VP.h * fRenderScale);
 	hsPoint2 depth;
 	depth.Set(fNear, fFar);
 	//vt.SetDepth(depth);
@@ -165,7 +168,7 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 
 	hsMatrix44 oldCamNDC = vt.GetCameraToNDC();
 	
-	OVRTransformToHSTransform(eyeParams.Projection, &projMatrix);
+	OVRTransformToHSTransform(OVR::CreateProjection(false, true, fovPort, OVR::StereoEye(eye)), &projMatrix);
 	vt.SetProjectionMatrix(&projMatrix);
 
 	//fPipe->ReverseCulling();
@@ -176,67 +179,8 @@ void plRiftCamera::ApplyStereoViewport(Util::Render::StereoEye eye)
 	fPipe->SetViewport();
 }
 
-hsMatrix44 plRiftCamera::RawRiftRotation(){
-	hsMatrix44 outView;
-	Quatf riftOrientation = SFusion.GetPredictedOrientation();
-	Matrix4f riftMatrix = Matrix4f(riftOrientation.Inverted());
 
-	riftMatrix *= Matrix4f::RotationX(fXRotOffset);
-	riftMatrix *= Matrix4f::RotationY(fYRotOffset);
-	riftMatrix *= Matrix4f::RotationZ(fZRotOffset);
-
-	hsMatrix44 testerAlt;
-	OVRTransformToHSTransform(riftMatrix, &outView);
-	return outView;
-}
-
-
-hsMatrix44 plRiftCamera::EulerRiftRotation(){
-	hsMatrix44 outView;
-	float yaw = 0.0f;
-
-	// Minimal head modeling; should be moved as an option to SensorFusion.
-    float headBaseToEyeHeight     = 0.15f;  // Vertical height of eye from base of head
-    float headBaseToEyeProtrusion = 0.09f;  // Distance forward of eye from base of head
-
-	Quatf riftOrientation = SFusion.GetPredictedOrientation();
-	//Matrix4f tester = Matrix4f(riftOrientation.Inverted());
-	//Vector3f camPos(camPosition.fX, camPosition.fY, camPosition.fZ);
-
-	riftOrientation.GetEulerAngles<Axis_Y, Axis_X, Axis_Z>(&yaw, &fEyePitch, &fEyeRoll);
-
-	fEyeYaw += (yaw - fLastSensorYaw);
-    fLastSensorYaw = yaw;
-
-	Matrix4f rollPitchYaw = Matrix4f::RotationY( ReverseRadians(yaw) ) * Matrix4f::RotationX(-fEyePitch) * Matrix4f::RotationZ(fEyeRoll);
-	Vector3f up      = rollPitchYaw.Transform(fUpVector);
-	Vector3f forward = rollPitchYaw.Transform(fForwardVector);
-
-	Matrix4f riftMatrix = Matrix4f::LookAtLH( Vector3f(0.0f, 0.0f, 0.0f), forward, up);
-	riftMatrix *= Matrix4f::RotationX(fXRotOffset);
-	riftMatrix *= Matrix4f::RotationY(fYRotOffset);
-	riftMatrix *= Matrix4f::RotationZ(fZRotOffset);
-
-	OVRTransformToHSTransform(riftMatrix, &outView);
-
-	//Vector3f empty(0.0f, 0.0f, 0.0f);
-    //Vector3f eyeCenterInHeadFrame(0.0f, headBaseToEyeHeight, -headBaseToEyeProtrusion);
-	//Vector3f shiftedEyePos = Vector3f(camPosition.fX, camPosition.fY, camPosition.fZ) + rollPitchYaw.Transform(empty);
-    //shiftedEyePos.y -= eyeCenterInHeadFrame.y; // Bring the head back down to original height
-	//Matrix4f view = Matrix4f::LookAtLH(shiftedEyePos, shiftedEyePos + forward, up).Invert();
-	//OVRTransformToHSTransform(view, &outView);
-
-	//Vector3f lookAt(Vector3f(camPosition.fX, camPosition.fY, camPosition.fZ) + forward);
-	//hsPoint3 targetPOA(forward.x, forward.y, forward.z);
-	//hsPoint3 targetPos(shiftedEyePos.x, shiftedEyePos.y, shiftedEyePos.z);
-	//hsVector3 targetUp(up.x, up.y, up.z);
-	//outView.MakeCamera(&camPosition, &targetPOA, &targetUp);
-
-	return outView;
-}
-
-
-hsMatrix44* plRiftCamera::OVRTransformToHSTransform(Matrix4f OVRmat, hsMatrix44* hsMat)
+hsMatrix44* plRiftCamera::OVRTransformToHSTransform(ovrMatrix4f OVRmat, hsMatrix44* hsMat)
 {
 	hsMat->NotIdentity();
 	//OVRmat.Transpose();

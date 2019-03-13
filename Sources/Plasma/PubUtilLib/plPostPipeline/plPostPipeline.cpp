@@ -131,16 +131,17 @@ void plPostPipeline::UpdateShaders()
 	fPsShader->SetColor(0, DistortionClearColor);
     //Clear(r, g, b, a);
 
-	float w = float(fVP.w) / float(fRealVP.w),
-          h = float(fVP.h) / float(fRealVP.h),
-          x = float(fVP.x) / float(fRealVP.w),
-          y = float(fVP.y) / float(fRealVP.h);
+	float w = float(fVP.Size.w) / float(fRealVP.Size.w),
+          h = float(fVP.Size.h) / float(fRealVP.Size.h),
+          x = float(fVP.Pos.x) / float(fRealVP.Size.w),
+          y = float(fVP.Pos.y) / float(fRealVP.Size.h);
 
-    float as = float(fVP.w) / float(fVP.h);
+    float as = float(fVP.Size.w) / float(fVP.Size.h);
 
     // We are using 1/4 of DistortionCenter offset value here, since it is
     // relative to [-1,1] range that gets mapped to [0, 0.5].
-	float lensCenterSet[2] = {x + (w + fDistortion.XCenterOffset * 0.5f)*0.5f, y + h*0.5f};
+	//float lensCenterSet[2] = {x + (w + fDistortion.XCenterOffset * 0.5f)*0.5f, y + h*0.5f};
+	float lensCenterSet[2] = { x + (w + 0 * 0.5f)*0.5f, y + h * 0.5f };
 	fPsShader->SetFloat2(kRiftShaderLensCenter, lensCenterSet);
 	
 	float screenCenterSet[2] = {x + w*0.5f, y + h*0.5f};
@@ -148,7 +149,7 @@ void plPostPipeline::UpdateShaders()
 
     // MA: This is more correct but we would need higher-res texture vertically; we should adopt this
     // once we have asymmetric input texture scale.
-    float scaleFactor = 1.0f / fDistortion.Scale;
+    float scaleFactor = 1.0f;
 	
 	float scaleOutSet[2] = {(w/2) * scaleFactor, (h/2) * scaleFactor * as};
 	fPsShader->SetFloat2(kRiftShaderScaleOut, scaleOutSet );
@@ -156,7 +157,8 @@ void plPostPipeline::UpdateShaders()
 	float scaleInSet[2] = {(2/w), (2/h) / as};
 	fPsShader->SetFloat2(kRiftShaderScaleIn, scaleInSet);
 
-	float distortionSet[4] = {fDistortion.K[0], fDistortion.K[1], fDistortion.K[2], fDistortion.K[3]};
+	//float distortionSet[4] = {fDistortion.K[0], fDistortion.K[1], fDistortion.K[2], fDistortion.K[3]};
+	float distortionSet[4] = { 1.0, 0.0, 0.0, 0.0 }; // TODO: Pull from defaults from old LibOVR. No idea if this is sensible
 	fPsShader->SetFloat4(kRiftShaderHmdWarpParam, distortionSet);
 
 	//Vertex shader consts
@@ -200,17 +202,17 @@ plRenderTarget* plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
 	return fPostRT;
 }
 
-void plPostPipeline::SetViewport(OVR::Util::Render::Viewport vp, bool resetProjection = false)
+void plPostPipeline::SetViewport(ovrRecti vp, bool resetProjection = false)
 {
 	fVP = vp;
 
 	plViewTransform vt = fPipe->GetViewTransform();
 	
-	vt.SetViewPort(fVP.x, fVP.y, fVP.x + fVP.w, fVP.y + fVP.h, false);
+	vt.SetViewPort(fVP.Pos.x, fVP.Pos.y, fVP.Pos.x + fVP.Size.w, fVP.Pos.y + fVP.Size.h, false);
 	
 	if(resetProjection){
-		vt.SetWidth((float)fVP.w);
-		vt.SetHeight((float)fVP.h);
+		vt.SetWidth((float)fVP.Size.w);
+		vt.SetHeight((float)fVP.Size.h);
 		vt.SetDepth(0.3f, 500.0f);
 		vt.ResetProjectionMatrix();
 	}

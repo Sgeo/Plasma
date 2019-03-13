@@ -156,6 +156,16 @@ Mead, WA   99021
 
 #include "plTweak.h"
 
+// The below is a hack relating to trying to compile on VS2017
+// See https://stackoverflow.com/questions/30412951/unresolved-external-symbol-imp-fprintf-and-imp-iob-func-sdl2
+
+FILE _iob[] = { *stdin, *stdout, *stderr };
+
+extern "C" FILE * __cdecl __iob_func(void)
+{
+	return _iob;
+}
+
 //Rift includes
 #ifdef BUILD_RIFT_SUPPORT
 #include "pfOculusRift/plRiftCamera.h"
@@ -606,7 +616,12 @@ bool plClient::InitPipeline()
 	fPostProcessingMgr = plPostPipeline::GetInstance();
 	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
 	fPostProcessingMgr->SetPipeline(pipe);
-	fPostProcessingMgr->SetRealViewport(OVR::Util::Render::Viewport(0,0,pipe->Width(),pipe->Height() ));
+	ovrRecti realViewport;
+	realViewport.Pos.x = 0;
+	realViewport.Pos.y = 0;
+	realViewport.Size.w = pipe->Width();
+	realViewport.Size.h = pipe->Height();
+	fPostProcessingMgr->SetRealViewport(realViewport);
 	//fPostProcessingMgr->SetRenderScale(fRiftCamera->GetRenderScale()); 
 #endif
 
@@ -1582,7 +1597,8 @@ bool plClient::StartInit()
 
 	plgAudioSys::Activate(true);
 
-	plConst(float) delay(2.f);
+	//plConst(float) delay(2.f);
+	const float delay(2.f); // Above seems like it should expand into this. Why didn't it?
 	//commenting out publisher splash for MORE
 	//IPlayIntroBink("avi/intro0.bik", delay, 0.f, 0.f, 1.f, 1.f, 0.75);
 	//if( GetDone() ) return false;
@@ -1959,15 +1975,20 @@ bool plClient::IDraw()
 	//Set vieport, RT and projection
 
 	if(fRiftCamera->GetStereoRenderingState()){
-
-		fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,1280,800), true);
+		ovrRecti viewport;
+		viewport.Pos.x = 0;
+		viewport.Pos.y = 0;
+		viewport.Size.w = 1280;
+		viewport.Size.h = 800;
+		fPostProcessingMgr->SetViewport(viewport, true);
 		fRiftCamera->SetOriginalCamera(fPipeline->GetViewTransform().GetWorldToCamera());
 		fPipeline->ClearRenderTarget();
 
 		if(fPostProcessingMgr->GetPostProcessingState()){
 			fPostProcessingMgr->EnablePostRT();
-
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,fPipeline->Width() * fRiftCamera->GetRenderScale(), fPipeline->Height() * fRiftCamera->GetRenderScale()), false);
+			viewport.Size.w = fPipeline->Width() * fRiftCamera->GetRenderScale();
+			viewport.Size.h = fPipeline->Height() * fRiftCamera->GetRenderScale();
+			fPostProcessingMgr->SetViewport(viewport, false);
 			
 			fRiftCamera->ApplyLeftEyeViewport();	
 		}
@@ -2034,13 +2055,17 @@ bool plClient::IDraw()
 		if(fPostProcessingMgr->GetPostProcessingState())
 		{
 			fPostProcessingMgr->DisablePostRT();
-
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,640,800), false);
+			ovrRecti viewport;
+			viewport.Pos.x = 0;
+			viewport.Pos.y = 0;
+			viewport.Size.w = 640;
+			viewport.Size.h = 800;
+			fPostProcessingMgr->SetViewport(viewport, false);
 			hsColorRGBA resetCol;
 			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
 			fPipeline->ClearRenderTarget(&resetCol);
 
-			fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Left).pDistortion), OVR::Util::Render::StereoEye_Left);
+			//fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Left).pDistortion), OVR::Util::Render::StereoEye_Left);
 
 			fPostProcessingMgr->UpdateShaders();
 			fPostProcessingMgr->RenderPostEffects();
@@ -2089,18 +2114,25 @@ bool plClient::IDraw()
 		if(fPostProcessingMgr->GetPostProcessingState())
 		{
 			fPostProcessingMgr->DisablePostRT();
-
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(640,0,640,800), false);
+			ovrRecti viewport;
+			viewport.Pos.x = 640;
+			viewport.Pos.y = 0;
+			viewport.Size.w = 640;
+			viewport.Size.h = 800;
+			fPostProcessingMgr->SetViewport(viewport, false);
 			hsColorRGBA resetCol;
 			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
 			fPipeline->ClearRenderTarget(&resetCol);
 
-			fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Right).pDistortion), OVR::Util::Render::StereoEye_Right);
+			//fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Right).pDistortion), OVR::Util::Render::StereoEye_Right);
 
 			fPostProcessingMgr->UpdateShaders();
 			fPostProcessingMgr->RenderPostEffects();
-
-			fPostProcessingMgr->SetViewport(OVR::Util::Render::Viewport(0,0,1280,800), false);
+			viewport.Pos.x = 0;
+			viewport.Pos.y = 0;
+			viewport.Size.w = 1280;
+			viewport.Size.h = 800;
+			fPostProcessingMgr->SetViewport(viewport, false);
 
 		}
 

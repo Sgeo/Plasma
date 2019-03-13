@@ -106,17 +106,17 @@ public:
 	plRenderTarget* CreatePostRT(uint16_t width, uint16_t height);
 	plRenderTarget* GetPostRT(){ return fPostRT; };
 
-	void SetRealViewport(OVR::Util::Render::Viewport vp){ fRealVP = vp; };
-	void SetViewport(OVR::Util::Render::Viewport vp, bool resetProjection);
-	void SetPrescaledViewport(OVR::Util::Render::Viewport vp){ fVP = vp; };
+	void SetRealViewport(ovrRecti vp){ fRealVP = vp; };
+	void SetViewport(ovrRecti vp, bool resetProjection);
+	void SetPrescaledViewport(ovrRecti vp){ fVP = vp; };
 	
 	void RestoreViewport(){ SetViewport(fRealVP, true); };
 	void SetRenderScale(float scale){fRenderScale = scale; };
-	void SetDistortionConfig(OVR::Util::Render::DistortionConfig config, OVR::Util::Render::StereoEye eye = OVR::Util::Render::StereoEye_Left)
+	void SetDistortionConfig(ovrEyeType eye = ovrEye_Left)
     {
-        fDistortion = config;
-        if (eye == OVR::Util::Render:: StereoEye_Right)
-            fDistortion.XCenterOffset = -fDistortion.XCenterOffset;
+        //fDistortion = config;
+		if (eye == ovrEye_Right) {}
+            //fDistortion.XCenterOffset = -fDistortion.XCenterOffset;
     }	
 
 	
@@ -127,13 +127,13 @@ private:
 	plRenderTarget* fPostRT;
 
 	float fRenderScale;
-	OVR::Util::Render::DistortionConfig fDistortion;
+	//OVR::Util::Render::DistortionConfig fDistortion;
 
 	plShader* fVsShader;
 	plShader* fPsShader;
 
-	OVR::Util::Render::Viewport fVP;
-	OVR::Util::Render::Viewport fRealVP;
+	ovrRecti fVP;
+	ovrRecti fRealVP;
 
 	bool fEnablePost;
 };

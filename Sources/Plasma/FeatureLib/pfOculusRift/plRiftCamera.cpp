@@ -57,6 +57,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pfConsoleCore/pfConsoleEngine.h"
 #include "pfConsole/pfConsole.h"
 #include "pfConsole/pfConsoleDirSrc.h"
+#include "plStatusLog/plStatusLog.h"
 #include "plPipeline/plPlates.h"
 #include "plPipeline.h"
 #include "plViewTransform.h"
@@ -80,32 +81,40 @@ plRiftCamera::plRiftCamera() :
 }
 
 plRiftCamera::~plRiftCamera(){
-	ovr_Destroy(*pSession);
+	ovr_Destroy(pSession);
 	ovr_Shutdown();
-	pSession = NULL;
-	pLuid = NULL;
+	pSession;
+	pLuid;
+}
+
+void LogCallback(uintptr_t userData, int level, const char* message)
+{
+	plStatusLog::AddLineS("oculus.log", "Oculus: [%i] %s", level, message);
 }
 
 void plRiftCamera::initRift(int width, int height){
 
 
-	pfConsole::AddLine("-- Attempting to initialize Rift --");
-	ovrInitParams initParams = { ovrInit_RequestVersion | ovrInit_MixedRendering, OVR_MINOR_VERSION, NULL, 0, 0 };
+	plStatusLog::AddLineS("oculus.log", "-- Attempting to initialize Rift --");
+	ovrInitParams initParams = { ovrInit_RequestVersion | ovrInit_Debug, OVR_MINOR_VERSION, LogCallback, 0, 0 };
 
 	ovrResult result = ovr_Initialize(&initParams);
 
 	if (OVR_SUCCESS(result)) {
-		pfConsole::AddLine("-- Rift initialized. Attempting to create session --");
-		result = ovr_Create(pSession, pLuid);
+		plStatusLog::AddLineS("oculus.log", "-- Rift initialized with result %i. Attempting to create session --", result);
+		ovr_TraceMessage(ovrLogLevel_Debug, "Testing trace message");
+		result = ovr_Create(&pSession, &pLuid);
+		
+		plStatusLog::AddLineS("oculus.log", "After session creation");
 		if (OVR_SUCCESS(result)) {
-			pfConsole::AddLine("-- Rift Session created --");
+			plStatusLog::AddLineS("oculus.log", "-- Rift Session created --");
 		}
 		else {
-			pfConsole::AddLine("-- Unable to create Rift Session --");
+			plStatusLog::AddLineS("oculus.log", "-- Unable to create Rift Session --");
 		}
 	}
 	else {
-		pfConsole::AddLine("-- Unable to initialize LibOVR --");
+		plStatusLog::AddLineS("oculus.log", "-- Unable to initialize LibOVR, code %i --", result);
 	}
 	
 }
@@ -124,7 +133,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	fovPort.UpTan = tan(vt.GetFovY() / 2);
 	fovPort.LeftTan = tan(vt.GetFovX() / 2);
 	fovPort.RightTan = tan(vt.GetFovX() / 2);
-	ovrEyeRenderDesc eyeRenderDesc = ovr_GetRenderDesc(*pSession, eye, fovPort);
+	ovrEyeRenderDesc eyeRenderDesc = ovr_GetRenderDesc(pSession, eye, fovPort);
 
 	
 	//fRenderScale = SConfig.GetDistortionScale();
@@ -139,7 +148,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	//
 	hsMatrix44 eyeTransform, transposed, w2c, inverse;
 
-	ovrTrackingState trackingState = ovr_GetTrackingState(*pSession, 0.0, false);
+	ovrTrackingState trackingState = ovr_GetTrackingState(pSession, 0.0, false);
 	ovrPosef eyePoses[2];
 	ovr_CalcEyePoses(trackingState.HeadPose.ThePose, &eyeRenderDesc.HmdToEyePose, eyePoses);
 	OVR::Matrix4f riftEyeTransform(eyePoses[eye]);

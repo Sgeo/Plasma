@@ -83,8 +83,6 @@ plRiftCamera::plRiftCamera() :
 plRiftCamera::~plRiftCamera(){
 	ovr_Destroy(pSession);
 	ovr_Shutdown();
-	pSession;
-	pLuid;
 }
 
 void LogCallback(uintptr_t userData, int level, const char* message)

@@ -1971,6 +1971,7 @@ bool plClient::IDraw()
 	//-------------------------------
 	//Stereo rendering pass A
 	//-------------------------------
+	plStatusLog::AddLineS("oculus.log", "Before BUILD_RIFT_SUPPORT");
 #ifdef BUILD_RIFT_SUPPORT
 	//Set vieport, RT and projection
 
@@ -1985,7 +1986,7 @@ bool plClient::IDraw()
 		fPipeline->ClearRenderTarget();
 
 		if(fPostProcessingMgr->GetPostProcessingState()){
-			fPostProcessingMgr->EnablePostRT();
+			//fPostProcessingMgr->EnablePostRT();
 			viewport.Size.w = fPipeline->Width() * fRiftCamera->GetRenderScale();
 			viewport.Size.h = fPipeline->Height() * fRiftCamera->GetRenderScale();
 			fPostProcessingMgr->SetViewport(viewport, false);
@@ -2054,7 +2055,7 @@ bool plClient::IDraw()
 		//Render last post effects
 		if(fPostProcessingMgr->GetPostProcessingState())
 		{
-			fPostProcessingMgr->DisablePostRT();
+			//fPostProcessingMgr->DisablePostRT();
 			ovrRecti viewport;
 			viewport.Pos.x = 0;
 			viewport.Pos.y = 0;
@@ -2063,16 +2064,16 @@ bool plClient::IDraw()
 			fPostProcessingMgr->SetViewport(viewport, false);
 			hsColorRGBA resetCol;
 			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
-			fPipeline->ClearRenderTarget(&resetCol);
+			//fPipeline->ClearRenderTarget(&resetCol);
 
 			//fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Left).pDistortion), OVR::Util::Render::StereoEye_Left);
 
-			fPostProcessingMgr->UpdateShaders();
-			fPostProcessingMgr->RenderPostEffects();
+			//fPostProcessingMgr->UpdateShaders();
+			//fPostProcessingMgr->RenderPostEffects();
 
-			fPostProcessingMgr->EnablePostRT();
+			//fPostProcessingMgr->EnablePostRT();
 		}
-
+		fPipeline->ClearRenderTarget();
 		fRiftCamera->ApplyRightEyeViewport();
 
 		plProfile_BeginTiming(BeginRender);
@@ -2113,26 +2114,26 @@ bool plClient::IDraw()
 		//Render last post effects
 		if(fPostProcessingMgr->GetPostProcessingState())
 		{
-			fPostProcessingMgr->DisablePostRT();
+			//fPostProcessingMgr->DisablePostRT();
 			ovrRecti viewport;
 			viewport.Pos.x = 640;
 			viewport.Pos.y = 0;
 			viewport.Size.w = 640;
 			viewport.Size.h = 800;
-			fPostProcessingMgr->SetViewport(viewport, false);
+			//fPostProcessingMgr->SetViewport(viewport, false);
 			hsColorRGBA resetCol;
 			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
-			fPipeline->ClearRenderTarget(&resetCol);
+			//fPipeline->ClearRenderTarget(&resetCol);
 
 			//fPostProcessingMgr->SetDistortionConfig(*(fRiftCamera->GetEyeParams(OVR::Util::Render::StereoEye_Right).pDistortion), OVR::Util::Render::StereoEye_Right);
 
-			fPostProcessingMgr->UpdateShaders();
-			fPostProcessingMgr->RenderPostEffects();
+			//fPostProcessingMgr->UpdateShaders();
+			//fPostProcessingMgr->RenderPostEffects();
 			viewport.Pos.x = 0;
 			viewport.Pos.y = 0;
 			viewport.Size.w = 1280;
 			viewport.Size.h = 800;
-			fPostProcessingMgr->SetViewport(viewport, false);
+			//fPostProcessingMgr->SetViewport(viewport, false);
 
 		}
 

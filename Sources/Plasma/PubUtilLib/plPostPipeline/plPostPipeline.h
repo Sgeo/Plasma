@@ -106,7 +106,7 @@ public:
 	plRenderTarget* CreatePostRT(uint16_t width, uint16_t height);
 	plRenderTarget* GetPostRT(){ return fPostRT; };
 
-	void SetRealViewport(ovrRecti vp){ fRealVP = vp; };
+	void SetRealViewport(ovrRecti vp) { return;  fRealVP = vp; };
 	void SetViewport(ovrRecti vp, bool resetProjection);
 	void SetPrescaledViewport(ovrRecti vp){ fVP = vp; };
 	

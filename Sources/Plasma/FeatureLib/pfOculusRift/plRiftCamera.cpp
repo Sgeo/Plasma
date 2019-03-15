@@ -106,6 +106,7 @@ void plRiftCamera::initRift(int width, int height){
 		plStatusLog::AddLineS("oculus.log", "After session creation");
 		if (OVR_SUCCESS(result)) {
 			plStatusLog::AddLineS("oculus.log", "-- Rift Session created --");
+			ovr_RecenterTrackingOrigin(pSession);
 		}
 		else {
 			plStatusLog::AddLineS("oculus.log", "-- Unable to create Rift Session --");
@@ -149,11 +150,11 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	ovrTrackingState trackingState = ovr_GetTrackingState(pSession, 0.0, false);
 	ovrPosef eyePoses[2];
 	ovr_CalcEyePoses(trackingState.HeadPose.ThePose, &eyeRenderDesc.HmdToEyePose, eyePoses);
+	//ovrPosef_FlipHandedness(&eyePoses[eye], &eyePoseFlipped);
 	OVR::Matrix4f riftEyeTransform(eyePoses[eye]);
 	OVRTransformToHSTransform(riftEyeTransform, &eyeTransform);
 	//eyeTransform.fMap[0][3] *= 0.3048;	//Convert Rift meters to feet
 	eyeTransform.Scale(&hsVector3(0.3048, 0.3048, 0.3048));
-
 
 	// eyeTransform
 	hsMatrix44 origW2c = fWorldToCam;
@@ -175,7 +176,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 
 	hsMatrix44 oldCamNDC = vt.GetCameraToNDC();
 	
-	OVRTransformToHSTransform(OVR::CreateProjection(false, false, fovPort, OVR::StereoEye(eye)), &projMatrix);
+	OVRTransformToHSTransform(OVR::CreateProjection(true, false, fovPort, OVR::StereoEye(eye)), &projMatrix);
 	vt.SetProjectionMatrix(&projMatrix);
 
 	//fPipe->ReverseCulling();
@@ -184,6 +185,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
     
 	fPipe->SetViewTransform(vt);	
 	fPipe->SetViewport();
+
 }
 
 

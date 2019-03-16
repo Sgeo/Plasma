@@ -149,17 +149,28 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 
 	ovrTrackingState trackingState = ovr_GetTrackingState(pSession, 0.0, false);
 	ovrPosef eyePoses[2];
+	ovrPosef eyePoseFlipped;
 	ovr_CalcEyePoses(trackingState.HeadPose.ThePose, &eyeRenderDesc.HmdToEyePose, eyePoses);
-	//ovrPosef_FlipHandedness(&eyePoses[eye], &eyePoseFlipped);
-	OVR::Matrix4f riftEyeTransform(eyePoses[eye]);
-	OVRTransformToHSTransform(riftEyeTransform, &eyeTransform);
-	//eyeTransform.fMap[0][3] *= 0.3048;	//Convert Rift meters to feet
-	eyeTransform.Scale(&hsVector3(0.3048, 0.3048, 0.3048));
+	ovrPosef_FlipHandedness(&eyePoses[eye], &eyePoseFlipped);
+	eyePoseFlipped.Position.x *= 3.281;
+	eyePoseFlipped.Position.y *= -3.281;
+	eyePoseFlipped.Position.z *= 3.281;
+	eyePoseFlipped.Orientation;
+	OVR::Matrix4f riftEyeTransform(eyePoseFlipped);
+	
+	//OVRTransformToHSTransform(riftEyeTransform, &eyeTransform);
 
 	// eyeTransform
 	hsMatrix44 origW2c = fWorldToCam;
 
-	w2c = eyeTransform * origW2c;
+	w2c = hsMatrix44(origW2c);
+	w2c.Translate(&hsVector3(eyePoseFlipped.Position.x, eyePoseFlipped.Position.y, eyePoseFlipped.Position.z));
+	float rotx, roty, rotz;
+	// I'm uncertain why the indicated values for RotateDirection and HandedSystem work, but they do.
+	riftEyeTransform.ToEulerAngles<OVR::Axis::Axis_X, OVR::Axis::Axis_Y, OVR::Axis::Axis_Z, OVR::RotateDirection::Rotate_CW, OVR::HandedSystem::Handed_R>(&rotx, &roty, &rotz);
+	w2c.Rotate(0, rotx);
+	w2c.Rotate(1, roty);
+	w2c.Rotate(2, rotz);
 	w2c.GetInverse(&inverse);
 	vt.SetCameraTransform( w2c, inverse );
 	//vt.SetWidth(eyeParams.VP.w * fRenderScale);

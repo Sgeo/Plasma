@@ -2043,6 +2043,8 @@ bool plClient::IDraw()
 	fPipeline->EndRender();
 	plProfile_EndTiming(EndRender);
 
+	fRiftCamera->DrawToEye(ovrEye_Left);
+
 	//End first stereo pass
 
 	//-------------------------------
@@ -2177,6 +2179,9 @@ plProfile_BeginTiming(Movies);
 	plProfile_BeginTiming(EndRender);
 	fPipeline->EndRender();
 	plProfile_EndTiming(EndRender);
+
+	fRiftCamera->DrawToEye(ovrEye_Right);
+	fRiftCamera->Submit();
 
 	plProfile_EndTiming(DrawTime); 
 

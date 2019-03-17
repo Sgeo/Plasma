@@ -72,6 +72,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "OVR_CAPI.h"
 #include "Extras/OVR_Math.h"
 #include "Extras/OVR_StereoProjection.h"
+#include "OVR_CAPI_GL.h"
 
 class plPipeline;
 class plCameraModifier1;
@@ -147,6 +148,12 @@ public:
 	//Utils
 	hsMatrix44* OVRTransformToHSTransform(ovrMatrix4f OVRmat, hsMatrix44* hsMat);
 
+	void * GetAnyGLFuncAddress(const char * name);
+
+	void DrawToEye(ovrEyeType eye);
+
+	void Submit();
+
 	void SetXOffsetRotation(float offset){fXRotOffset = 3.1415926f * offset;};
 	void SetYOffsetRotation(float offset){fYRotOffset = 3.1415926f * offset;};
 	void SetZOffsetRotation(float offset){fZRotOffset = 3.1415926f * offset;};
@@ -162,6 +169,9 @@ private:
 	//Rift objects
 	ovrSession          pSession;
 	ovrGraphicsLuid     pLuid;
+	HMODULE             pOpenGL;
+	ovrTextureSwapChain pTextureSwapChains[2];
+	ovrFovPort pFovPort;
 
 	bool fEnableStereoRendering;
 	float fRenderScale;

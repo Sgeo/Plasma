@@ -66,6 +66,12 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnKeyedObject/plFixedKey.h"
 #include "pnKeyedObject/plUoid.h"
 
+#include <windows.h>
+#include <gl/GL.h>
+
+void makeLayerEyeFov(ovrSession session, ovrFovPort fov, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer);
+void getEyes(ovrSession session, ovrFovPort fov, ovrPosef* eyes);
+
 plRiftCamera::plRiftCamera() : 
 	fEnableStereoRendering(true),
 	fRenderScale(1.0f),
@@ -115,6 +121,26 @@ void plRiftCamera::initRift(int width, int height){
 	else {
 		plStatusLog::AddLineS("oculus.log", "-- Unable to initialize LibOVR, code %i --", result);
 	}
+	pOpenGL = GetModuleHandle("opengl32.dll");
+	plStatusLog::AddLineS("oculus.log", "GetModuleHandle(opengl32.dll) = %i", pOpenGL);
+	ovrTextureSwapChainDesc swapChainDesc;
+	swapChainDesc.Type = ovrTexture_2D;
+	swapChainDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
+	swapChainDesc.ArraySize = 1;
+	swapChainDesc.Width = ovr_GetHmdDesc(pSession).Resolution.w/2;
+	swapChainDesc.Height = ovr_GetHmdDesc(pSession).Resolution.h;
+	swapChainDesc.MipLevels = 1;
+	swapChainDesc.SampleCount = 1;
+	swapChainDesc.StaticImage = 0;
+	swapChainDesc.MiscFlags = 0;
+	swapChainDesc.BindFlags = 0;
+	plStatusLog::AddLineS("oculus.log", "About to create texture swap chain");
+	for (int i = 0; i < 2; ++i) {
+		plStatusLog::AddLineS("oculus.log", "Texture swap chain params: %p, %p, %p", pSession, &swapChainDesc, &pTextureSwapChains[i]);
+		ovrResult swapChainResult = ovr_CreateTextureSwapChainGL(pSession, &swapChainDesc, &pTextureSwapChains[i]);
+	}
+	plStatusLog::AddLineS("oculus.log", "Created texture swap chains");
+	
 	
 }
 
@@ -132,8 +158,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	fovPort.UpTan = tan(vt.GetFovY() / 2);
 	fovPort.LeftTan = tan(vt.GetFovX() / 2);
 	fovPort.RightTan = tan(vt.GetFovX() / 2);
-	ovrEyeRenderDesc eyeRenderDesc = ovr_GetRenderDesc(pSession, eye, fovPort);
-
+	pFovPort = fovPort;
 	
 	//fRenderScale = SConfig.GetDistortionScale();
 
@@ -150,7 +175,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	ovrTrackingState trackingState = ovr_GetTrackingState(pSession, 0.0, false);
 	ovrPosef eyePoses[2];
 	ovrPosef eyePoseFlipped;
-	ovr_CalcEyePoses(trackingState.HeadPose.ThePose, &eyeRenderDesc.HmdToEyePose, eyePoses);
+	getEyes(pSession, fovPort, eyePoses);
 	ovrPosef_FlipHandedness(&eyePoses[eye], &eyePoseFlipped);
 	eyePoseFlipped.Position.x *= 3.281;
 	eyePoseFlipped.Position.y *= -3.281;
@@ -212,4 +237,73 @@ hsMatrix44* plRiftCamera::OVRTransformToHSTransform(ovrMatrix4f OVRmat, hsMatrix
 	}
 
 	return hsMat;
+}
+
+// From https://www.khronos.org/opengl/wiki/Load_OpenGL_Functions
+void *plRiftCamera::GetAnyGLFuncAddress(const char *name)
+{
+		void *p = (void *)GetProcAddress(pOpenGL, name);
+
+	return p;
+}
+
+void plRiftCamera::DrawToEye(ovrEyeType eye) {
+	return;
+
+	static auto myGlEnable = (decltype(glEnable)*)GetAnyGLFuncAddress("glEnable");
+	static auto myGlReadBuffer = (decltype(glReadBuffer)*)GetAnyGLFuncAddress("glReadBuffer");
+	static auto myGlBindTexture = (decltype(glBindTexture)*)GetAnyGLFuncAddress("glBindTexture");
+	static auto myGlCopyTexSubImage2D = (decltype(glCopyTexSubImage2D)*)GetAnyGLFuncAddress("glCopyTexSubImage2D");
+	static auto myGlDisable = (decltype(glEnable)*)GetAnyGLFuncAddress("glDisable");
+
+	unsigned int texid;
+	ovr_GetTextureSwapChainBufferGL(pSession, pTextureSwapChains[eye], -1, &texid);
+
+	myGlEnable(GL_TEXTURE_2D);
+	myGlReadBuffer(GL_FRONT);
+	myGlBindTexture(GL_TEXTURE_2D, texid);
+	myGlCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, ovr_GetHmdDesc(pSession).Resolution.w / 2, ovr_GetHmdDesc(pSession).Resolution.h);
+	myGlDisable(GL_TEXTURE_2D);
+
+	ovr_CommitTextureSwapChain(pSession, pTextureSwapChains[eye]);
+}
+
+void plRiftCamera::Submit() {
+	return;
+	ovrLayerEyeFov layer;
+	ovrLayerHeader* layers = &layer.Header;
+	makeLayerEyeFov(pSession, pFovPort, pTextureSwapChains, &layer);
+
+	ovr_SubmitFrame(pSession, 0, NULL, &layers, 1);
+}
+
+void makeLayerEyeFov(ovrSession session, ovrFovPort fov, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer) {
+	out_Layer->Header.Type = ovrLayerType_EyeFov;
+	out_Layer->Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
+	out_Layer->ColorTexture[0] = swapChains[0];
+	out_Layer->ColorTexture[1] = swapChains[1];
+	out_Layer->Viewport->Pos.x = 0;
+	out_Layer->Viewport->Pos.y = 0;
+	out_Layer->Viewport->Size.w = ovr_GetHmdDesc(session).Resolution.w/2;
+	out_Layer->Viewport->Size.h = ovr_GetHmdDesc(session).Resolution.h;
+	out_Layer->Fov->DownTan = fov.DownTan;
+	out_Layer->Fov->UpTan = fov.UpTan;
+	out_Layer->Fov->LeftTan = fov.LeftTan;
+	out_Layer->Fov->RightTan = fov.RightTan;
+	ovrPosef eyeRenderPose[2];
+	getEyes(session, fov, eyeRenderPose);
+	out_Layer->RenderPose[0] = eyeRenderPose[0];
+	out_Layer->RenderPose[1] = eyeRenderPose[1];
+	out_Layer->SensorSampleTime = 0.0;
+
+}
+
+void getEyes(ovrSession session, ovrFovPort fov, ovrPosef* eyes) {
+	plStatusLog::AddLineS("oculus.log", "About to get eyes");
+	ovrEyeRenderDesc eyeRenderDesc[2];
+	eyeRenderDesc[0] = ovr_GetRenderDesc(session, ovrEye_Left, fov);
+	eyeRenderDesc[1] = ovr_GetRenderDesc(session, ovrEye_Right, fov);
+	ovrPosef HmdToEyePose[2] = { eyeRenderDesc[0].HmdToEyePose, eyeRenderDesc[1].HmdToEyePose };
+	ovr_GetEyePoses(session, 0, false, HmdToEyePose, eyes, NULL);
+	plStatusLog::AddLineS("oculus.log", "Got eyes");
 }

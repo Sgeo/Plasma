@@ -1971,7 +1971,6 @@ bool plClient::IDraw()
 	//-------------------------------
 	//Stereo rendering pass A
 	//-------------------------------
-	plStatusLog::AddLineS("oculus.log", "Before BUILD_RIFT_SUPPORT");
 #ifdef BUILD_RIFT_SUPPORT
 	//Set vieport, RT and projection
 

@@ -158,6 +158,10 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	static auto myWglGetCurrentContext = (decltype(wglGetCurrentContext)*)GetAnyGLFuncAddress("wglGetCurrentContext");
 	//plStatusLog::AddLineS("oculus.log", "Current context: %p", myWglGetCurrentContext());
 	plViewTransform vt = fPipe->GetViewTransform();
+	ovrFovPort defaultFov = ovr_GetHmdDesc(pSession).DefaultEyeFov[0];
+	float xfov = atan(defaultFov.LeftTan) + atan(defaultFov.RightTan);
+	float yfov = atan(defaultFov.UpTan) + atan(defaultFov.DownTan);
+	vt.SetFov(xfov, yfov);
 
 	ovrFovPort fovPort;
 	fovPort.DownTan = tan(vt.GetFovY() / 2);
@@ -272,10 +276,10 @@ void plRiftCamera::DrawToEye(ovrEyeType eye) {
 	ovr_GetTextureSwapChainBufferGL(pSession, pTextureSwapChains[eye], -1, &texid);
 
 	myGlEnable(GL_TEXTURE_2D);
-	myGlReadBuffer(GL_FRONT);
+	myGlReadBuffer(GL_BACK);
 	myGlBindTexture(GL_TEXTURE_2D, texid);
 	myGlCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, ovr_GetHmdDesc(pSession).Resolution.w / 2, ovr_GetHmdDesc(pSession).Resolution.h);
-	myGlDisable(GL_TEXTURE_2D);
+	//myGlDisable(GL_TEXTURE_2D);
 
 	ovr_CommitTextureSwapChain(pSession, pTextureSwapChains[eye]);
 }

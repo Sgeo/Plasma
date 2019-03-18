@@ -113,6 +113,7 @@ void plRiftCamera::initRift(int width, int height){
 		plStatusLog::AddLineS("oculus.log", "After session creation");
 		if (OVR_SUCCESS(result)) {
 			plStatusLog::AddLineS("oculus.log", "-- Rift Session created --");
+			ovr_SetTrackingOriginType(pSession, ovrTrackingOrigin_FloorLevel);
 			ovr_RecenterTrackingOrigin(pSession);
 		}
 		else {
@@ -182,7 +183,6 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	//
 	hsMatrix44 eyeTransform, transposed, w2c, inverse;
 
-	ovrTrackingState trackingState = ovr_GetTrackingState(pSession, 0.0, false);
 	ovrPosef eyePoses[2];
 	ovrPosef eyePoseFlipped;
 	getEyes(pSession, fovPort, eyePoses);
@@ -199,7 +199,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	hsMatrix44 origW2c = fWorldToCam;
 
 	w2c = hsMatrix44(origW2c);
-	w2c.Translate(&hsVector3(eyePoseFlipped.Position.x, eyePoseFlipped.Position.y, eyePoseFlipped.Position.z));
+	w2c.Translate(&hsVector3(eyePoseFlipped.Position.x, eyePoseFlipped.Position.y + 6.0, eyePoseFlipped.Position.z));
 	float rotx, roty, rotz;
 	// I'm uncertain why the indicated values for RotateDirection and HandedSystem work, but they do.
 	riftEyeTransform.ToEulerAngles<OVR::Axis::Axis_X, OVR::Axis::Axis_Y, OVR::Axis::Axis_Z, OVR::RotateDirection::Rotate_CW, OVR::HandedSystem::Handed_R>(&rotx, &roty, &rotz);

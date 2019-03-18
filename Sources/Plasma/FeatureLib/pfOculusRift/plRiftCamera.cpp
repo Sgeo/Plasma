@@ -70,7 +70,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include <gl/GL.h>
 #include <wingdi.h>
 
-void makeLayerEyeFov(ovrSession session, ovrFovPort fov, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer);
+void makeLayerEyeFov(ovrSession session, int width, int height, ovrFovPort fov, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer);
 void getEyes(ovrSession session, ovrFovPort fov, ovrPosef* eyes);
 
 plRiftCamera::plRiftCamera() : 
@@ -283,12 +283,12 @@ void plRiftCamera::DrawToEye(ovrEyeType eye) {
 void plRiftCamera::Submit() {
 	ovrLayerEyeFov layer;
 	ovrLayerHeader* layers = &layer.Header;
-	makeLayerEyeFov(pSession, pFovPort, pTextureSwapChains, &layer);
+	makeLayerEyeFov(pSession, fPipe->GetViewTransform().GetScreenWidth(), fPipe->GetViewTransform().GetScreenHeight(), pFovPort, pTextureSwapChains, &layer);
 
 	ovr_SubmitFrame(pSession, 0, NULL, &layers, 1);
 }
 
-void makeLayerEyeFov(ovrSession session, ovrFovPort fov, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer) {
+void makeLayerEyeFov(ovrSession session, int width, int height, ovrFovPort fov, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer) {
 	out_Layer->Header.Type = ovrLayerType_EyeFov;
 	//out_Layer->Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
 	out_Layer->Header.Flags = 0;
@@ -296,8 +296,8 @@ void makeLayerEyeFov(ovrSession session, ovrFovPort fov, ovrTextureSwapChain* sw
 	out_Layer->ColorTexture[1] = swapChains[1];
 	out_Layer->Viewport->Pos.x = 0;
 	out_Layer->Viewport->Pos.y = 0;
-	out_Layer->Viewport->Size.w = ovr_GetHmdDesc(session).Resolution.w/2;
-	out_Layer->Viewport->Size.h = ovr_GetHmdDesc(session).Resolution.h;
+	out_Layer->Viewport->Size.w = width;
+	out_Layer->Viewport->Size.h = height;
 	out_Layer->Fov->DownTan = fov.DownTan;
 	out_Layer->Fov->UpTan = fov.UpTan;
 	out_Layer->Fov->LeftTan = fov.LeftTan;
@@ -311,11 +311,9 @@ void makeLayerEyeFov(ovrSession session, ovrFovPort fov, ovrTextureSwapChain* sw
 }
 
 void getEyes(ovrSession session, ovrFovPort fov, ovrPosef* eyes) {
-	plStatusLog::AddLineS("oculus.log", "About to get eyes");
 	ovrEyeRenderDesc eyeRenderDesc[2];
 	eyeRenderDesc[0] = ovr_GetRenderDesc(session, ovrEye_Left, fov);
 	eyeRenderDesc[1] = ovr_GetRenderDesc(session, ovrEye_Right, fov);
 	ovrPosef HmdToEyePose[2] = { eyeRenderDesc[0].HmdToEyePose, eyeRenderDesc[1].HmdToEyePose };
 	ovr_GetEyePoses(session, 0, false, HmdToEyePose, eyes, NULL);
-	plStatusLog::AddLineS("oculus.log", "Got eyes");
 }

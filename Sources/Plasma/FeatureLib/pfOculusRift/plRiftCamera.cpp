@@ -68,6 +68,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include <windows.h>
 #include <gl/GL.h>
+#include <wingdi.h>
 
 void makeLayerEyeFov(ovrSession session, ovrFovPort fov, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer);
 void getEyes(ovrSession session, ovrFovPort fov, ovrPosef* eyes);
@@ -135,6 +136,8 @@ void plRiftCamera::initRift(int width, int height){
 	swapChainDesc.MiscFlags = 0;
 	swapChainDesc.BindFlags = 0;
 	plStatusLog::AddLineS("oculus.log", "About to create texture swap chain");
+	static auto myWglGetCurrentContext = (decltype(wglGetCurrentContext)*)GetAnyGLFuncAddress("wglGetCurrentContext");
+	plStatusLog::AddLineS("oculus.log", "Current context: %p", myWglGetCurrentContext());
 	for (int i = 0; i < 2; ++i) {
 		plStatusLog::AddLineS("oculus.log", "Texture swap chain params: %p, %p, %p", pSession, &swapChainDesc, &pTextureSwapChains[i]);
 		ovrResult swapChainResult = ovr_CreateTextureSwapChainGL(pSession, &swapChainDesc, &pTextureSwapChains[i]);
@@ -151,6 +154,9 @@ bool plRiftCamera::MsgReceive(plMessage* msg)
 
 void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 {
+
+	static auto myWglGetCurrentContext = (decltype(wglGetCurrentContext)*)GetAnyGLFuncAddress("wglGetCurrentContext");
+	//plStatusLog::AddLineS("oculus.log", "Current context: %p", myWglGetCurrentContext());
 	plViewTransform vt = fPipe->GetViewTransform();
 
 	ovrFovPort fovPort;
@@ -242,13 +248,19 @@ hsMatrix44* plRiftCamera::OVRTransformToHSTransform(ovrMatrix4f OVRmat, hsMatrix
 // From https://www.khronos.org/opengl/wiki/Load_OpenGL_Functions
 void *plRiftCamera::GetAnyGLFuncAddress(const char *name)
 {
-		void *p = (void *)GetProcAddress(pOpenGL, name);
+	static auto myWglGetProcAddress = (decltype(wglGetProcAddress)*)GetProcAddress(pOpenGL, "wglGetProcAddress");
+	void *p = (void *)myWglGetProcAddress(name);
+	if (p == 0 ||
+		(p == (void*)0x1) || (p == (void*)0x2) || (p == (void*)0x3) ||
+		(p == (void*)-1))
+	{
+		p = (void *)GetProcAddress(pOpenGL, name);
+	}
 
 	return p;
 }
 
 void plRiftCamera::DrawToEye(ovrEyeType eye) {
-	return;
 
 	static auto myGlEnable = (decltype(glEnable)*)GetAnyGLFuncAddress("glEnable");
 	static auto myGlReadBuffer = (decltype(glReadBuffer)*)GetAnyGLFuncAddress("glReadBuffer");
@@ -269,7 +281,6 @@ void plRiftCamera::DrawToEye(ovrEyeType eye) {
 }
 
 void plRiftCamera::Submit() {
-	return;
 	ovrLayerEyeFov layer;
 	ovrLayerHeader* layers = &layer.Header;
 	makeLayerEyeFov(pSession, pFovPort, pTextureSwapChains, &layer);
@@ -279,7 +290,8 @@ void plRiftCamera::Submit() {
 
 void makeLayerEyeFov(ovrSession session, ovrFovPort fov, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer) {
 	out_Layer->Header.Type = ovrLayerType_EyeFov;
-	out_Layer->Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
+	//out_Layer->Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
+	out_Layer->Header.Flags = 0;
 	out_Layer->ColorTexture[0] = swapChains[0];
 	out_Layer->ColorTexture[1] = swapChains[1];
 	out_Layer->Viewport->Pos.x = 0;

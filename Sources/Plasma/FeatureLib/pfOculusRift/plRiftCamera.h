@@ -171,7 +171,6 @@ private:
 	ovrGraphicsLuid     pLuid;
 	HMODULE             pOpenGL;
 	ovrTextureSwapChain pTextureSwapChains[2];
-	ovrFovPort pFovPort;
 
 	bool fEnableStereoRendering;
 	float fRenderScale;

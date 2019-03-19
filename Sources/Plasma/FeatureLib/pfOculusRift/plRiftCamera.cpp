@@ -70,8 +70,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include <gl/GL.h>
 #include <wingdi.h>
 
-void makeLayerEyeFov(ovrSession session, int width, int height, ovrFovPort fov, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer);
-void getEyes(ovrSession session, ovrFovPort fov, ovrPosef* eyes);
+void makeLayerEyeFov(ovrSession session, int width, int height, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer);
+void getEyes(ovrSession session, ovrPosef* eyes);
 
 plRiftCamera::plRiftCamera() : 
 	fEnableStereoRendering(true),
@@ -129,7 +129,7 @@ void plRiftCamera::initRift(int width, int height){
 	swapChainDesc.Type = ovrTexture_2D;
 	swapChainDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
 	swapChainDesc.ArraySize = 1;
-	swapChainDesc.Width = ovr_GetHmdDesc(pSession).Resolution.w/2;
+	swapChainDesc.Width = ovr_GetHmdDesc(pSession).Resolution.w;
 	swapChainDesc.Height = ovr_GetHmdDesc(pSession).Resolution.h;
 	swapChainDesc.MipLevels = 1;
 	swapChainDesc.SampleCount = 1;
@@ -159,17 +159,19 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	static auto myWglGetCurrentContext = (decltype(wglGetCurrentContext)*)GetAnyGLFuncAddress("wglGetCurrentContext");
 	//plStatusLog::AddLineS("oculus.log", "Current context: %p", myWglGetCurrentContext());
 	plViewTransform vt = fPipe->GetViewTransform();
-	ovrFovPort defaultFov = ovr_GetHmdDesc(pSession).DefaultEyeFov[0];
-	float xfov = atan(defaultFov.LeftTan) + atan(defaultFov.RightTan);
-	float yfov = atan(defaultFov.UpTan) + atan(defaultFov.DownTan);
-	vt.SetFov(xfov, yfov);
 
-	ovrFovPort fovPort;
-	fovPort.DownTan = tan(vt.GetFovY() / 2);
-	fovPort.UpTan = tan(vt.GetFovY() / 2);
-	fovPort.LeftTan = tan(vt.GetFovX() / 2);
-	fovPort.RightTan = tan(vt.GetFovX() / 2);
-	pFovPort = fovPort;
+	//Projection matrix stuff
+	//-------------------------
+	hsMatrix44 projMatrix;
+
+	hsMatrix44 oldCamNDC = vt.GetCameraToNDC();
+
+	OVRTransformToHSTransform(OVR::CreateProjection(true, false, ovr_GetHmdDesc(pSession).DefaultEyeFov[eye], OVR::StereoEye(eye)), &projMatrix);
+	vt.SetProjectionMatrix(&projMatrix);
+
+	//fPipe->ReverseCulling();
+
+	fPipe->RefreshMatrices();
 	
 	//fRenderScale = SConfig.GetDistortionScale();
 
@@ -185,7 +187,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 
 	ovrPosef eyePoses[2];
 	ovrPosef eyePoseFlipped;
-	getEyes(pSession, fovPort, eyePoses);
+	getEyes(pSession, eyePoses);
 	ovrPosef_FlipHandedness(&eyePoses[eye], &eyePoseFlipped);
 	eyePoseFlipped.Position.x *= 3.281;
 	eyePoseFlipped.Position.y *= -3.281;
@@ -216,18 +218,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	//vt.SetDepth(depth);
 	
 
-	//Projection matrix stuff
-	//-------------------------
-	hsMatrix44 projMatrix;
 
-	hsMatrix44 oldCamNDC = vt.GetCameraToNDC();
-	
-	OVRTransformToHSTransform(OVR::CreateProjection(true, false, fovPort, OVR::StereoEye(eye)), &projMatrix);
-	vt.SetProjectionMatrix(&projMatrix);
-
-	//fPipe->ReverseCulling();
-
-	fPipe->RefreshMatrices();
     
 	fPipe->SetViewTransform(vt);	
 	fPipe->SetViewport();
@@ -278,7 +269,7 @@ void plRiftCamera::DrawToEye(ovrEyeType eye) {
 	myGlEnable(GL_TEXTURE_2D);
 	myGlReadBuffer(GL_BACK);
 	myGlBindTexture(GL_TEXTURE_2D, texid);
-	myGlCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, ovr_GetHmdDesc(pSession).Resolution.w / 2, ovr_GetHmdDesc(pSession).Resolution.h);
+	myGlCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, ovr_GetHmdDesc(pSession).Resolution.w, ovr_GetHmdDesc(pSession).Resolution.h);
 	//myGlDisable(GL_TEXTURE_2D);
 
 	ovr_CommitTextureSwapChain(pSession, pTextureSwapChains[eye]);
@@ -287,12 +278,12 @@ void plRiftCamera::DrawToEye(ovrEyeType eye) {
 void plRiftCamera::Submit() {
 	ovrLayerEyeFov layer;
 	ovrLayerHeader* layers = &layer.Header;
-	makeLayerEyeFov(pSession, fPipe->GetViewTransform().GetScreenWidth(), fPipe->GetViewTransform().GetScreenHeight(), pFovPort, pTextureSwapChains, &layer);
+	makeLayerEyeFov(pSession, fPipe->GetViewTransform().GetScreenWidth(), fPipe->GetViewTransform().GetScreenHeight(), pTextureSwapChains, &layer);
 
 	ovr_SubmitFrame(pSession, 0, NULL, &layers, 1);
 }
 
-void makeLayerEyeFov(ovrSession session, int width, int height, ovrFovPort fov, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer) {
+void makeLayerEyeFov(ovrSession session, int width, int height, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer) {
 	out_Layer->Header.Type = ovrLayerType_EyeFov;
 	//out_Layer->Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
 	out_Layer->Header.Flags = 0;
@@ -306,26 +297,20 @@ void makeLayerEyeFov(ovrSession session, int width, int height, ovrFovPort fov, 
 	out_Layer->Viewport[1].Pos.y = 0;
 	out_Layer->Viewport[1].Size.w = width;
 	out_Layer->Viewport[1].Size.h = height;
-	out_Layer->Fov[0].DownTan = fov.DownTan;
-	out_Layer->Fov[0].UpTan = fov.UpTan;
-	out_Layer->Fov[0].LeftTan = fov.LeftTan;
-	out_Layer->Fov[0].RightTan = fov.RightTan;
-	out_Layer->Fov[1].DownTan = fov.DownTan;
-	out_Layer->Fov[1].UpTan = fov.UpTan;
-	out_Layer->Fov[1].LeftTan = fov.LeftTan;
-	out_Layer->Fov[1].RightTan = fov.RightTan;
+	out_Layer->Fov[0] = ovr_GetHmdDesc(session).DefaultEyeFov[0];
+	out_Layer->Fov[1] = ovr_GetHmdDesc(session).DefaultEyeFov[1];
 	ovrPosef eyeRenderPose[2];
-	getEyes(session, fov, eyeRenderPose);
+	getEyes(session, eyeRenderPose);
 	out_Layer->RenderPose[0] = eyeRenderPose[0];
 	out_Layer->RenderPose[1] = eyeRenderPose[1];
 	out_Layer->SensorSampleTime = 0.0;
 
 }
 
-void getEyes(ovrSession session, ovrFovPort fov, ovrPosef* eyes) {
+void getEyes(ovrSession session, ovrPosef* eyes) {
 	ovrEyeRenderDesc eyeRenderDesc[2];
-	eyeRenderDesc[0] = ovr_GetRenderDesc(session, ovrEye_Left, fov);
-	eyeRenderDesc[1] = ovr_GetRenderDesc(session, ovrEye_Right, fov);
+	eyeRenderDesc[0] = ovr_GetRenderDesc(session, ovrEye_Left, ovr_GetHmdDesc(session).DefaultEyeFov[0]);
+	eyeRenderDesc[1] = ovr_GetRenderDesc(session, ovrEye_Right, ovr_GetHmdDesc(session).DefaultEyeFov[1]);
 	ovrPosef HmdToEyePose[2] = { eyeRenderDesc[0].HmdToEyePose, eyeRenderDesc[1].HmdToEyePose };
 	ovr_GetEyePoses(session, 0, false, HmdToEyePose, eyes, NULL);
 }

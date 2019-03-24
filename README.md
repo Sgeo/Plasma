@@ -95,6 +95,12 @@ Alternatively, if you wish to be able to debug using a single content folder fro
 
 *Note for VS2012 users*: Changing the working directory will not pick up the DLLs located in the *MOUL-OS* folder. Set the Output directory underneath *Configuration Properties->General* to the *MOUL-OS* folder as a workaround.
 
+Running instructions for VR
+---------------------------
+
+1. Ensure that WineD3D for Windows is installed into the directory, for translating D3D9. This project was tested on WineD3D for Windows 4.2
+1. Ensure that csmt is disabled: Set the registry DWORD `HKEY_CURRENT_USER\Software\Wine\Direct3D\csmt` to 0x0. Or set `HKEY_CURRENT_USER\Software\Wine\AppDefaults\plClientVR.exe\Direct3D\csmt` to 0x0. (Latter untested). See https://wiki.winehq.org/Useful_Registry_Keys
+
 
 Additional Information
 ----------------------

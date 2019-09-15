@@ -68,11 +68,12 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnKeyedObject/plUoid.h"
 //#include "../../FeatureLib/pfCamera/plVirtualCamNeu.h"
 
-//Rift namespace
-#include "OVR_CAPI.h"
-#include "Extras/OVR_Math.h"
-#include "Extras/OVR_StereoProjection.h"
-#include "OVR_CAPI_GL.h"
+//OpenXR namespace
+#define XR_USE_GRAPHICS_API_OPENGL
+#define XR_USE_PLATFORM_WIN32
+#include <openxr/openxr.h>
+#include <openxr/openxr_platform.h>
+#include <openxr/xr_linear.h>
 
 class plPipeline;
 class plCameraModifier1;
@@ -146,7 +147,7 @@ public:
 	enum eye {EYE_LEFT = 1, EYE_RIGHT, EYE_BOTH};
 
 	//Utils
-	hsMatrix44* OVRTransformToHSTransform(ovrMatrix4f OVRmat, hsMatrix44* hsMat);
+	hsMatrix44* XRTransformToHSTransform(XrMatrix4x4f xrmat, hsMatrix44* hsMat);
 
 	void * GetAnyGLFuncAddress(const char * name);
 
@@ -166,18 +167,20 @@ private:
 	int fEyeToRender;
 	hsMatrix44 fWorldToCam;
 
-	//Rift objects
-	ovrSession          pSession;
-	ovrGraphicsLuid     pLuid;
+	//OpenXR objects
+	XrInstance pInstance;
+	XrSession          pSession;
+	XrSpace pBaseSpace;
+	XrGraphicsLuid     pLuid;
 	HMODULE             pOpenGL;
-	ovrTextureSwapChain pTextureSwapChains[2];
+	XrSwapchain pTextureSwapChains[2];
 
 	bool fEnableStereoRendering;
 	float fRenderScale;
 
 	float fXRotOffset, fYRotOffset, fZRotOffset;
 
-	ovrVector3f            fEyePos;
+	ovrVector3f         fEyePos;
     float               fEyeYaw;         // Rotation around Y, CCW positive when looking at RHS (X,Z) plane.
     float               fEyePitch;       // Pitch. If sensor is plugged in, only read from sensor.
     float               fEyeRoll;        // Roll, only accessible from Sensor.

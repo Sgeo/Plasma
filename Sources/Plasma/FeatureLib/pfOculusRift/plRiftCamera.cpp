@@ -88,43 +88,69 @@ plRiftCamera::plRiftCamera() :
 }
 
 plRiftCamera::~plRiftCamera(){
-	ovr_Destroy(pSession);
-	ovr_Shutdown();
+	xrDestroySession(pSession);
+	xrDestroyInstance(pInstance);
 }
 
 void LogCallback(uintptr_t userData, int level, const char* message)
 {
-	plStatusLog::AddLineS("oculus.log", "Oculus: [%i] %s", level, message);
+	plStatusLog::AddLineS("openxr.log", "OpenXR: [%i] %s", level, message);
 }
 
 void plRiftCamera::initRift(int width, int height){
 
 
-	plStatusLog::AddLineS("oculus.log", "-- Attempting to initialize Rift --");
-	ovrInitParams initParams = { ovrInit_RequestVersion | ovrInit_Debug, OVR_MINOR_VERSION, LogCallback, 0, 0 };
+	plStatusLog::AddLineS("openxr.log", "-- Attempting to initialize Rift --");
 
-	ovrResult result = ovr_Initialize(&initParams);
+	
+	XrInstanceCreateInfo instanceCreateInfo{XR_TYPE_INSTANCE_CREATE_INFO};
+	strcpy(instanceCreateInfo.applicationInfo.applicationName, "Uru Live VR");
+	strcpy(instanceCreateInfo.applicationInfo.engineName, "Plasma");
+	instanceCreateInfo.applicationInfo.apiVersion = XR_MAKE_VERSION(1, 0, 2);
 
-	if (OVR_SUCCESS(result)) {
-		plStatusLog::AddLineS("oculus.log", "-- Rift initialized with result %i. Attempting to create session --", result);
-		ovr_TraceMessage(ovrLogLevel_Debug, "Testing trace message");
-		result = ovr_Create(&pSession, &pLuid);
+	std::vector<const char*> extensions{ "XR_KHR_opengl_enable" };
+	instanceCreateInfo.enabledExtensionCount = extensions.size();
+	instanceCreateInfo.enabledExtensionNames = extensions.data();
+
+
+	XrResult result = xrCreateInstance(&instanceCreateInfo, &pInstance);
+
+	if (XR_SUCCESS(result)) {
+		plStatusLog::AddLineS("openxr.log", "-- Rift initialized with result %i. Attempting to create session --", result);
+		//ovr_TraceMessage(ovrLogLevel_Debug, "Testing trace message");
+
+		XrSystemId systemId = XR_NULL_SYSTEM_ID;
+		XrSystemGetInfo systemInfo{ XR_TYPE_SYSTEM_GET_INFO };
+		systemInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
+		xrGetSystem(pInstance, &systemInfo, &systemId);
+
+		static auto myWglGetCurrentContext = (decltype(wglGetCurrentContext)*)GetAnyGLFuncAddress("wglGetCurrentContext");
+		static auto myWglGetCurrentDC = (decltype(wglGetCurrentDC)*)GetAnyGLFuncAddress("wglGetCurrentDC");
+		XrGraphicsBindingOpenGLWin32KHR graphicsBinding{ XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR };
+		graphicsBinding.hDC = myWglGetCurrentDC();
+		graphicsBinding.hGLRC = myWglGetCurrentContext();
+
+		XrSessionCreateInfo sessionCreateInfo{ XR_TYPE_SESSION_CREATE_INFO };
+		sessionCreateInfo.next = &graphicsBinding;
+		sessionCreateInfo.systemId = systemId;
+
+		result = xrCreateSession(pInstance, &sessionCreateInfo, &pSession);
 		
-		plStatusLog::AddLineS("oculus.log", "After session creation");
+		plStatusLog::AddLineS("openxr.log", "After session creation");
 		if (OVR_SUCCESS(result)) {
-			plStatusLog::AddLineS("oculus.log", "-- Rift Session created --");
+			plStatusLog::AddLineS("openxr.log", "-- Rift Session created --");
 			ovr_SetTrackingOriginType(pSession, ovrTrackingOrigin_FloorLevel);
 			ovr_RecenterTrackingOrigin(pSession);
 		}
 		else {
-			plStatusLog::AddLineS("oculus.log", "-- Unable to create Rift Session --");
+			plStatusLog::AddLineS("openxr.log", "-- Unable to create Rift Session --");
 		}
 	}
 	else {
-		plStatusLog::AddLineS("oculus.log", "-- Unable to initialize LibOVR, code %i --", result);
+		plStatusLog::AddLineS("openxr.log", "-- Unable to initialize LibOVR, code %i --", result);
 	}
 	pOpenGL = GetModuleHandle("opengl32.dll");
-	plStatusLog::AddLineS("oculus.log", "GetModuleHandle(opengl32.dll) = %i", pOpenGL);
+	plStatusLog::AddLineS("openxr.log", "GetModuleHandle(opengl32.dll) = %i", pOpenGL);
 	ovrTextureSwapChainDesc swapChainDesc;
 	swapChainDesc.Type = ovrTexture_2D;
 	swapChainDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
@@ -166,7 +192,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 
 	hsMatrix44 oldCamNDC = vt.GetCameraToNDC();
 
-	OVRTransformToHSTransform(OVR::CreateProjection(true, false, ovr_GetHmdDesc(pSession).DefaultEyeFov[eye], OVR::StereoEye(eye)), &projMatrix);
+	XRTransformToHSTransform(OVR::CreateProjection(true, false, ovr_GetHmdDesc(pSession).DefaultEyeFov[eye], OVR::StereoEye(eye)), &projMatrix);
 	vt.SetProjectionMatrix(&projMatrix);
 
 	//fPipe->ReverseCulling();
@@ -226,7 +252,7 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 }
 
 
-hsMatrix44* plRiftCamera::OVRTransformToHSTransform(ovrMatrix4f OVRmat, hsMatrix44* hsMat)
+hsMatrix44* plRiftCamera::XRTransformToHSTransform(ovrMatrix4f OVRmat, hsMatrix44* hsMat)
 {
 	hsMat->NotIdentity();
 	//OVRmat.Transpose();

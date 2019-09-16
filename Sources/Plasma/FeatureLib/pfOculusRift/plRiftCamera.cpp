@@ -237,7 +237,7 @@ void plRiftCamera::ApplyStereoViewport(int eye)
 
 	XrPosef pose = pViews[eye].pose;
 
-	XrPosef_FlipHandedness(&pose, &pose);
+	XrPosef_FlipHandedness(&pose);
 
 	pose.position.x *= 3.281;
 	pose.position.y *= -3.281;
@@ -355,16 +355,11 @@ void makeLayerEyeFov(ovrSession session, int width, int height, ovrTextureSwapCh
 
 }
 
-void XrPosef_FlipHandedness(const XrPosef* inPose, XrPosef* outPose) {
+void XrPosef_FlipHandedness(XrPosef *pose) {
 	// From Bradley Austin Davis on Khronos slack
-	outPose->orientation.x = -inPose->orientation.x;
-	outPose->orientation.y = inPose->orientation.y;
-	outPose->orientation.z = inPose->orientation.z;
-	outPose->orientation.w = -inPose->orientation.w;
-
-	outPose->position.x = -inPose->position.x;
-	outPose->position.y = inPose->position.y;
-	outPose->position.z = inPose->position.z;
+	pose->orientation.x *= -1.0f;
+	pose->orientation.w *= -1.0f;
+	pose->position.x *= -1.0f;
 }
 
 void getViews(XrSession session, XrView* views, XrSpace space, XrTime displayTime) {

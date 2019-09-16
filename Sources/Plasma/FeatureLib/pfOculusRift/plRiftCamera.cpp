@@ -70,8 +70,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include <gl/GL.h>
 #include <wingdi.h>
 
-void makeLayerEyeFov(ovrSession session, int width, int height, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer);
-void getEyes(ovrSession session, ovrPosef* eyes);
+void makeLayerEyeFov(XrSession session, int width, int height, XrSwapchain* swapChains, XrCompositionLayerProjection* out_Layer);
+void getViews(XrSession session, XrView * views);
 
 plRiftCamera::plRiftCamera() : 
 	fEnableStereoRendering(true),
@@ -108,9 +108,9 @@ void plRiftCamera::initRift(int width, int height){
 	strcpy(instanceCreateInfo.applicationInfo.engineName, "Plasma");
 	instanceCreateInfo.applicationInfo.apiVersion = XR_MAKE_VERSION(1, 0, 2);
 
-	std::vector<const char*> extensions{ "XR_KHR_opengl_enable" };
-	instanceCreateInfo.enabledExtensionCount = extensions.size();
-	instanceCreateInfo.enabledExtensionNames = extensions.data();
+	const char* extensions[] = { "XR_KHR_opengl_enable" };
+	instanceCreateInfo.enabledExtensionCount = 1;
+	instanceCreateInfo.enabledExtensionNames = extensions;
 
 
 	XrResult result = xrCreateInstance(&instanceCreateInfo, &pInstance);
@@ -119,10 +119,9 @@ void plRiftCamera::initRift(int width, int height){
 		plStatusLog::AddLineS("openxr.log", "-- Rift initialized with result %i. Attempting to create session --", result);
 		//ovr_TraceMessage(ovrLogLevel_Debug, "Testing trace message");
 
-		XrSystemId systemId = XR_NULL_SYSTEM_ID;
 		XrSystemGetInfo systemInfo{ XR_TYPE_SYSTEM_GET_INFO };
 		systemInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
-		xrGetSystem(pInstance, &systemInfo, &systemId);
+		xrGetSystem(pInstance, &systemInfo, &pSystemId);
 
 		static auto myWglGetCurrentContext = (decltype(wglGetCurrentContext)*)GetAnyGLFuncAddress("wglGetCurrentContext");
 		static auto myWglGetCurrentDC = (decltype(wglGetCurrentDC)*)GetAnyGLFuncAddress("wglGetCurrentDC");
@@ -132,15 +131,17 @@ void plRiftCamera::initRift(int width, int height){
 
 		XrSessionCreateInfo sessionCreateInfo{ XR_TYPE_SESSION_CREATE_INFO };
 		sessionCreateInfo.next = &graphicsBinding;
-		sessionCreateInfo.systemId = systemId;
+		sessionCreateInfo.systemId = pSystemId;
 
 		result = xrCreateSession(pInstance, &sessionCreateInfo, &pSession);
 		
 		plStatusLog::AddLineS("openxr.log", "After session creation");
-		if (OVR_SUCCESS(result)) {
+		if (XR_SUCCESS(result)) {
 			plStatusLog::AddLineS("openxr.log", "-- Rift Session created --");
-			ovr_SetTrackingOriginType(pSession, ovrTrackingOrigin_FloorLevel);
-			ovr_RecenterTrackingOrigin(pSession);
+			XrReferenceSpaceCreateInfo referenceSpaceCreateInfo{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
+			referenceSpaceCreateInfo.poseInReferenceSpace.orientation.w = 1;
+			referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
+			xrCreateReferenceSpace(pSession, &referenceSpaceCreateInfo, &pBaseSpace);
 		}
 		else {
 			plStatusLog::AddLineS("openxr.log", "-- Unable to create Rift Session --");
@@ -151,25 +152,34 @@ void plRiftCamera::initRift(int width, int height){
 	}
 	pOpenGL = GetModuleHandle("opengl32.dll");
 	plStatusLog::AddLineS("openxr.log", "GetModuleHandle(opengl32.dll) = %i", pOpenGL);
-	ovrTextureSwapChainDesc swapChainDesc;
-	swapChainDesc.Type = ovrTexture_2D;
-	swapChainDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
-	swapChainDesc.ArraySize = 1;
-	swapChainDesc.Width = ovr_GetHmdDesc(pSession).Resolution.w;
-	swapChainDesc.Height = ovr_GetHmdDesc(pSession).Resolution.h;
-	swapChainDesc.MipLevels = 1;
-	swapChainDesc.SampleCount = 1;
-	swapChainDesc.StaticImage = 0;
-	swapChainDesc.MiscFlags = 0;
-	swapChainDesc.BindFlags = 0;
-	plStatusLog::AddLineS("oculus.log", "About to create texture swap chain");
-	static auto myWglGetCurrentContext = (decltype(wglGetCurrentContext)*)GetAnyGLFuncAddress("wglGetCurrentContext");
-	plStatusLog::AddLineS("oculus.log", "Current context: %p", myWglGetCurrentContext());
+
+	size_t numOfViewConfigViews = 0;
+	xrEnumerateViewConfigurationViews(pInstance, pSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &numOfViewConfigViews, nullptr);
+	pViewConfigurationViews.reserve(numOfViewConfigViews);
+	xrEnumerateViewConfigurationViews(pInstance, pSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, numOfViewConfigViews, &numOfViewConfigViews, pViewConfigurationViews.data());
 	for (int i = 0; i < 2; ++i) {
-		plStatusLog::AddLineS("oculus.log", "Texture swap chain params: %p, %p, %p", pSession, &swapChainDesc, &pTextureSwapChains[i]);
-		ovrResult swapChainResult = ovr_CreateTextureSwapChainGL(pSession, &swapChainDesc, &pTextureSwapChains[i]);
+		XrViewConfigurationView viewConfigurationView = pViewConfigurationViews.at(i);
+		XrSwapchainCreateInfo swapChainDesc{ XR_TYPE_SWAPCHAIN_CREATE_INFO };
+		swapChainDesc.usageFlags = XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
+		swapChainDesc.format = GL_RGBA8; // TODO: ???
+		swapChainDesc.sampleCount = viewConfigurationView.recommendedSwapchainSampleCount;
+		swapChainDesc.width = viewConfigurationView.recommendedImageRectWidth;
+		swapChainDesc.height = viewConfigurationView.recommendedImageRectHeight;
+		swapChainDesc.faceCount = 1;
+		swapChainDesc.arraySize = 1;
+		swapChainDesc.mipCount = 1;
+		// swapChainDesc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
+
+		plStatusLog::AddLineS("openxr.log", "About to create texture swap chain");
+		static auto myWglGetCurrentContext = (decltype(wglGetCurrentContext)*)GetAnyGLFuncAddress("wglGetCurrentContext");
+		plStatusLog::AddLineS("openxr.log", "Current context: %p", myWglGetCurrentContext());
+	
+		plStatusLog::AddLineS("openxr.log", "Texture swap chain params: %p, %p, %p", pSession, &swapChainDesc, &pTextureSwapChains[i]);
+		XrResult swapChainResult = xrCreateSwapchain(pSession, &swapChainDesc, &pTextureSwapChains[i]);
+		
 	}
-	plStatusLog::AddLineS("oculus.log", "Created texture swap chains");
+	plStatusLog::AddLineS("openxr.log", "Created texture swap chains");
+	
 	
 	
 }
@@ -179,12 +189,24 @@ bool plRiftCamera::MsgReceive(plMessage* msg)
 	return true;
 }
 
-void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
+bool plRiftCamera::BeginAndShouldRender()
+{
+	XrFrameWaitInfo frameWaitInfo{ XR_TYPE_FRAME_WAIT_INFO };
+	XrFrameState frameState;
+	xrWaitFrame(pSession, &frameWaitInfo, &frameState);
+	XrFrameBeginInfo frameBeginInfo{ XR_TYPE_FRAME_BEGIN_INFO };
+	getViews(pSession, pViews, pBaseSpace, frameState.predictedDisplayTime);
+	xrBeginFrame(pSession, &frameBeginInfo);
+	return frameState.shouldRender;
+}
+
+void plRiftCamera::ApplyStereoViewport(int eye)
 {
 
 	static auto myWglGetCurrentContext = (decltype(wglGetCurrentContext)*)GetAnyGLFuncAddress("wglGetCurrentContext");
 	//plStatusLog::AddLineS("oculus.log", "Current context: %p", myWglGetCurrentContext());
 	plViewTransform vt = fPipe->GetViewTransform();
+
 
 	//Projection matrix stuff
 	//-------------------------
@@ -192,7 +214,8 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 
 	hsMatrix44 oldCamNDC = vt.GetCameraToNDC();
 
-	XRTransformToHSTransform(OVR::CreateProjection(true, false, ovr_GetHmdDesc(pSession).DefaultEyeFov[eye], OVR::StereoEye(eye)), &projMatrix);
+	XrMatrix4x4f projMatrixXr;
+	XrMatrix4x4f_CreateProjectionFov(&projMatrixXr, GraphicsAPI::GRAPHICS_D3D, pViews[eye].fov, fNear, fFar);
 	vt.SetProjectionMatrix(&projMatrix);
 
 	//fPipe->ReverseCulling();
@@ -211,15 +234,13 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	//
 	hsMatrix44 eyeTransform, transposed, w2c, inverse;
 
-	ovrPosef eyePoses[2];
-	ovrPosef eyePoseFlipped;
-	getEyes(pSession, eyePoses);
-	ovrPosef_FlipHandedness(&eyePoses[eye], &eyePoseFlipped);
-	eyePoseFlipped.Position.x *= 3.281;
-	eyePoseFlipped.Position.y *= -3.281;
-	eyePoseFlipped.Position.z *= 3.281;
-	eyePoseFlipped.Orientation;
-	OVR::Matrix4f riftEyeTransform(eyePoseFlipped);
+
+	XrPosef pose = pViews[eye].pose;
+
+	pose.position.x *= 3.281;
+	pose.position.y *= -3.281;
+	pose.position.z *= 3.281;
+	pose.position.y += 6.0;
 	
 	//OVRTransformToHSTransform(riftEyeTransform, &eyeTransform);
 
@@ -227,13 +248,12 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 	hsMatrix44 origW2c = fWorldToCam;
 
 	w2c = hsMatrix44(origW2c);
-	w2c.Translate(&hsVector3(eyePoseFlipped.Position.x, eyePoseFlipped.Position.y + 6.0, eyePoseFlipped.Position.z));
-	float rotx, roty, rotz;
-	// I'm uncertain why the indicated values for RotateDirection and HandedSystem work, but they do.
-	riftEyeTransform.ToEulerAngles<OVR::Axis::Axis_X, OVR::Axis::Axis_Y, OVR::Axis::Axis_Z, OVR::RotateDirection::Rotate_CW, OVR::HandedSystem::Handed_R>(&rotx, &roty, &rotz);
-	w2c.Rotate(0, rotx);
-	w2c.Rotate(1, roty);
-	w2c.Rotate(2, rotz);
+	XrMatrix4x4f eyeMatrix;
+	XrVector3f scale{ 1.0, 1.0, 1.0 };
+	XrMatrix4x4f_CreateTranslationRotationScale(&eyeMatrix, &pose.position, &pose.orientation, &scale);
+	hsMatrix44 eyeMatrixHS;
+	XRTransformToHSTransform(&eyeMatrix, &eyeMatrixHS);
+	w2c = eyeMatrixHS * w2c; // Todo: Is this the correct order? Is this approach ideal instead of decomposing the quaternion?
 	w2c.GetInverse(&inverse);
 	vt.SetCameraTransform( w2c, inverse );
 	//vt.SetWidth(eyeParams.VP.w * fRenderScale);
@@ -252,14 +272,14 @@ void plRiftCamera::ApplyStereoViewport(ovrEyeType eye)
 }
 
 
-hsMatrix44* plRiftCamera::XRTransformToHSTransform(ovrMatrix4f OVRmat, hsMatrix44* hsMat)
+hsMatrix44* plRiftCamera::XRTransformToHSTransform(XrMatrix4x4f* xrMat, hsMatrix44* hsMat)
 {
 	hsMat->NotIdentity();
 	//OVRmat.Transpose();
 	int i,j;
 	for(i=0; i < 4; i++){
 		for(j=0; j < 4; j++){
-			hsMat->fMap[i][j] = OVRmat.M[i][j];
+			hsMat->fMap[i][j] = xrMat->m[4*i + j]; // TODO: Is this correct?
 		}
 	}
 
@@ -281,7 +301,7 @@ void *plRiftCamera::GetAnyGLFuncAddress(const char *name)
 	return p;
 }
 
-void plRiftCamera::DrawToEye(ovrEyeType eye) {
+void plRiftCamera::DrawToEye(int eye) {
 
 	static auto myGlEnable = (decltype(glEnable)*)GetAnyGLFuncAddress("glEnable");
 	static auto myGlReadBuffer = (decltype(glReadBuffer)*)GetAnyGLFuncAddress("glReadBuffer");
@@ -295,7 +315,7 @@ void plRiftCamera::DrawToEye(ovrEyeType eye) {
 	myGlEnable(GL_TEXTURE_2D);
 	myGlReadBuffer(GL_BACK);
 	myGlBindTexture(GL_TEXTURE_2D, texid);
-	myGlCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, ovr_GetHmdDesc(pSession).Resolution.w, ovr_GetHmdDesc(pSession).Resolution.h);
+	myGlCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pViewConfigurationViews.at(eye).recommendedImageRectWidth, pViewConfigurationViews.at(eye).recommendedImageRectHeight)
 	//myGlDisable(GL_TEXTURE_2D);
 
 	ovr_CommitTextureSwapChain(pSession, pTextureSwapChains[eye]);
@@ -333,10 +353,29 @@ void makeLayerEyeFov(ovrSession session, int width, int height, ovrTextureSwapCh
 
 }
 
-void getEyes(ovrSession session, ovrPosef* eyes) {
-	ovrEyeRenderDesc eyeRenderDesc[2];
-	eyeRenderDesc[0] = ovr_GetRenderDesc(session, ovrEye_Left, ovr_GetHmdDesc(session).DefaultEyeFov[0]);
-	eyeRenderDesc[1] = ovr_GetRenderDesc(session, ovrEye_Right, ovr_GetHmdDesc(session).DefaultEyeFov[1]);
-	ovrPosef HmdToEyePose[2] = { eyeRenderDesc[0].HmdToEyePose, eyeRenderDesc[1].HmdToEyePose };
-	ovr_GetEyePoses(session, 0, false, HmdToEyePose, eyes, NULL);
+void XrPosef_FlipHandedness(const XrPosef* inPose, XrPosef* outPose) {
+	// From Bradley Austin Davis on Khronos slack
+	outPose->orientation.x = -inPose->orientation.x;
+	outPose->orientation.y = inPose->orientation.y;
+	outPose->orientation.z = inPose->orientation.z;
+	outPose->orientation.w = -inPose->orientation.w;
+
+	outPose->position.x = -inPose->position.x;
+	outPose->position.y = inPose->position.y;
+	outPose->position.z = inPose->position.z;
 }
+
+void getViews(XrSession session, XrView* views, XrSpace space, XrTime displayTime) {
+
+	XrViewState _viewState; // TODO: Do I want to use this?
+
+	XrViewLocateInfo viewLocateInfo{ XR_TYPE_VIEW_LOCATE_INFO };
+	viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+	viewLocateInfo.space = space;
+	viewLocateInfo.displayTime = displayTime;
+	uint32_t _numOfViews;
+	xrLocateViews(session, &viewLocateInfo, &_viewState, 2, &_numOfViews, views);
+	XrPosef_FlipHandedness(&views[0].pose, &views[0].pose);
+	XrPosef_FlipHandedness(&views[1].pose, &views[1].pose);
+}
+

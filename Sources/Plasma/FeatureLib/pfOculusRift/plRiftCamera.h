@@ -127,9 +127,11 @@ public:
 
 	float ReverseRadians(float angle){ return 2 * M_PI - angle; };
 
-	void ApplyLeftEyeViewport(){ ApplyStereoViewport(ovrEye_Left); };
-	void ApplyRightEyeViewport(){ ApplyStereoViewport(ovrEye_Right); };
-	void ApplyStereoViewport(ovrEyeType);
+	bool BeginAndShouldRender();
+
+	void ApplyLeftEyeViewport(){ ApplyStereoViewport(0); };
+	void ApplyRightEyeViewport(){ ApplyStereoViewport(1); };
+	void ApplyStereoViewport(int);
 
 	void SetOriginalCamera(hsMatrix44 cam){ fWorldToCam = cam; };
 	
@@ -147,11 +149,11 @@ public:
 	enum eye {EYE_LEFT = 1, EYE_RIGHT, EYE_BOTH};
 
 	//Utils
-	hsMatrix44* XRTransformToHSTransform(XrMatrix4x4f xrmat, hsMatrix44* hsMat);
+	hsMatrix44* XRTransformToHSTransform(XrMatrix4x4f* xrmat, hsMatrix44* hsMat);
 
 	void * GetAnyGLFuncAddress(const char * name);
 
-	void DrawToEye(ovrEyeType eye);
+	void DrawToEye(int eye);
 
 	void Submit();
 
@@ -170,8 +172,10 @@ private:
 	//OpenXR objects
 	XrInstance pInstance;
 	XrSession          pSession;
+	XrSystemId pSystemId = XR_NULL_SYSTEM_ID;
 	XrSpace pBaseSpace;
-	XrGraphicsLuid     pLuid;
+	XrView pViews[2];
+	std::vector<XrViewConfigurationView> pViewConfigurationViews;
 	HMODULE             pOpenGL;
 	XrSwapchain pTextureSwapChains[2];
 

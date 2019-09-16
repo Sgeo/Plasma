@@ -237,6 +237,8 @@ void plRiftCamera::ApplyStereoViewport(int eye)
 
 	XrPosef pose = pViews[eye].pose;
 
+	XrPosef_FlipHandedness(&pose, &pose);
+
 	pose.position.x *= 3.281;
 	pose.position.y *= -3.281;
 	pose.position.z *= 3.281;
@@ -375,8 +377,5 @@ void getViews(XrSession session, XrView* views, XrSpace space, XrTime displayTim
 	viewLocateInfo.displayTime = displayTime;
 	uint32_t _numOfViews;
 	xrLocateViews(session, &viewLocateInfo, &_viewState, 2, &_numOfViews, views);
-	// TODO: Maybe don't flip handedness when prediction might need the correct pose.
-	XrPosef_FlipHandedness(&views[0].pose, &views[0].pose);
-	XrPosef_FlipHandedness(&views[1].pose, &views[1].pose);
 }
 

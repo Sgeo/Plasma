@@ -71,7 +71,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //OpenXR namespace
 #define XR_USE_GRAPHICS_API_OPENGL
 #define XR_USE_PLATFORM_WIN32
-#include <openxr/openxr.h>
+#include <Windows.h>
 #include <openxr/openxr_platform.h>
 #include <openxr/xr_linear.h>
 
@@ -176,15 +176,16 @@ private:
 	XrSpace pBaseSpace;
 	XrView pViews[2];
 	std::vector<XrViewConfigurationView> pViewConfigurationViews;
+	XrFrameState pFrameState;
 	HMODULE             pOpenGL;
 	XrSwapchain pTextureSwapChains[2];
+	std::vector<XrSwapchainImageOpenGLKHR> pSwapChainImages[2];
 
 	bool fEnableStereoRendering;
 	float fRenderScale;
 
 	float fXRotOffset, fYRotOffset, fZRotOffset;
 
-	ovrVector3f         fEyePos;
     float               fEyeYaw;         // Rotation around Y, CCW positive when looking at RHS (X,Z) plane.
     float               fEyePitch;       // Pitch. If sensor is plugged in, only read from sensor.
     float               fEyeRoll;        // Roll, only accessible from Sensor.
@@ -192,6 +193,8 @@ private:
 	float				fYawInitial;
 	hsBitVector         fFlags;
 	float fNear, fFar;
+
+	void plRiftCamera::makeLayerEyeFov(int width, int height, XrCompositionLayerProjection* out_Layer);
 
 };
 

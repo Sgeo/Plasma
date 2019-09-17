@@ -70,8 +70,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include <gl/GL.h>
 #include <wingdi.h>
 
-void makeLayerEyeFov(XrSession session, int width, int height, XrSwapchain* swapChains, XrCompositionLayerProjection* out_Layer);
-void getViews(XrSession session, XrView * views);
+
+void getViews(XrSession session, XrView* views, XrSpace space, XrTime displayTime);
+void XrPosef_FlipHandedness(XrPosef *pose);
 
 plRiftCamera::plRiftCamera() : 
 	fEnableStereoRendering(true),
@@ -115,7 +116,7 @@ void plRiftCamera::initRift(int width, int height){
 
 	XrResult result = xrCreateInstance(&instanceCreateInfo, &pInstance);
 
-	if (XR_SUCCESS(result)) {
+	if (XR_SUCCEEDED(result)) {
 		plStatusLog::AddLineS("openxr.log", "-- Rift initialized with result %i. Attempting to create session --", result);
 		//ovr_TraceMessage(ovrLogLevel_Debug, "Testing trace message");
 
@@ -136,7 +137,7 @@ void plRiftCamera::initRift(int width, int height){
 		result = xrCreateSession(pInstance, &sessionCreateInfo, &pSession);
 		
 		plStatusLog::AddLineS("openxr.log", "After session creation");
-		if (XR_SUCCESS(result)) {
+		if (XR_SUCCEEDED(result)) {
 			plStatusLog::AddLineS("openxr.log", "-- Rift Session created --");
 			XrReferenceSpaceCreateInfo referenceSpaceCreateInfo{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
 			referenceSpaceCreateInfo.poseInReferenceSpace.orientation.w = 1;
@@ -153,7 +154,7 @@ void plRiftCamera::initRift(int width, int height){
 	pOpenGL = GetModuleHandle("opengl32.dll");
 	plStatusLog::AddLineS("openxr.log", "GetModuleHandle(opengl32.dll) = %i", pOpenGL);
 
-	size_t numOfViewConfigViews = 0;
+	uint32_t numOfViewConfigViews = 0;
 	xrEnumerateViewConfigurationViews(pInstance, pSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &numOfViewConfigViews, nullptr);
 	pViewConfigurationViews.reserve(numOfViewConfigViews);
 	xrEnumerateViewConfigurationViews(pInstance, pSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, numOfViewConfigViews, &numOfViewConfigViews, pViewConfigurationViews.data());
@@ -176,6 +177,12 @@ void plRiftCamera::initRift(int width, int height){
 	
 		plStatusLog::AddLineS("openxr.log", "Texture swap chain params: %p, %p, %p", pSession, &swapChainDesc, &pTextureSwapChains[i]);
 		XrResult swapChainResult = xrCreateSwapchain(pSession, &swapChainDesc, &pTextureSwapChains[i]);
+
+		uint32_t numOfSwapchainImages = 0;
+		xrEnumerateSwapchainImages(pTextureSwapChains[i], 0, &numOfSwapchainImages, nullptr);
+		pSwapChainImages[i].clear();
+		pSwapChainImages[i].reserve(numOfSwapchainImages);
+		xrEnumerateSwapchainImages(pTextureSwapChains[i], numOfSwapchainImages, &numOfSwapchainImages, reinterpret_cast<XrSwapchainImageBaseHeader*>(pSwapChainImages[i].data()));
 		
 	}
 	plStatusLog::AddLineS("openxr.log", "Created texture swap chains");
@@ -192,12 +199,11 @@ bool plRiftCamera::MsgReceive(plMessage* msg)
 bool plRiftCamera::BeginAndShouldRender()
 {
 	XrFrameWaitInfo frameWaitInfo{ XR_TYPE_FRAME_WAIT_INFO };
-	XrFrameState frameState;
-	xrWaitFrame(pSession, &frameWaitInfo, &frameState);
+	xrWaitFrame(pSession, &frameWaitInfo, &pFrameState);
 	XrFrameBeginInfo frameBeginInfo{ XR_TYPE_FRAME_BEGIN_INFO };
-	getViews(pSession, pViews, pBaseSpace, frameState.predictedDisplayTime);
+	getViews(pSession, pViews, pBaseSpace, pFrameState.predictedDisplayTime);
 	xrBeginFrame(pSession, &frameBeginInfo);
-	return frameState.shouldRender;
+	return pFrameState.shouldRender;
 }
 
 void plRiftCamera::ApplyStereoViewport(int eye)
@@ -312,46 +318,59 @@ void plRiftCamera::DrawToEye(int eye) {
 	static auto myGlDisable = (decltype(glEnable)*)GetAnyGLFuncAddress("glDisable");
 
 	unsigned int texid;
-	ovr_GetTextureSwapChainBufferGL(pSession, pTextureSwapChains[eye], -1, &texid);
+
+	uint32_t image_index;
+	xrAcquireSwapchainImage(pTextureSwapChains[eye], nullptr, &image_index);
+
+	XrSwapchainImageWaitInfo waitInfo{ XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO };
+	waitInfo.timeout = XR_INFINITE_DURATION;
+	xrWaitSwapchainImage(pTextureSwapChains[eye], &waitInfo);
+
+	texid = pSwapChainImages[eye].at(image_index).image;
 
 	myGlEnable(GL_TEXTURE_2D);
 	myGlReadBuffer(GL_BACK);
 	myGlBindTexture(GL_TEXTURE_2D, texid);
-	myGlCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pViewConfigurationViews.at(eye).recommendedImageRectWidth, pViewConfigurationViews.at(eye).recommendedImageRectHeight)
-	//myGlDisable(GL_TEXTURE_2D);
+	myGlCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pViewConfigurationViews.at(eye).recommendedImageRectWidth, pViewConfigurationViews.at(eye).recommendedImageRectHeight);
+		//myGlDisable(GL_TEXTURE_2D);
 
-	ovr_CommitTextureSwapChain(pSession, pTextureSwapChains[eye]);
+	xrReleaseSwapchainImage(pTextureSwapChains[eye], nullptr);
 }
 
 void plRiftCamera::Submit() {
-	ovrLayerEyeFov layer;
-	ovrLayerHeader* layers = &layer.Header;
-	makeLayerEyeFov(pSession, fPipe->GetViewTransform().GetScreenWidth(), fPipe->GetViewTransform().GetScreenHeight(), pTextureSwapChains, &layer);
 
-	ovr_SubmitFrame(pSession, 0, NULL, &layers, 1);
+	std::vector<XrCompositionLayerBaseHeader*> layers;
+
+	XrCompositionLayerProjection layer;
+	makeLayerEyeFov(fPipe->GetViewTransform().GetScreenWidth(), fPipe->GetViewTransform().GetScreenHeight(), &layer);
+	layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader*>(&layer));
+
+	XrFrameEndInfo frameEndInfo{ XR_TYPE_FRAME_END_INFO };
+	frameEndInfo.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+	frameEndInfo.displayTime = pFrameState.predictedDisplayTime;
+	frameEndInfo.layers = layers.data();
+	frameEndInfo.layerCount = layers.size();
+
+
 }
 
-void makeLayerEyeFov(ovrSession session, int width, int height, ovrTextureSwapChain* swapChains, ovrLayerEyeFov* out_Layer) {
-	out_Layer->Header.Type = ovrLayerType_EyeFov;
-	//out_Layer->Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
-	out_Layer->Header.Flags = 0;
-	out_Layer->ColorTexture[0] = swapChains[0];
-	out_Layer->ColorTexture[1] = swapChains[1];
-	out_Layer->Viewport[0].Pos.x = 0;
-	out_Layer->Viewport[0].Pos.y = 0;
-	out_Layer->Viewport[0].Size.w = width;
-	out_Layer->Viewport[0].Size.h = height;
-	out_Layer->Viewport[1].Pos.x = 0;
-	out_Layer->Viewport[1].Pos.y = 0;
-	out_Layer->Viewport[1].Size.w = width;
-	out_Layer->Viewport[1].Size.h = height;
-	out_Layer->Fov[0] = ovr_GetHmdDesc(session).DefaultEyeFov[0];
-	out_Layer->Fov[1] = ovr_GetHmdDesc(session).DefaultEyeFov[1];
-	ovrPosef eyeRenderPose[2];
-	getEyes(session, eyeRenderPose);
-	out_Layer->RenderPose[0] = eyeRenderPose[0];
-	out_Layer->RenderPose[1] = eyeRenderPose[1];
-	out_Layer->SensorSampleTime = 0.0;
+void plRiftCamera::makeLayerEyeFov(int width, int height, XrCompositionLayerProjection* out_Layer) {
+
+	XrCompositionLayerProjection layer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION };
+	layer.space = pBaseSpace;
+	XrCompositionLayerProjectionView layerViews[2];
+	for (int i = 0; i < 2; i++) {
+		layerViews[i] = { XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
+		layerViews[i].subImage.imageArrayIndex = 0;
+		layerViews[i].subImage.imageRect.offset = { 0, 0 };
+		layerViews[i].subImage.imageRect.extent = { width, height };
+		layerViews[i].subImage.swapchain = pTextureSwapChains[i];
+		layerViews[i].fov = pViews[i].fov;
+		layerViews[i].pose = pViews[i].pose;
+	}
+	layer.views = layerViews;
+	layer.viewCount = 2;
+	*out_Layer = layer;
 
 }
 

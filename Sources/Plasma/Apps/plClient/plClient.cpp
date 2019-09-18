@@ -616,11 +616,11 @@ bool plClient::InitPipeline()
 	fPostProcessingMgr = plPostPipeline::GetInstance();
 	fPostProcessingMgr->RegisterAs( kPostProcessingMgr_KEY );
 	fPostProcessingMgr->SetPipeline(pipe);
-	ovrRecti realViewport;
-	realViewport.Pos.x = 0;
-	realViewport.Pos.y = 0;
-	realViewport.Size.w = pipe->Width();
-	realViewport.Size.h = pipe->Height();
+	XrRect2Di realViewport;
+	realViewport.offset.x = 0;
+	realViewport.offset.y = 0;
+	realViewport.extent.width = pipe->Width();
+	realViewport.extent.height = pipe->Height();
 	fPostProcessingMgr->SetRealViewport(realViewport);
 	//fPostProcessingMgr->SetRenderScale(fRiftCamera->GetRenderScale()); 
 #endif
@@ -1975,19 +1975,19 @@ bool plClient::IDraw()
 	//Set vieport, RT and projection
 
 	if(fRiftCamera->GetStereoRenderingState()){
-		ovrRecti viewport;
-		viewport.Pos.x = 0;
-		viewport.Pos.y = 0;
-		viewport.Size.w = 1280;
-		viewport.Size.h = 800;
+		XrRect2Di viewport;
+		viewport.offset.x = 0;
+		viewport.offset.y = 0;
+		viewport.extent.width = 1280;
+		viewport.extent.height = 800;
 		fPostProcessingMgr->SetViewport(viewport, true);
 		fRiftCamera->SetOriginalCamera(fPipeline->GetViewTransform().GetWorldToCamera());
 		fPipeline->ClearRenderTarget();
 
 		if(fPostProcessingMgr->GetPostProcessingState()){
 			//fPostProcessingMgr->EnablePostRT();
-			viewport.Size.w = fPipeline->Width() * fRiftCamera->GetRenderScale();
-			viewport.Size.h = fPipeline->Height() * fRiftCamera->GetRenderScale();
+			viewport.extent.width = fPipeline->Width() * fRiftCamera->GetRenderScale();
+			viewport.extent.height = fPipeline->Height() * fRiftCamera->GetRenderScale();
 			fPostProcessingMgr->SetViewport(viewport, false);
 			
 			fRiftCamera->ApplyLeftEyeViewport();	
@@ -2043,7 +2043,7 @@ bool plClient::IDraw()
 	fPipeline->EndRender();
 	plProfile_EndTiming(EndRender);
 
-	fRiftCamera->DrawToEye(ovrEye_Left);
+	fRiftCamera->DrawToEye(0);
 
 	//End first stereo pass
 
@@ -2057,11 +2057,11 @@ bool plClient::IDraw()
 		if(fPostProcessingMgr->GetPostProcessingState())
 		{
 			//fPostProcessingMgr->DisablePostRT();
-			ovrRecti viewport;
-			viewport.Pos.x = 0;
-			viewport.Pos.y = 0;
-			viewport.Size.w = 640;
-			viewport.Size.h = 800;
+			XrRect2Di viewport;
+			viewport.offset.x = 0;
+			viewport.offset.y = 0;
+			viewport.extent.width = 640;
+			viewport.extent.height = 800;
 			fPostProcessingMgr->SetViewport(viewport, false);
 			hsColorRGBA resetCol;
 			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
@@ -2116,11 +2116,11 @@ bool plClient::IDraw()
 		if(fPostProcessingMgr->GetPostProcessingState())
 		{
 			//fPostProcessingMgr->DisablePostRT();
-			ovrRecti viewport;
-			viewport.Pos.x = 640;
-			viewport.Pos.y = 0;
-			viewport.Size.w = 640;
-			viewport.Size.h = 800;
+			XrRect2Di viewport;
+			viewport.offset.x = 640;
+			viewport.offset.y = 0;
+			viewport.extent.width = 640;
+			viewport.extent.height = 800;
 			//fPostProcessingMgr->SetViewport(viewport, false);
 			hsColorRGBA resetCol;
 			resetCol.Set(0.0f,0.0f, 0.0f, 1.0f);
@@ -2130,10 +2130,10 @@ bool plClient::IDraw()
 
 			//fPostProcessingMgr->UpdateShaders();
 			//fPostProcessingMgr->RenderPostEffects();
-			viewport.Pos.x = 0;
-			viewport.Pos.y = 0;
-			viewport.Size.w = 1280;
-			viewport.Size.h = 800;
+			viewport.offset.x = 0;
+			viewport.offset.y = 0;
+			viewport.extent.width = 1280;
+			viewport.extent.height = 800;
 			//fPostProcessingMgr->SetViewport(viewport, false);
 
 		}
@@ -2180,7 +2180,7 @@ plProfile_BeginTiming(Movies);
 	fPipeline->EndRender();
 	plProfile_EndTiming(EndRender);
 
-	fRiftCamera->DrawToEye(ovrEye_Right);
+	fRiftCamera->DrawToEye(1);
 	fRiftCamera->Submit();
 
 	plProfile_EndTiming(DrawTime); 

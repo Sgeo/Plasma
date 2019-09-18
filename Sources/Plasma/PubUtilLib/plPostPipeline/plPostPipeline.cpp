@@ -131,12 +131,12 @@ void plPostPipeline::UpdateShaders()
 	fPsShader->SetColor(0, DistortionClearColor);
     //Clear(r, g, b, a);
 
-	float w = float(fVP.Size.w) / float(fRealVP.Size.w),
-          h = float(fVP.Size.h) / float(fRealVP.Size.h),
-          x = float(fVP.Pos.x) / float(fRealVP.Size.w),
-          y = float(fVP.Pos.y) / float(fRealVP.Size.h);
+	float w = float(fVP.extent.width) / float(fRealVP.extent.width),
+          h = float(fVP.extent.height) / float(fRealVP.extent.height),
+          x = float(fVP.offset.x) / float(fRealVP.offset.x),
+          y = float(fVP.offset.y) / float(fRealVP.offset.y);
 
-    float as = float(fVP.Size.w) / float(fVP.Size.h);
+    float as = float(fVP.extent.width) / float(fVP.extent.height);
 
     // We are using 1/4 of DistortionCenter offset value here, since it is
     // relative to [-1,1] range that gets mapped to [0, 0.5].
@@ -202,18 +202,18 @@ plRenderTarget* plPostPipeline::CreatePostRT(uint16_t width, uint16_t height){
 	return fPostRT;
 }
 
-void plPostPipeline::SetViewport(ovrRecti vp, bool resetProjection = false)
+void plPostPipeline::SetViewport(XrRect2Di vp, bool resetProjection = false)
 {
 	return;
 	fVP = vp;
 
 	plViewTransform vt = fPipe->GetViewTransform();
 	
-	vt.SetViewPort(fVP.Pos.x, fVP.Pos.y, fVP.Pos.x + fVP.Size.w, fVP.Pos.y + fVP.Size.h, false);
+	vt.SetViewPort(fVP.offset.x, fVP.offset.y, fVP.offset.x + fVP.extent.width, fVP.offset.y + fVP.extent.height, false);
 	
 	if(resetProjection){
-		vt.SetWidth((float)fVP.Size.w);
-		vt.SetHeight((float)fVP.Size.h);
+		vt.SetWidth((float)fVP.extent.width);
+		vt.SetHeight((float)fVP.extent.height);
 		vt.SetDepth(0.3f, 500.0f);
 		vt.ResetProjectionMatrix();
 	}

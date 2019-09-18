@@ -106,18 +106,12 @@ public:
 	plRenderTarget* CreatePostRT(uint16_t width, uint16_t height);
 	plRenderTarget* GetPostRT(){ return fPostRT; };
 
-	void SetRealViewport(ovrRecti vp) { return;  fRealVP = vp; };
-	void SetViewport(ovrRecti vp, bool resetProjection);
-	void SetPrescaledViewport(ovrRecti vp){ fVP = vp; };
+	void SetRealViewport(XrRect2Di vp) { return;  fRealVP = vp; };
+	void SetViewport(XrRect2Di vp, bool resetProjection);
+	void SetPrescaledViewport(XrRect2Di vp){ fVP = vp; };
 	
 	void RestoreViewport(){ SetViewport(fRealVP, true); };
 	void SetRenderScale(float scale){fRenderScale = scale; };
-	void SetDistortionConfig(ovrEyeType eye = ovrEye_Left)
-    {
-        //fDistortion = config;
-		if (eye == ovrEye_Right) {}
-            //fDistortion.XCenterOffset = -fDistortion.XCenterOffset;
-    }	
 
 	
 
@@ -132,8 +126,8 @@ private:
 	plShader* fVsShader;
 	plShader* fPsShader;
 
-	ovrRecti fVP;
-	ovrRecti fRealVP;
+	XrRect2Di fVP;
+	XrRect2Di fRealVP;
 
 	bool fEnablePost;
 };

@@ -75,6 +75,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include <openxr/openxr_platform.h>
 #include <openxr/xr_linear.h>
 
+#define XR_REPORT(call) plStatusLog::AddLineS("openxr.log", "%s = %i", #call, call)
+
 class plPipeline;
 class plCameraModifier1;
 class plCameraBrain1;

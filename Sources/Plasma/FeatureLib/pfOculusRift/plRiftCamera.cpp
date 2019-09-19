@@ -100,7 +100,8 @@ void LogCallback(uintptr_t userData, int level, const char* message)
 
 void plRiftCamera::initRift(int width, int height){
 
-
+	pOpenGL = GetModuleHandle("opengl32.dll");
+	plStatusLog::AddLineS("openxr.log", "opengl32.dll = %p", pOpenGL);
 	plStatusLog::AddLineS("openxr.log", "-- Attempting to initialize Rift --");
 
 	
@@ -122,17 +123,39 @@ void plRiftCamera::initRift(int width, int height){
 
 		XrSystemGetInfo systemInfo{ XR_TYPE_SYSTEM_GET_INFO };
 		systemInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
-		xrGetSystem(pInstance, &systemInfo, &pSystemId);
+		XR_REPORT(xrGetSystem(pInstance, &systemInfo, &pSystemId));
+
+		plStatusLog::AddLineS("openxr.log", "-- System ID: %i --", pSystemId);
 
 		static auto myWglGetCurrentContext = (decltype(wglGetCurrentContext)*)GetAnyGLFuncAddress("wglGetCurrentContext");
 		static auto myWglGetCurrentDC = (decltype(wglGetCurrentDC)*)GetAnyGLFuncAddress("wglGetCurrentDC");
+		static auto myGlGetError = (decltype(glGetError)*)GetAnyGLFuncAddress("glGetError");
 		XrGraphicsBindingOpenGLWin32KHR graphicsBinding{ XR_TYPE_GRAPHICS_BINDING_OPENGL_WIN32_KHR };
+		plStatusLog::AddLineS("openxr.log", "-- myWglGetCurrentContext = %p; myWglGetCurrentDC = %p --", myWglGetCurrentContext, myWglGetCurrentDC);
 		graphicsBinding.hDC = myWglGetCurrentDC();
 		graphicsBinding.hGLRC = myWglGetCurrentContext();
+
+		plStatusLog::AddLineS("openxr.log", "-- DC=%p GLRC=%p", graphicsBinding.hDC, graphicsBinding.hGLRC);
+
+		static auto myGlGetString = (decltype(glGetString)*)GetAnyGLFuncAddress("glGetString");
+		const GLubyte* version = myGlGetString(GL_VERSION);
+		plStatusLog::AddLineS("openxr.log", "GL_VERSION = %s", version);
+
+		XrGraphicsRequirementsOpenGLKHR graphicsRequirements{ XR_TYPE_GRAPHICS_REQUIREMENTS_OPENGL_KHR };
+		XR_REPORT(xrGetOpenGLGraphicsRequirementsKHR(pInstance, pSystemId, &graphicsRequirements));
+
+		plStatusLog::AddLineS("openxr.log", "Requirements: Minimum: %i.%i.%i, Maximum: %i.%i.%i"
+			, XR_VERSION_MAJOR(graphicsRequirements.minApiVersionSupported)
+			, XR_VERSION_MINOR(graphicsRequirements.minApiVersionSupported)
+			, XR_VERSION_PATCH(graphicsRequirements.minApiVersionSupported)
+			, XR_VERSION_MAJOR(graphicsRequirements.maxApiVersionSupported)
+			, XR_VERSION_MINOR(graphicsRequirements.maxApiVersionSupported)
+			, XR_VERSION_PATCH(graphicsRequirements.maxApiVersionSupported));
 
 		XrSessionCreateInfo sessionCreateInfo{ XR_TYPE_SESSION_CREATE_INFO };
 		sessionCreateInfo.next = &graphicsBinding;
 		sessionCreateInfo.systemId = pSystemId;
+		sessionCreateInfo.createFlags = 0;
 
 		result = xrCreateSession(pInstance, &sessionCreateInfo, &pSession);
 		
@@ -142,22 +165,25 @@ void plRiftCamera::initRift(int width, int height){
 			XrReferenceSpaceCreateInfo referenceSpaceCreateInfo{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
 			referenceSpaceCreateInfo.poseInReferenceSpace.orientation.w = 1;
 			referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
-			xrCreateReferenceSpace(pSession, &referenceSpaceCreateInfo, &pBaseSpace);
+			XR_REPORT(xrCreateReferenceSpace(pSession, &referenceSpaceCreateInfo, &pBaseSpace));
 		}
 		else {
-			plStatusLog::AddLineS("openxr.log", "-- Unable to create Rift Session --");
+			plStatusLog::AddLineS("openxr.log", "-- Unable to create Rift Session. Cause: %i --", result);
+			auto glerror = myGlGetError();
+			plStatusLog::AddLineS("openxr.log", "GL Error: %i", glerror);
 		}
 	}
 	else {
 		plStatusLog::AddLineS("openxr.log", "-- Unable to initialize LibOVR, code %i --", result);
 	}
-	pOpenGL = GetModuleHandle("opengl32.dll");
 	plStatusLog::AddLineS("openxr.log", "GetModuleHandle(opengl32.dll) = %i", pOpenGL);
 
 	uint32_t numOfViewConfigViews = 0;
-	xrEnumerateViewConfigurationViews(pInstance, pSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &numOfViewConfigViews, nullptr);
-	pViewConfigurationViews.reserve(numOfViewConfigViews);
-	xrEnumerateViewConfigurationViews(pInstance, pSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, numOfViewConfigViews, &numOfViewConfigViews, pViewConfigurationViews.data());
+	XR_REPORT(xrEnumerateViewConfigurationViews(pInstance, pSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &numOfViewConfigViews, nullptr));
+	pViewConfigurationViews.clear();
+	pViewConfigurationViews.resize(numOfViewConfigViews, { XR_TYPE_VIEW_CONFIGURATION_VIEW });
+	plStatusLog::AddLineS("openxr.log", "numOfViewConfigViews = %i, pointer to pViewConfigurationViews = %p", numOfViewConfigViews, pViewConfigurationViews.data());
+	XR_REPORT(xrEnumerateViewConfigurationViews(pInstance, pSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, numOfViewConfigViews, &numOfViewConfigViews, pViewConfigurationViews.data()));
 	for (int i = 0; i < 2; ++i) {
 		XrViewConfigurationView viewConfigurationView = pViewConfigurationViews.at(i);
 		XrSwapchainCreateInfo swapChainDesc{ XR_TYPE_SWAPCHAIN_CREATE_INFO };
@@ -181,8 +207,8 @@ void plRiftCamera::initRift(int width, int height){
 		uint32_t numOfSwapchainImages = 0;
 		xrEnumerateSwapchainImages(pTextureSwapChains[i], 0, &numOfSwapchainImages, nullptr);
 		pSwapChainImages[i].clear();
-		pSwapChainImages[i].reserve(numOfSwapchainImages);
-		xrEnumerateSwapchainImages(pTextureSwapChains[i], numOfSwapchainImages, &numOfSwapchainImages, reinterpret_cast<XrSwapchainImageBaseHeader*>(pSwapChainImages[i].data()));
+		pSwapChainImages[i].resize(numOfSwapchainImages, { XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_KHR });
+		XR_REPORT(xrEnumerateSwapchainImages(pTextureSwapChains[i], numOfSwapchainImages, &numOfSwapchainImages, reinterpret_cast<XrSwapchainImageBaseHeader*>(pSwapChainImages[i].data())));
 		
 	}
 	plStatusLog::AddLineS("openxr.log", "Created texture swap chains");
@@ -297,6 +323,7 @@ hsMatrix44* plRiftCamera::XRTransformToHSTransform(XrMatrix4x4f* xrMat, hsMatrix
 // From https://www.khronos.org/opengl/wiki/Load_OpenGL_Functions
 void *plRiftCamera::GetAnyGLFuncAddress(const char *name)
 {
+	plStatusLog::AddLineS("openxr.log", "Retrieving GL function %s", name);
 	static auto myWglGetProcAddress = (decltype(wglGetProcAddress)*)GetProcAddress(pOpenGL, "wglGetProcAddress");
 	void *p = (void *)myWglGetProcAddress(name);
 	if (p == 0 ||
@@ -305,6 +332,7 @@ void *plRiftCamera::GetAnyGLFuncAddress(const char *name)
 	{
 		p = (void *)GetProcAddress(pOpenGL, name);
 	}
+	plStatusLog::AddLineS("openxr.log", "Retrieved %s = %p", name, p);
 
 	return p;
 }

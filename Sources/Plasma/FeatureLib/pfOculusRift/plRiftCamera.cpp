@@ -212,6 +212,7 @@ void plRiftCamera::initRift(int width, int height){
 		
 	}
 	plStatusLog::AddLineS("openxr.log", "Created texture swap chains");
+
 	
 	
 	
@@ -363,6 +364,21 @@ void plRiftCamera::DrawToEye(int eye) {
 		//myGlDisable(GL_TEXTURE_2D);
 
 	xrReleaseSwapchainImage(pTextureSwapChains[eye], nullptr);
+}
+
+void plRiftCamera::Poll() {
+	XrEventDataBuffer dataBuffer{ XR_TYPE_EVENT_DATA_BUFFER };
+	xrPollEvent(pInstance, &dataBuffer);
+	switch (dataBuffer.type) {
+	case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED:
+		XrEventDataSessionStateChanged* sessionStateChanged = reinterpret_cast<XrEventDataSessionStateChanged*>(&dataBuffer);
+		if (sessionStateChanged->state == XR_SESSION_STATE_READY) {
+			XrSessionBeginInfo sessionBeginInfo{ XR_TYPE_SESSION_BEGIN_INFO };
+			sessionBeginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+			xrBeginSession(pSession, &sessionBeginInfo);
+		}
+		break;
+	}
 }
 
 void plRiftCamera::Submit() {

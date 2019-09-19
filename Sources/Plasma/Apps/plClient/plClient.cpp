@@ -1975,6 +1975,8 @@ bool plClient::IDraw()
 	//Set vieport, RT and projection
 
 	if(fRiftCamera->GetStereoRenderingState()){
+		fRiftCamera->Poll();
+		fRiftCamera->BeginAndShouldRender();
 		XrRect2Di viewport;
 		viewport.offset.x = 0;
 		viewport.offset.y = 0;

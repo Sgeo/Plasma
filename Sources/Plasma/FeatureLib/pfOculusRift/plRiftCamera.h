@@ -131,6 +131,8 @@ public:
 
 	bool BeginAndShouldRender();
 
+	void Poll();
+
 	void ApplyLeftEyeViewport(){ ApplyStereoViewport(0); };
 	void ApplyRightEyeViewport(){ ApplyStereoViewport(1); };
 	void ApplyStereoViewport(int);
@@ -176,9 +178,9 @@ private:
 	XrSession          pSession;
 	XrSystemId pSystemId = XR_NULL_SYSTEM_ID;
 	XrSpace pBaseSpace;
-	XrView pViews[2];
+	XrView pViews[2] = { {XR_TYPE_VIEW}, { XR_TYPE_VIEW } };
 	std::vector<XrViewConfigurationView> pViewConfigurationViews;
-	XrFrameState pFrameState;
+	XrFrameState pFrameState = { XR_TYPE_FRAME_STATE };
 	HMODULE             pOpenGL;
 	XrSwapchain pTextureSwapChains[2];
 	std::vector<XrSwapchainImageOpenGLKHR> pSwapChainImages[2];

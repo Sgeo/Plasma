@@ -76,6 +76,10 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include <openxr/xr_linear.h>
 
 #define XR_REPORT(call) plStatusLog::AddLineS("openxr.log", "%s = %i", #call, call)
+#define XR_REPORT_FAILURE(call) {XrResult xr_report_failure_result=(call);\
+								if(!XR_UNQUALIFIED_SUCCESS(xr_report_failure_result))\
+								{plStatusLog::AddLineS("openxr.log","%s = %i", #call, xr_report_failure_result);}\
+								}
 
 class plPipeline;
 class plCameraModifier1;
@@ -184,6 +188,8 @@ private:
 	HMODULE             pOpenGL;
 	XrSwapchain pTextureSwapChains[2];
 	std::vector<XrSwapchainImageOpenGLKHR> pSwapChainImages[2];
+	bool sessionRunning = false;
+	bool shouldRender = false;
 
 	bool fEnableStereoRendering;
 	float fRenderScale;
@@ -198,7 +204,7 @@ private:
 	hsBitVector         fFlags;
 	float fNear, fFar;
 
-	void plRiftCamera::makeLayerEyeFov(int width, int height, XrCompositionLayerProjection* out_Layer);
+	void plRiftCamera::makeLayerEyeFov(int width, int height, XrCompositionLayerProjection* out_Layer, XrCompositionLayerProjectionView* views);
 
 };
 

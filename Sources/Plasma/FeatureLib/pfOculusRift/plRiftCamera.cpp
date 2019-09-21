@@ -226,13 +226,14 @@ bool plRiftCamera::MsgReceive(plMessage* msg)
 bool plRiftCamera::BeginAndShouldRender()
 {
 	if (!sessionRunning) {
+		plStatusLog::AddLineS("openxr.log", "BeginAndShouldRender: Session not running");
 		return false;
 	}
 	XrFrameWaitInfo frameWaitInfo{ XR_TYPE_FRAME_WAIT_INFO };
-	xrWaitFrame(pSession, &frameWaitInfo, &pFrameState);
+	XR_REPORT_FAILURE(xrWaitFrame(pSession, &frameWaitInfo, &pFrameState));
 	XrFrameBeginInfo frameBeginInfo{ XR_TYPE_FRAME_BEGIN_INFO };
 	getViews(pSession, pViews, pBaseSpace, pFrameState.predictedDisplayTime);
-	xrBeginFrame(pSession, &frameBeginInfo);
+	XR_REPORT_FAILURE(xrBeginFrame(pSession, &frameBeginInfo));
 	shouldRender = pFrameState.shouldRender;
 	return pFrameState.shouldRender;
 }
@@ -379,21 +380,22 @@ void plRiftCamera::DrawToEye(int eye) {
 
 void plRiftCamera::Poll() {
 	XrEventDataBuffer dataBuffer{ XR_TYPE_EVENT_DATA_BUFFER };
-	XrResult result = xrPollEvent(pInstance, &dataBuffer);
-	if (!XR_UNQUALIFIED_SUCCESS(result)) { // xrPollEvent gives a qualified success code when there are no events
-		return;
-	}
-	switch (dataBuffer.type) {
-	case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED:
-		XrEventDataSessionStateChanged* sessionStateChanged = reinterpret_cast<XrEventDataSessionStateChanged*>(&dataBuffer);
-		if (sessionStateChanged->state == XR_SESSION_STATE_READY) {
-			XrSessionBeginInfo sessionBeginInfo{ XR_TYPE_SESSION_BEGIN_INFO };
-			sessionBeginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
-			XR_REPORT(xrBeginSession(pSession, &sessionBeginInfo));
-			sessionRunning = true;
+	while (XR_UNQUALIFIED_SUCCESS(xrPollEvent(pInstance, &dataBuffer))) {
+		switch (dataBuffer.type) {
+		case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED:
+			XrEventDataSessionStateChanged* sessionStateChanged = reinterpret_cast<XrEventDataSessionStateChanged*>(&dataBuffer);
+			if (sessionStateChanged->state == XR_SESSION_STATE_READY) {
+				XrSessionBeginInfo sessionBeginInfo{ XR_TYPE_SESSION_BEGIN_INFO };
+				sessionBeginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+				XR_REPORT(xrBeginSession(pSession, &sessionBeginInfo));
+				sessionRunning = true;
+			}
+			break;
 		}
-		break;
+		dataBuffer.type = XR_TYPE_EVENT_DATA_BUFFER;
+		dataBuffer.next = nullptr;
 	}
+
 }
 
 void plRiftCamera::Submit() {
@@ -449,13 +451,13 @@ void XrPosef_FlipHandedness(XrPosef *pose) {
 
 void getViews(XrSession session, XrView* views, XrSpace space, XrTime displayTime) {
 
-	XrViewState _viewState; // TODO: Do I want to use this?
+	XrViewState _viewState{ XR_TYPE_VIEW_STATE }; // TODO: Do I want to use this?
 
 	XrViewLocateInfo viewLocateInfo{ XR_TYPE_VIEW_LOCATE_INFO };
 	viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
 	viewLocateInfo.space = space;
 	viewLocateInfo.displayTime = displayTime;
 	uint32_t _numOfViews;
-	xrLocateViews(session, &viewLocateInfo, &_viewState, 2, &_numOfViews, views);
+	XR_REPORT_FAILURE(xrLocateViews(session, &viewLocateInfo, &_viewState, 2, &_numOfViews, views));
 }
 

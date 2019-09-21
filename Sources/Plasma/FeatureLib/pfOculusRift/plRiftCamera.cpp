@@ -226,7 +226,6 @@ bool plRiftCamera::MsgReceive(plMessage* msg)
 bool plRiftCamera::BeginAndShouldRender()
 {
 	if (!sessionRunning) {
-		plStatusLog::AddLineS("openxr.log", "BeginAndShouldRender: Session not running");
 		return false;
 	}
 	XrFrameWaitInfo frameWaitInfo{ XR_TYPE_FRAME_WAIT_INFO };

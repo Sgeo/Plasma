@@ -204,7 +204,7 @@ private:
 	hsBitVector         fFlags;
 	float fNear, fFar;
 
-	void plRiftCamera::makeLayerEyeFov(int width, int height, XrCompositionLayerProjection* out_Layer, XrCompositionLayerProjectionView* views);
+	void plRiftCamera::makeLayerEyeFov(XrCompositionLayerProjection* out_Layer, XrCompositionLayerProjectionView* views);
 
 };
 

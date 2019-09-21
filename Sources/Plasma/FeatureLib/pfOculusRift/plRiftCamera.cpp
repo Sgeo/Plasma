@@ -320,6 +320,7 @@ hsMatrix44* plRiftCamera::XRTransformToHSTransform(XrMatrix4x4f* xrMat, hsMatrix
 {
 	hsMat->NotIdentity();
 	XrMatrix4x4f transposed;
+	XrMatrix4x4f_Transpose(&transposed, xrMat);
 	//OVRmat.Transpose();
 	int i,j;
 	for(i=0; i < 4; i++){
@@ -392,6 +393,10 @@ void plRiftCamera::Poll() {
 				XR_REPORT(xrBeginSession(pSession, &sessionBeginInfo));
 				sessionRunning = true;
 			}
+			else if (sessionStateChanged->state == XR_SESSION_STATE_STOPPING) {
+				xrEndSession(pSession);
+				sessionRunning = false;
+			}
 			break;
 		}
 		dataBuffer.type = XR_TYPE_EVENT_DATA_BUFFER;
@@ -412,7 +417,7 @@ void plRiftCamera::Submit() {
 		XrCompositionLayerProjectionView layerViews[2];
 		layer.viewCount = 2;
 		layer.views = layerViews;
-		makeLayerEyeFov(fPipe->GetViewTransform().GetScreenWidth(), fPipe->GetViewTransform().GetScreenHeight(), &layer, layerViews);
+		makeLayerEyeFov(&layer, layerViews);
 		layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader*>(&layer));
 	}
 
@@ -427,7 +432,7 @@ void plRiftCamera::Submit() {
 
 }
 
-void plRiftCamera::makeLayerEyeFov(int width, int height, XrCompositionLayerProjection* out_Layer, XrCompositionLayerProjectionView* views) {
+void plRiftCamera::makeLayerEyeFov(XrCompositionLayerProjection* out_Layer, XrCompositionLayerProjectionView* views) {
 
 	out_Layer->space = pBaseSpace;
 	
@@ -436,7 +441,7 @@ void plRiftCamera::makeLayerEyeFov(int width, int height, XrCompositionLayerProj
 		views[i].next = nullptr;
 		views[i].subImage.imageArrayIndex = 0;
 		views[i].subImage.imageRect.offset = { 0, 0 };
-		views[i].subImage.imageRect.extent = { width, height };
+		views[i].subImage.imageRect.extent = { (int32_t)pViewConfigurationViews[i].recommendedImageRectWidth, (int32_t)pViewConfigurationViews[i].recommendedImageRectHeight };
 		views[i].subImage.swapchain = pTextureSwapChains[i];
 		views[i].fov = pViews[i].fov;
 		views[i].pose = pViews[i].pose;

@@ -187,7 +187,7 @@ void plRiftCamera::initRift(int width, int height){
 	for (int i = 0; i < 2; ++i) {
 		XrViewConfigurationView viewConfigurationView = pViewConfigurationViews.at(i);
 		XrSwapchainCreateInfo swapChainDesc{ XR_TYPE_SWAPCHAIN_CREATE_INFO };
-		swapChainDesc.usageFlags = XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT;
+		swapChainDesc.usageFlags =  XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
 		swapChainDesc.format = GL_RGBA8; // TODO: ???
 		swapChainDesc.sampleCount = viewConfigurationView.recommendedSwapchainSampleCount;
 		swapChainDesc.width = viewConfigurationView.recommendedImageRectWidth;
@@ -319,6 +319,7 @@ void plRiftCamera::ApplyStereoViewport(int eye)
 hsMatrix44* plRiftCamera::XRTransformToHSTransform(XrMatrix4x4f* xrMat, hsMatrix44* hsMat)
 {
 	hsMat->NotIdentity();
+	XrMatrix4x4f transposed;
 	//OVRmat.Transpose();
 	int i,j;
 	for(i=0; i < 4; i++){

@@ -257,6 +257,7 @@ void plRiftCamera::ApplyStereoViewport(int eye)
 
 	XrMatrix4x4f projMatrixXr;
 	XrMatrix4x4f_CreateProjectionFov(&projMatrixXr, GraphicsAPI::GRAPHICS_D3D, pViews[eye].fov, fNear, fFar);
+	XRTransformToHSTransform(&projMatrixXr, &projMatrix);
 	vt.SetProjectionMatrix(&projMatrix);
 
 	//fPipe->ReverseCulling();

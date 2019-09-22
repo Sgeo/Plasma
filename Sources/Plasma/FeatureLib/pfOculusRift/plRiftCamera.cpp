@@ -46,6 +46,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsTemplates.h"
 #include "hsGeometry3.h"
 #include "hsMatrix44.h"
+#include "hsQuat.h"
 #include "plstring.h"
 #include "plGImage/plMipmap.h"
 #include "plSurface/plLayer.h"
@@ -184,11 +185,19 @@ void plRiftCamera::initRift(int width, int height){
 	pViewConfigurationViews.resize(numOfViewConfigViews, { XR_TYPE_VIEW_CONFIGURATION_VIEW });
 	plStatusLog::AddLineS("openxr.log", "numOfViewConfigViews = %i, pointer to pViewConfigurationViews = %p", numOfViewConfigViews, pViewConfigurationViews.data());
 	XR_REPORT(xrEnumerateViewConfigurationViews(pInstance, pSystemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, numOfViewConfigViews, &numOfViewConfigViews, pViewConfigurationViews.data()));
+	uint32_t num_formats = 0;
+	xrEnumerateSwapchainFormats(pSession, num_formats, &num_formats, nullptr);
+	std::vector<int64_t> formats(num_formats);
+	xrEnumerateSwapchainFormats(pSession, num_formats, &num_formats, formats.data());
+	std::vector<int64_t>::iterator format_iterator;
+	for (format_iterator = formats.begin(); format_iterator != formats.end(); ++format_iterator) {
+		plStatusLog::AddLineS("openxr.log", "Format: %x", *format_iterator);
+	}
 	for (int i = 0; i < 2; ++i) {
 		XrViewConfigurationView viewConfigurationView = pViewConfigurationViews.at(i);
 		XrSwapchainCreateInfo swapChainDesc{ XR_TYPE_SWAPCHAIN_CREATE_INFO };
 		swapChainDesc.usageFlags =  XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
-		swapChainDesc.format = GL_RGBA8; // TODO: ???
+		swapChainDesc.format = 0x8C43; // GL_SRGB8_ALPHA8_EXT
 		swapChainDesc.sampleCount = viewConfigurationView.recommendedSwapchainSampleCount;
 		swapChainDesc.width = viewConfigurationView.recommendedImageRectWidth;
 		swapChainDesc.height = viewConfigurationView.recommendedImageRectHeight;

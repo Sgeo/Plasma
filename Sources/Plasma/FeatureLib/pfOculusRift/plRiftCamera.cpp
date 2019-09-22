@@ -264,8 +264,12 @@ void plRiftCamera::ApplyStereoViewport(int eye)
 	hsMatrix44 oldCamNDC = vt.GetCameraToNDC();
 
 	XrMatrix4x4f projMatrixXr;
+	XrMatrix4x4f scaleBeforeProjMatrixXr;
+	XrMatrix4x4f projMatrixXrFlipped;
 	XrMatrix4x4f_CreateProjectionFov(&projMatrixXr, GraphicsAPI::GRAPHICS_D3D, pViews[eye].fov, fNear, fFar);
-	XRTransformToHSTransform(&projMatrixXr, &projMatrix);
+	XrMatrix4x4f_CreateScale(&scaleBeforeProjMatrixXr, 1.0, 1.0, -1.0);
+	XrMatrix4x4f_Multiply(&projMatrixXrFlipped, &projMatrixXr, &scaleBeforeProjMatrixXr);
+	XRTransformToHSTransform(&projMatrixXrFlipped, &projMatrix);
 	vt.SetProjectionMatrix(&projMatrix);
 
 	//fPipe->ReverseCulling();
@@ -327,13 +331,11 @@ void plRiftCamera::ApplyStereoViewport(int eye)
 hsMatrix44* plRiftCamera::XRTransformToHSTransform(XrMatrix4x4f* xrMat, hsMatrix44* hsMat)
 {
 	hsMat->NotIdentity();
-	XrMatrix4x4f transposed;
-	XrMatrix4x4f_Transpose(&transposed, xrMat);
 	//OVRmat.Transpose();
 	int i,j;
 	for(i=0; i < 4; i++){
 		for(j=0; j < 4; j++){
-			hsMat->fMap[i][j] = xrMat->m[4*i + j]; // TODO: Is this correct?
+			hsMat->fMap[i][j] = xrMat->m[i + 4*j]; // Transpose
 		}
 	}
 

@@ -73,7 +73,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 
 void getViews(XrSession session, XrView* views, XrSpace space, XrTime displayTime);
-void XrPosef_FlipHandedness(XrPosef *pose);
+void posef_flip_z(XrPosef *pose);
 
 plRiftCamera::plRiftCamera() : 
 	fEnableStereoRendering(true),
@@ -291,12 +291,12 @@ void plRiftCamera::ApplyStereoViewport(int eye)
 
 	XrPosef pose = pViews[eye].pose;
 
-	XrPosef_FlipHandedness(&pose);
+	posef_flip_z(&pose);
 
 	pose.position.x *= 3.281;
-	pose.position.y *= -3.281;
+	pose.position.y *= 3.281;
+	pose.position.y -= 6.0;
 	pose.position.z *= 3.281;
-	pose.position.y += 6.0;
 	
 	//OVRTransformToHSTransform(riftEyeTransform, &eyeTransform);
 
@@ -304,14 +304,29 @@ void plRiftCamera::ApplyStereoViewport(int eye)
 	hsMatrix44 origW2c = fWorldToCam;
 
 	w2c = hsMatrix44(origW2c);
-	XrMatrix4x4f eyeMatrix;
+
+	//hsMatrix44 vrCam, toVrCam, rotMatrix;
+	//vrCam.Reset();
+	//hsQuat(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w).MakeMatrix(&rotMatrix);
+	//vrCam = rotMatrix * vrCam;
+	//vrCam.Translate(&hsVector3(pose.position.x, pose.position.y, -pose.position.z));
+	//vrCam.GetInverse(&toVrCam);
+
+	//c2w.Translate(&hsVector3(pose.position.x, pose.position.z, pose.position.y - 6.0));
+
+	XrMatrix4x4f vrCamXR;
 	XrVector3f scale{ 1.0, 1.0, 1.0 };
-	XrMatrix4x4f_CreateTranslationRotationScale(&eyeMatrix, &pose.position, &pose.orientation, &scale);
-	hsMatrix44 eyeMatrixHS;
-	XRTransformToHSTransform(&eyeMatrix, &eyeMatrixHS);
-	w2c = eyeMatrixHS * w2c; // Todo: Is this the correct order? Is this approach ideal instead of decomposing the quaternion?
+	XrMatrix4x4f_CreateTranslationRotationScale(&vrCamXR, &pose.position, &pose.orientation, &scale);
+	XrMatrix4x4f toVrCamXR;
+	XrMatrix4x4f_Invert(&toVrCamXR, &vrCamXR);
+	hsMatrix44 toVrCam;
+	XRTransformToHSTransform(&toVrCamXR, &toVrCam);
+
+	w2c = toVrCam * w2c;
+	
 	w2c.GetInverse(&inverse);
 	vt.SetCameraTransform( w2c, inverse );
+
 	//vt.SetWidth(eyeParams.VP.w * fRenderScale);
 	//vt.SetHeight(eyeParams.VP.h * fRenderScale);
 	//vt.SetHeight(eyeParams.VP.h * fRenderScale);
@@ -459,11 +474,12 @@ void plRiftCamera::makeLayerEyeFov(XrCompositionLayerProjection* out_Layer, XrCo
 
 }
 
-void XrPosef_FlipHandedness(XrPosef *pose) {
+void posef_flip_z(XrPosef *pose) {
 	// From Bradley Austin Davis on Khronos slack
-	pose->orientation.x *= -1.0f;
+	// Change to flip z instead of x: +z is forward in Plasma view space
+	pose->orientation.z *= -1.0f;
 	pose->orientation.w *= -1.0f;
-	pose->position.x *= -1.0f;
+	pose->position.z *= -1.0f;
 }
 
 void getViews(XrSession session, XrView* views, XrSpace space, XrTime displayTime) {

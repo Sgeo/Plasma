@@ -53,7 +53,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 // local
 #include "plAvBrainHuman.h"
-#include "plAGAnim.h"
+#include "plAnimation/plAGAnim.h"
 #include "plArmatureMod.h"
 #include "plAvatarMgr.h"
 #include "plPhysicalControllerCore.h"
@@ -101,7 +101,7 @@ bool plAvTaskSeek::fLogProcess = false;
 
 void plAvTaskSeek::IInitDefaults()
 {
-    fSeekObject = nil;
+    fSeekObject = nullptr;
     fMovingTarget = false;
     fAlign = kAlignHandle;
     fAnimName = "";
@@ -114,7 +114,8 @@ void plAvTaskSeek::IInitDefaults()
     fMaxSidleAngle = kDefaultMaxSidleAngle;
     fFlags = kSeekFlagForce3rdPersonOnStart;  
     fState = kSeekRunNormal;
-    fNotifyFinishedKey = nil;
+    fNotifyFinishedKey = nullptr;
+    fFinishMsg = nullptr;
 }
 // plAvTaskSeek ------------
 // -------------
@@ -158,6 +159,7 @@ plAvTaskSeek::plAvTaskSeek(plAvSeekMsg *msg)
         fFlags &= ~kSeekFlagRotationOnly;
 
     fNotifyFinishedKey = msg->fFinishKey;
+    fFinishMsg = msg->fFinishMsg;
 }
 
 // plAvTaskSeek ------------------------
@@ -171,7 +173,7 @@ plAvTaskSeek::plAvTaskSeek(plKey target)
 
 // plAvTaskSeek -------------------------------------------------------------------------------------------
 // -------------
-plAvTaskSeek::plAvTaskSeek(plKey target, plAvAlignment align, const plString& animName, bool moving)
+plAvTaskSeek::plAvTaskSeek(plKey target, plAvAlignment align, const ST::string& animName, bool moving)
 {
     IInitDefaults();
 
@@ -303,6 +305,9 @@ void plAvTaskSeek::Finish(plArmatureMod *avatar, plArmatureBrain *brain, double 
     //inform controller we are done seeking
     if (avatar->GetController())
         avatar->GetController()->SetSeek(false);
+
+    if (fFinishMsg)
+        fFinishMsg->Send();
 }
 
 void plAvTaskSeek::LeaveAge(plArmatureMod *avatar)
@@ -556,44 +561,41 @@ bool plAvTaskSeek::IUpdateObjective(plArmatureMod *avatar)
 
 // DumpDebug -----------------------------------------------------------------------------------------------------
 // ----------
-void plAvTaskSeek::DumpDebug(const char *name, int &x, int&y, int lineHeight, char *strBuf, plDebugText &debugTxt)
+void plAvTaskSeek::DumpDebug(const char *name, int &x, int&y, int lineHeight, plDebugText &debugTxt)
 {
-    sprintf(strBuf, "duration: %.2f pos: (%.3f, %.3f, %.3f) goalPos: (%.3f, %.3f, %.3f) ",
+    debugTxt.DrawString(x, y, ST::format("duration: {.2f} pos: ({.3f}, {.3f}, {.3f}) goalPos: ({.3f}, {.3f}, {.3f}) ",
             hsTimer::GetSysSeconds() - fStartTime,
-            fPosition.fX, fPosition.fY, fPosition.fZ, fSeekPos.fX, fSeekPos.fY, fSeekPos.fZ);
-    debugTxt.DrawString(x, y, strBuf);
+            fPosition.fX, fPosition.fY, fPosition.fZ, fSeekPos.fX, fSeekPos.fY, fSeekPos.fZ));
     y += lineHeight;
 
-    sprintf(strBuf, "positioning: %d rotating %d goalVec: (%.3f, %.3f, %.3f) dist: %.3f angFwd: %.3f angRt: %.3f",
-            fStillPositioning, fStillRotating, fGoalVec.fX, fGoalVec.fY, fGoalVec.fZ, fDistance, fAngForward, fAngRight);
-    debugTxt.DrawString(x, y, strBuf);
+    debugTxt.DrawString(x, y, ST::format("positioning: {} rotating {} goalVec: ({.3f}, {.3f}, {.3f}) dist: {.3f} angFwd: {.3f} angRt: {.3f}",
+            fStillPositioning, fStillRotating, fGoalVec.fX, fGoalVec.fY, fGoalVec.fZ,
+            fDistance, fAngForward, fAngRight));
     y += lineHeight;
-    
-    sprintf(strBuf, " distFwd: %.3f distRt: %.3f shufRange: %.3f sidAngle: %.3f sidRange: %.3f, fMinWalk: %.3f",
-            fDistForward, fDistRight, fShuffleRange, fMaxSidleAngle, fMaxSidleRange, fMinFwdAngle);
-    debugTxt.DrawString(x, y, strBuf);
+
+    debugTxt.DrawString(x, y, ST::format(" distFwd: {.3f} distRt: {.3f} shufRange: {.3f} sidAngle: {.3f} sidRange: {.3f}, fMinWalk: {.3f}",
+            fDistForward, fDistRight, fShuffleRange, fMaxSidleAngle, fMaxSidleRange, fMinFwdAngle));
     y += lineHeight;
 }
 
 void plAvTaskSeek::DumpToAvatarLog(plArmatureMod *avatar)
 {
     plStatusLog *log = plAvatarMgr::GetInstance()->GetLog();
-    char strBuf[256];
-    avatar->GetMoveKeyString(strBuf);
-    log->AddLine(strBuf);
+    log->AddLine(avatar->GetMoveKeyString().c_str());
 
-    sprintf(strBuf, "    duration: %.2f pos: (%.3f, %.3f, %.3f) goalPos: (%.3f, %.3f, %.3f) ",
+    log->AddLine(ST::format("    duration: {.2f} pos: ({.3f}, {.3f}, {.3f}) goalPos: ({.3f}, {.3f}, {.3f}) ",
             hsTimer::GetSysSeconds() - fStartTime,
-            fPosition.fX, fPosition.fY, fPosition.fZ, fSeekPos.fX, fSeekPos.fY, fSeekPos.fZ);
-    log->AddLine(strBuf);
-    
-    sprintf(strBuf, "    positioning: %d rotating %d goalVec: (%.3f, %.3f, %.3f) dist: %.3f angFwd: %.3f angRt: %.3f",
-            fStillPositioning, fStillRotating, fGoalVec.fX, fGoalVec.fY, fGoalVec.fZ, fDistance, fAngForward, fAngRight);
-    log->AddLine(strBuf);
+            fPosition.fX, fPosition.fY, fPosition.fZ,
+            fSeekPos.fX, fSeekPos.fY, fSeekPos.fZ).c_str());
 
-    sprintf(strBuf, "    distFwd: %.3f distRt: %.3f shufRange: %.3f sidAngle: %.3f sidRange: %.3f, fMinWalk: %.3f",
-            fDistForward, fDistRight, fShuffleRange, fMaxSidleAngle, fMaxSidleRange, fMinFwdAngle);
-    log->AddLine(strBuf);
+    log->AddLine(ST::format("    positioning: {} rotating {} goalVec: ({.3f}, {.3f}, {.3f}) dist: {.3f} angFwd: {.3f} angRt: {.3f}",
+            fStillPositioning, fStillRotating,
+            fGoalVec.fX, fGoalVec.fY, fGoalVec.fZ,
+            fDistance, fAngForward, fAngRight).c_str());
+
+    log->AddLine(ST::format("    distFwd: {.3f} distRt: {.3f} shufRange: {.3f} sidAngle: {.3f} sidRange: {.3f}, fMinWalk: {.3f}",
+            fDistForward, fDistRight, fShuffleRange,
+            fMaxSidleAngle, fMaxSidleRange, fMinFwdAngle).c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -620,7 +622,7 @@ float QuatAngleDiff(const hsQuat &a, const hsQuat &b)
 
     // Calling acos on 1.0 is returning an undefined value. Need to check for it.
     float epsilon = 0.00001;
-    if (hsABS(cos_t - 1.f) < epsilon)
+    if (fabs(cos_t - 1.f) < epsilon)
         return 0;
 
     theta   = acos(cos_t);

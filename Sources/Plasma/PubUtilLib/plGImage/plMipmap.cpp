@@ -57,10 +57,12 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsExceptions.h"
 
 #include "hsColorRGBA.h"
-#include "plPipeline/hsGDeviceRef.h"
+#include "hsGDeviceRef.h"
 #include "plProfile.h"
 #include "plJPEG.h"
+#include "plPNG.h"
 #include <cmath>
+#include <algorithm>
 
 plProfile_CreateMemCounter("Mipmaps", "Memory", MemMipmaps);
 
@@ -123,11 +125,8 @@ void    plMipmap::Create( uint32_t width, uint32_t height, unsigned config, uint
     }
     
     fCompressionType = compType;
-    if( compType == kUncompressed )
-    {
-        fUncompressedInfo.fType = format;
-    }
-    else if( compType == kJPEGCompression )
+    if( compType == kUncompressed || compType == kJPEGCompression ||
+        compType == kPNGCompression )
     {
         fUncompressedInfo.fType = format;
     }
@@ -270,6 +269,10 @@ uint32_t  plMipmap::Read( hsStream *s )
             case kJPEGCompression:
                 IReadJPEGImage( s );
                 break;
+
+            case kPNGCompression:
+                IReadPNGImage( s );
+                break;
                 
             default:
                 hsAssert( false, "Unknown compression type in plMipmap::Read()" );
@@ -308,6 +311,10 @@ uint32_t  plMipmap::Write( hsStream *s )
 
             case kJPEGCompression:
                 IWriteJPEGImage( s );
+                break;
+
+            case kPNGCompression:
+                IWritePNGImage( s );
                 break;
 
             default:
@@ -577,6 +584,23 @@ void plMipmap::IWriteJPEGImage( hsStream *stream )
     delete alpha;
 }
 
+void plMipmap::IReadPNGImage(hsStream* stream)
+{
+    plMipmap* temp = nullptr;
+
+    temp = plPNG::Instance().ReadFromStream(stream);
+
+    if (temp) {
+        CopyFrom(temp);
+        delete temp;
+    }
+}
+
+void plMipmap::IWritePNGImage(hsStream* stream)
+{
+    plPNG::Instance().WriteToStream(stream, this);
+}
+
 //// GetLevelSize /////////////////////////////////////////////////////////////
 //  Get the size of a single mipmap level (0 is the largest)
 
@@ -614,6 +638,7 @@ void    plMipmap::IBuildLevelSizes()
 
             case kUncompressed:
             case kJPEGCompression:
+            case kPNGCompression:
                 fLevelSizes[ level ] = height * rowBytes;
                 break;
 
@@ -994,9 +1019,9 @@ float plMipmap::IGetDetailLevelAlpha( uint8_t level, float dropStart, float drop
     detailAlpha = ( level - dropStart ) * ( min - max ) / ( dropStop - dropStart ) + max;
 
     if( min < max )
-        detailAlpha = hsMinimum( max, hsMaximum( min, detailAlpha ) );
+        detailAlpha = std::min(max, std::max(min, detailAlpha));
     else
-        detailAlpha = hsMinimum( min, hsMaximum( max, detailAlpha ) );
+        detailAlpha = std::min(min, std::max(max, detailAlpha));
 
     return detailAlpha;
 }
@@ -1587,6 +1612,7 @@ void    plMipmap::CopyFrom( const plMipmap *source )
             break;
         case kUncompressed:
         case kJPEGCompression:
+        case kPNGCompression:
             fUncompressedInfo.fType = source->fUncompressedInfo.fType;
             break;
         default:
@@ -1746,6 +1772,18 @@ void    plMipmap::Composite( plMipmap *source, uint16_t x, uint16_t y, plMipmap:
             for( pY = (uint16_t)srcHeight; pY > 0; pY-- )
             {
                 memcpy( dstPtr, srcPtr, srcRowBytesToCopy );
+                if( options->fFlags & kDestPremultiplied )
+                {
+                    // multiply color values by alpha
+                    for( pX = 0; pX < srcWidth; pX++ )
+                    {
+                        srcAlpha = ((dstPtr[ pX ] >> 24) & 0x000000ff);
+                        dstPtr[ pX ] = ( srcAlpha << 24 )
+                            | (((((dstPtr[ pX ] >> 16) & 0xff)*srcAlpha + 127)/255) << 16)
+                            | (((((dstPtr[ pX ] >>  8) & 0xff)*srcAlpha + 127)/255) <<  8)
+                            | (((((dstPtr[ pX ]      ) & 0xff)*srcAlpha + 127)/255)      );
+                    }
+                }
                 dstPtr += dstRowBytes >> 2;
                 srcPtr += srcRowBytes >> 2;
             }
@@ -1777,7 +1815,15 @@ void    plMipmap::Composite( plMipmap *source, uint16_t x, uint16_t y, plMipmap:
                 {
                     srcAlpha = options->fOpacity * ( ( srcPtr[ pX ] >> 16 ) & 0x0000ff00 ) / 255 / 256;
                     if( srcAlpha != 0 )
-                        dstPtr[ pX ] = ( srcPtr[ pX ] & 0x00ffffff ) | ( srcAlpha << 24 );
+                    {
+                        if( options->fFlags & kDestPremultiplied )
+                            dstPtr[ pX ] = ( srcAlpha << 24 )
+                                | (((((srcPtr[ pX ] >> 16) & 0xff)*srcAlpha + 127)/255) << 16)
+                                | (((((srcPtr[ pX ] >>  8) & 0xff)*srcAlpha + 127)/255) <<  8)
+                                | (((((srcPtr[ pX ]      ) & 0xff)*srcAlpha + 127)/255)      );
+                        else
+                            dstPtr[ pX ] = ( srcPtr[ pX ] & 0x00ffffff ) | ( srcAlpha << 24 );
+                    }
                 }
                 dstPtr += dstRowBytes >> 2;
                 srcPtr += srcRowBytes >> 2;
@@ -2177,10 +2223,13 @@ void    plMipmap::IReportLeaks()
     for( record = fRecords; record != nil;  )
     {
         size = record->fHeight * record->fRowBytes;
-        if( size >= 1024 )
-            sprintf( msg, "%s, %4.1f kB: \t%dx%d, %d levels, %d bpr", record->fKeyName, size / 1024.f, record->fWidth, record->fHeight, record->fNumLevels, record->fRowBytes );
-        else
-            sprintf( msg, "%s, %u bytes: \t%dx%d, %d levels, %d bpr", record->fKeyName, size, record->fWidth, record->fHeight, record->fNumLevels, record->fRowBytes );
+        if (size >= 1024) {
+            sprintf(msg, "%s, %4.1f kB: \t%dx%d, %d levels, %d bpr", record->fKeyName.c_str(),
+                    size / 1024.f, record->fWidth, record->fHeight, record->fNumLevels, record->fRowBytes);
+        } else {
+            sprintf(msg, "%s, %u bytes: \t%dx%d, %d levels, %d bpr", record->fKeyName.c_str(),
+                    size, record->fWidth, record->fHeight, record->fNumLevels, record->fRowBytes);
+        }
 
         if( record->fCompressionType != kDirectXCompression )
             sprintf( m2, " UType: %d", record->fUncompressedInfo.fType );

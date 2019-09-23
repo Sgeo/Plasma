@@ -182,20 +182,24 @@ bool plListener::IEval(double secs, float del, uint32_t dirty)
 
     if( fPrintDbgInfo ) 
     {
-        plString str;
-        str = plString::Format( "Direction: (%3.2f,%3.2f,%3.2f) from %s", dir.fX, dir.fY, dir.fZ, ( facingType == kObject ) ? pRefObject->GetKey()->GetUoid().GetObjectName().c_str() : "VCam" );
+        ST::string str;
+        str = ST::format("Direction: ({3.2f},{3.2f},{3.2f}) from {}", dir.fX, dir.fY, dir.fZ,
+                         (facingType == kObject) ? pRefObject->GetKeyName() : "VCam");
         plDebugText::Instance().DrawString( x, y, str.c_str(), (uint32_t)0xffffffff );
         y += 12;
 
-        str = plString::Format( "Up: (%3.2f,%3.2f,%3.2f) from %s", up.fX, up.fY, up.fZ, ( facingType == kObject ) ? pRefObject->GetKey()->GetUoid().GetObjectName().c_str() : "VCam" );
+        str = ST::format("Up: ({3.2f},{3.2f},{3.2f}) from {}", up.fX, up.fY, up.fZ,
+                         (facingType == kObject) ? pRefObject->GetKeyName() : "VCam");
         plDebugText::Instance().DrawString( x, y, str.c_str(), (uint32_t)0xffffffff );
         y += 12;
 
-        str = plString::Format( "Position: (%3.2f,%3.2f,%3.2f) from %s", position.fX, position.fY, position.fZ, ( posType == kObject ) ? pRefObject->GetKey()->GetUoid().GetObjectName().c_str() : "VCam" );
+        str = ST::format("Position: ({3.2f},{3.2f},{3.2f}) from {}", position.fX, position.fY, position.fZ,
+                         (posType == kObject) ? pRefObject->GetKeyName() : "VCam");
         plDebugText::Instance().DrawString( x, y, str.c_str(), (uint32_t)0xffffffff );
         y += 12;
 
-        str = plString::Format( "Velocity: (%3.2f,%3.2f,%3.2f) from %s", velocity.fX, velocity.fY, velocity.fZ, ( velType == kObject ) ? pRefObject->GetKey()->GetUoid().GetObjectName().c_str() : "VCam" );
+        str = ST::format("Velocity: ({3.2f},{3.2f},{3.2f}) from {}", velocity.fX, velocity.fY, velocity.fZ,
+                         (velType == kObject) ? pRefObject->GetKeyName() : "VCam");
         plDebugText::Instance().DrawString( x, y, str.c_str(), (uint32_t)0xffffffff );
         y += 12;
     }

@@ -89,17 +89,18 @@ public:
 
     struct StateDefn
     {
-        plKey   fObjKey;
+        plKey     fObjKey;
         uint32_t  fSendFlags;
-        std::string fSDLName;
+        ST::string  fSDLName;
 
         plSynchedObject* GetObject() const { return plSynchedObject::ConvertNoRef(fObjKey->ObjectIsLoaded()); }
         StateDefn() : fObjKey(nil),fSendFlags(0) {}
-        StateDefn(plKey k, uint32_t f, const char* sdlName) : fObjKey(k),fSendFlags(f) { fSDLName=sdlName; }
+        StateDefn(plKey k, uint32_t f, const ST::string& sdlName)
+            : fObjKey(k), fSendFlags(f), fSDLName(sdlName) { }
     };
 
 private:
-    typedef std::vector<std::string> SDLStateList;
+    typedef std::vector<ST::string> SDLStateList;
     SDLStateList fSDLExcludeList;
     SDLStateList fSDLVolatileList;
     uint32_t fSynchFlags;
@@ -110,21 +111,21 @@ private:
     static plSynchedObject* fStaticSynchedObj;      // static which temporarily holds address of each object's synchMgr
     static std::vector<StateDefn>   fDirtyStates;
 
-    static void IRemoveDirtyState(plKey o, const char* sdlName);
-    static void IAddDirtyState(plKey o, const char* sdlName, uint32_t sendFlags);
-    bool IOKToDirty(const char* SDLStateName) const;
-    SDLStateList::const_iterator IFindInSDLStateList(const SDLStateList& list, const char* sdlName) const;
+    static void IRemoveDirtyState(plKey o, const ST::string& sdlName);
+    static void IAddDirtyState(plKey o, const ST::string& sdlName, uint32_t sendFlags);
+    bool IOKToDirty(const ST::string& SDLStateName) const;
+    SDLStateList::const_iterator IFindInSDLStateList(const SDLStateList& list, const ST::string& sdlName) const;
 protected:
-    bool IOKToNetwork(const char* sdlName, uint32_t* synchFlags) const;   
+    bool IOKToNetwork(const ST::string& sdlName, uint32_t* synchFlags) const;
 public:
     plSynchedObject();
     virtual ~plSynchedObject();
 
-    CLASSNAME_REGISTER( plSynchedObject );
-    GETINTERFACE_ANY( plSynchedObject, hsKeyedObject);
+    CLASSNAME_REGISTER(plSynchedObject);
+    GETINTERFACE_ANY(plSynchedObject, hsKeyedObject);
 
-    virtual bool MsgReceive(plMessage* msg);
-    
+    bool MsgReceive(plMessage* msg) HS_OVERRIDE;
+
     // getters
     int GetSynchFlags() const { return fSynchFlags; }
     plNetGroupId GetNetGroup() const { return fNetGroup; };
@@ -136,8 +137,8 @@ public:
     virtual void SetNetGroup(plNetGroupId netGroup) { fNetGroup = netGroup; }   
     plNetGroupId SelectNetGroup(plKey groupKey);
 
-    virtual bool DirtySynchState(const char* sdlName, uint32_t sendFlags);      
-    void SendSDLStateMsg(const char* SDLStateName, uint32_t synchFlags);  // don't use, only for net code
+    virtual bool DirtySynchState(const ST::string& sdlName, uint32_t sendFlags);
+    void SendSDLStateMsg(const ST::string& SDLStateName, uint32_t synchFlags);  // don't use, only for net code
 
     void ClearSynchFlagsBit(uint32_t f) { fSynchFlags &= ~f; }
 
@@ -154,11 +155,11 @@ public:
 //  void SendCreationMsg(double secs);
 //  void SendDestructionMsg(double secs) ;
 
-    virtual void    Read(hsStream* s, hsResMgr* mgr);
-    virtual void    Write(hsStream* s, hsResMgr* mgr);
+    void Read(hsStream* s, hsResMgr* mgr) HS_OVERRIDE;
+    void Write(hsStream* s, hsResMgr* mgr) HS_OVERRIDE;
 
     int IsLocallyOwned() const;     // returns yes/no/maybe
-    
+
     // disable net synching only
     bool IsNetSynched() const { return (fSynchFlags & kDontSynchGameMessages)==0; }
     void SetNetSynched(bool b) { if (!b) fSynchFlags |= kDontSynchGameMessages; else fSynchFlags &= ~kDontSynchGameMessages;    }
@@ -168,14 +169,14 @@ public:
     void SetLocalOnly(bool b) { if (b) fSynchFlags |= kLocalOnly; else fSynchFlags &= ~kLocalOnly;  }
 
     // disable particular types of persistence
-    void AddToSDLExcludeList(const char*);
-    void RemoveFromSDLExcludeList(const char*);
-    bool IsInSDLExcludeList(const char*) const;
+    void AddToSDLExcludeList(const ST::string&);
+    void RemoveFromSDLExcludeList(const ST::string&);
+    bool IsInSDLExcludeList(const ST::string&) const;
 
     // make volatile particular types of state
-    void AddToSDLVolatileList(const char*);
-    void RemoveFromSDLVolatileList(const char*);
-    bool IsInSDLVolatileList(const char*) const;
+    void AddToSDLVolatileList(const ST::string&);
+    void RemoveFromSDLVolatileList(const ST::string&);
+    bool IsInSDLVolatileList(const ST::string&) const;
 
     //
     // synched value stuff, currently unused

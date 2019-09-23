@@ -56,6 +56,17 @@ const char* plLocalization::fLangTags[] =
 };
 const int kLangTagLen = 4;
 
+// ISO 639, e.g. used in video tracks
+std::set<ST::string> plLocalization::fLangCodes[] =
+{
+    {"eng", "en"},
+    {"fre", "fra", "fr"},
+    {"ger", "deu", "de"},
+    {"spa", "es"},
+    {"ita", "it"},
+    {"jpn", "ja"}
+};
+
 const char* plLocalization::fLangNames[] =
 {
     "English", // kEnglish
@@ -88,17 +99,17 @@ plLocalization::encodingTypes plLocalization::fUnicodeEncoding[] =
 
 plFileName plLocalization::IGetLocalized(const plFileName& name, Language lang)
 {
-    int underscore = name.AsString().FindLast('_');
+    ST_ssize_t underscore = name.AsString().find_last('_');
 
     if (underscore >= 0)
     {
-        plString langTag = name.AsString().Substr(underscore, kLangTagLen);
+        ST::string langTag = name.AsString().substr(underscore, kLangTagLen);
 
         if (langTag == fLangTags[kEnglish])
-            return name.AsString().Left(underscore) + fLangTags[lang];
+            return name.AsString().replace(fLangTags[kEnglish], fLangTags[lang]);
     }
 
-    return "";
+    return ST::null;
 }
 
 plFileName plLocalization::ExportGetLocalized(const plFileName& name, int lang)

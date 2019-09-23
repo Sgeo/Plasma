@@ -49,60 +49,9 @@ plConfigInfoLogging::~plConfigInfoLogging()
 {
 }
 
-bool plConfigInfoLogging::GetValue(plString& retval, const plString & section, const plString & key, const plString & desc, const plString& defval)
+bool plConfigInfoLogging::GetAllValues(std::vector<ST::string>& values, const ST::string & section, const ST::string & key, const ST::string & desc)
 {
-    plString descwdef = plString::Format("%s  # %s",defval.c_str(),desc.c_str());
-    fLog.AddValue(section,key,descwdef,kReplaceIfExists);
-
-    bool found;
-    retval = fConfigInfo.GetValue(section,key,defval,&found);
-    return found;
-}
-
-bool plConfigInfoLogging::GetValue(int& retval, const plString & section, const plString & key, const plString & desc, int defval)
-{
-    plString descwdef = plString::Format("%d  # %s",defval,desc.c_str());
-    fLog.AddValue(section,key,descwdef,kReplaceIfExists);
-
-    bool found;
-    retval = fConfigInfo.GetValue(section,key,defval,&found);
-    return found;
-}
-
-bool plConfigInfoLogging::GetValue(bool& retval, const plString & section, const plString & key, const plString & desc, bool defval)
-{
-    plString descwdef = plString::Format("%d  # %s",defval,desc.c_str());
-    fLog.AddValue(section,key,descwdef,kReplaceIfExists);
-
-    bool found;
-    retval = ( fConfigInfo.GetValue(section,key,(int)defval,&found)!=0 );
-    return found;
-}
-
-bool plConfigInfoLogging::GetValue(float& retval, const plString & section, const plString & key, const plString & desc, float defval)
-{
-    plString descwdef = plString::Format("%f  # %s",defval,desc.c_str());
-    fLog.AddValue(section,key,descwdef,kReplaceIfExists);
-
-    bool found;
-    double retvald = fConfigInfo.GetValue(section,key,defval,&found);
-    retval = (float)retvald;
-    return found;
-}
-
-bool plConfigInfoLogging::GetValue(double& retval, const plString & section, const plString & key, const plString & desc, double defval)
-{
-    plString descwdef = plString::Format("%f  # %s",defval,desc.c_str());
-    fLog.AddValue(section,key,descwdef,kReplaceIfExists);
-
-    bool found;
-    retval = fConfigInfo.GetValue(section,key,defval,&found);
-    return found;
-}
-
-bool plConfigInfoLogging::GetAllValues(std::vector<plString>& values, const plString & section, const plString & key, const plString & desc)
-{
-    plString descwdef = plString::Format("%s  # %s","\"Multiple Entries\"",desc.c_str());
+    ST::string descwdef = ST::format("\"Multiple Entries\"  # {}", desc);
     fLog.AddValue(section,key,descwdef,kReplaceIfExists);
 
     values = fConfigInfo.GetAllValues(section,key);
@@ -111,7 +60,7 @@ bool plConfigInfoLogging::GetAllValues(std::vector<plString>& values, const plSt
 
 #if USE_MULT_SECTIONS
 
-bool plConfigInfoLogging::GetValueAny(plString& retval, const plString & key, const plString & desc, const plString & defval)
+bool plConfigInfoLogging::GetValueAny(ST::string& retval, const ST::string & key, const ST::string & desc, const ST::string & defval)
 {
     fLog.AddValue("ANY SECTION",key,desc,kReplaceIfExists);
 
@@ -120,7 +69,7 @@ bool plConfigInfoLogging::GetValueAny(plString& retval, const plString & key, co
     return found;
 }
 
-bool plConfigInfoLogging::GetValueAny(int &retval, const plString & key, const plString & desc, int defval)
+bool plConfigInfoLogging::GetValueAny(int &retval, const ST::string & key, const ST::string & desc, int defval)
 {
     fLog.AddValue("ANY SECTION",key,desc,kReplaceIfExists);
 
@@ -129,7 +78,7 @@ bool plConfigInfoLogging::GetValueAny(int &retval, const plString & key, const p
     return found;
 }
 
-bool plConfigInfoLogging::GetValueAny(bool &retval, const plString & key, const plString & desc, bool defval)
+bool plConfigInfoLogging::GetValueAny(bool &retval, const ST::string & key, const ST::string & desc, bool defval)
 {
     fLog.AddValue("ANY SECTION",key,desc,kReplaceIfExists);
 
@@ -138,7 +87,7 @@ bool plConfigInfoLogging::GetValueAny(bool &retval, const plString & key, const 
     return found;
 }
 
-bool plConfigInfoLogging::GetValueAny(float& retval, const plString & key, const plString & desc, float defval)
+bool plConfigInfoLogging::GetValueAny(float& retval, const ST::string & key, const ST::string & desc, float defval)
 {
     fLog.AddValue("ANY SECTION",key,desc,kReplaceIfExists);
 
@@ -147,7 +96,7 @@ bool plConfigInfoLogging::GetValueAny(float& retval, const plString & key, const
     return found;
 }
 
-bool plConfigInfoLogging::GetValueAny(double& retval, const plString & key, const plString & desc, double defval)
+bool plConfigInfoLogging::GetValueAny(double& retval, const ST::string & key, const ST::string & desc, double defval)
 {
     fLog.AddValue("ANY SECTION",key,desc,kReplaceIfExists);
 
@@ -156,7 +105,7 @@ bool plConfigInfoLogging::GetValueAny(double& retval, const plString & key, cons
     return found;
 }
 
-bool plConfigInfoLogging::GetAllValuesAny(std::vector<plString>& values, const plString & key, const plString & desc)
+bool plConfigInfoLogging::GetAllValuesAny(std::vector<ST::string>& values, const ST::string & key, const ST::string & desc)
 {
     fLog.AddValue("ANY SECTION",key,desc,kReplaceIfExists);
 
@@ -164,12 +113,12 @@ bool plConfigInfoLogging::GetAllValuesAny(std::vector<plString>& values, const p
     return values.size() != 0;
 }
 
-bool plConfigInfoLogging::GetValueIn(plString& retval, const plString & key,  const plString & desc, const plString & defval, const char * section1, ... /*, nil*/)
+bool plConfigInfoLogging::GetValueIn(ST::string& retval, const ST::string & key,  const ST::string & desc, const ST::string & defval, const char * section1, ... /*, nil*/)
 {
     const char * section = section1;
     va_list va;
     va_start(va,section1);
-    std::vector<plString> sections;
+    std::vector<ST::string> sections;
     while (section)
     {
         sections.push_back( section );
@@ -180,9 +129,9 @@ bool plConfigInfoLogging::GetValueIn(plString& retval, const plString & key,  co
     return GetValueIn(retval,key,desc,defval,sections);
 }
 
-bool plConfigInfoLogging::GetValueIn(plString& retval, const plString & key,  const plString & desc, const plString & defval, std::vector<plString> & sections )
+bool plConfigInfoLogging::GetValueIn(ST::string& retval, const ST::string & key,  const ST::string & desc, const ST::string & defval, std::vector<ST::string> & sections )
 {
-    std::vector<plString>::iterator si = sections.begin();
+    std::vector<ST::string>::iterator si = sections.begin();
     while (si != sections.end())
     {
         fLog.AddValue(*si,key,desc,kReplaceIfExists);
@@ -194,12 +143,12 @@ bool plConfigInfoLogging::GetValueIn(plString& retval, const plString & key,  co
     return found;
 }
 
-bool plConfigInfoLogging::GetValueIn(int& retval, const plString & key,  const plString & desc, int defval, const char * section1, ... /*, nil*/)
+bool plConfigInfoLogging::GetValueIn(int& retval, const ST::string & key,  const ST::string & desc, int defval, const char * section1, ... /*, nil*/)
 {
     const char * section = section1;
     va_list va;
     va_start(va,section1);
-    std::vector<plString> sections;
+    std::vector<ST::string> sections;
     while (section)
     {
         sections.push_back( section );
@@ -210,9 +159,9 @@ bool plConfigInfoLogging::GetValueIn(int& retval, const plString & key,  const p
     return GetValueIn(retval,key,desc,defval,sections);
 }
 
-bool plConfigInfoLogging::GetValueIn(int& retval, const plString & key,  const plString & desc, int defval, std::vector<plString> & sections )
+bool plConfigInfoLogging::GetValueIn(int& retval, const ST::string & key,  const ST::string & desc, int defval, std::vector<ST::string> & sections )
 {
-    std::vector<plString>::iterator si = sections.begin();
+    std::vector<ST::string>::iterator si = sections.begin();
     while (si != sections.end())
     {
         fLog.AddValue(*si,key,desc,kReplaceIfExists);
@@ -224,12 +173,12 @@ bool plConfigInfoLogging::GetValueIn(int& retval, const plString & key,  const p
     return found;
 }
 
-bool plConfigInfoLogging::GetValueIn(bool& retval, const plString & key,  const plString & desc, bool defval, const char * section1, ... /*, nil*/)
+bool plConfigInfoLogging::GetValueIn(bool& retval, const ST::string & key,  const ST::string & desc, bool defval, const char * section1, ... /*, nil*/)
 {
     const char * section = section1;
     va_list va;
     va_start(va,section1);
-    std::vector<plString> sections;
+    std::vector<ST::string> sections;
     while (section)
     {
         sections.push_back( section );
@@ -240,9 +189,9 @@ bool plConfigInfoLogging::GetValueIn(bool& retval, const plString & key,  const 
     return GetValueIn(retval,key,desc,defval,sections);
 }
 
-bool plConfigInfoLogging::GetValueIn(bool& retval, const plString & key,  const plString & desc, bool defval, std::vector<plString> & sections )
+bool plConfigInfoLogging::GetValueIn(bool& retval, const ST::string & key,  const ST::string & desc, bool defval, std::vector<ST::string> & sections )
 {
-    std::vector<plString>::iterator si = sections.begin();
+    std::vector<ST::string>::iterator si = sections.begin();
     while (si != sections.end())
     {
         fLog.AddValue(*si,key,desc,kReplaceIfExists);
@@ -254,12 +203,12 @@ bool plConfigInfoLogging::GetValueIn(bool& retval, const plString & key,  const 
     return found;
 }
 
-bool plConfigInfoLogging::GetValueIn(float& retval, const plString & key,  const plString & desc, double defval, const char * section1, ... /*, nil*/)
+bool plConfigInfoLogging::GetValueIn(float& retval, const ST::string & key,  const ST::string & desc, double defval, const char * section1, ... /*, nil*/)
 {
     const char * section = section1;
     va_list va;
     va_start(va,section1);
-    std::vector<plString> sections;
+    std::vector<ST::string> sections;
     while (section)
     {
         sections.push_back( section );
@@ -270,9 +219,9 @@ bool plConfigInfoLogging::GetValueIn(float& retval, const plString & key,  const
     return GetValueIn(retval,key,desc,defval,sections);
 }
 
-bool plConfigInfoLogging::GetValueIn(float& retval, const plString & key,  const plString & desc, double defval, std::vector<plString> & sections )
+bool plConfigInfoLogging::GetValueIn(float& retval, const ST::string & key,  const ST::string & desc, double defval, std::vector<ST::string> & sections )
 {
-    std::vector<plString>::iterator si = sections.begin();
+    std::vector<ST::string>::iterator si = sections.begin();
     while (si != sections.end())
     {
         fLog.AddValue(*si,key,desc,kReplaceIfExists);
@@ -284,12 +233,12 @@ bool plConfigInfoLogging::GetValueIn(float& retval, const plString & key,  const
     return found;
 }
 
-bool plConfigInfoLogging::GetValueIn(double& retval, const plString & key,  const plString & desc, double defval, const char * section1, ... /*, nil*/)
+bool plConfigInfoLogging::GetValueIn(double& retval, const ST::string & key,  const ST::string & desc, double defval, const char * section1, ... /*, nil*/)
 {
     const char * section = section1;
     va_list va;
     va_start(va,section1);
-    std::vector<plString> sections;
+    std::vector<ST::string> sections;
     while (section)
     {
         sections.push_back( section );
@@ -300,9 +249,9 @@ bool plConfigInfoLogging::GetValueIn(double& retval, const plString & key,  cons
     return GetValueIn(retval,key,desc,defval,sections);
 }
 
-bool plConfigInfoLogging::GetValueIn(double& retval, const plString & key,  const plString & desc, double defval, std::vector<plString> & sections )
+bool plConfigInfoLogging::GetValueIn(double& retval, const ST::string & key,  const ST::string & desc, double defval, std::vector<ST::string> & sections )
 {
-    std::vector<plString>::iterator si = sections.begin();
+    std::vector<ST::string>::iterator si = sections.begin();
     while (si != sections.end())
     {
         fLog.AddValue(*si,key,desc,kReplaceIfExists);

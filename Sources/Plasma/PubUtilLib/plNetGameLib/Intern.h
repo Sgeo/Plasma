@@ -181,20 +181,21 @@ enum ETransType {
     kScoreSetPointsTrans,
     kScoreGetRanksTrans,
     kSendFriendInviteTrans,
-    
+    kScoreGetHighScoresTrans,
+
     //========================================================================
     // NglGame.cpp transactions
     kJoinAgeRequestTrans,
     kGmRcvdPropagatedBufferTrans,
     kGmRcvdGameMgrMsgTrans,
-    
+
     //========================================================================
     // NglFile.cpp transactions
     kBuildIdRequestTrans,
     kManifestRequestTrans,
     kDownloadRequestTrans,
     kFileRcvdFileDownloadChunkTrans,
-    
+
     //========================================================================
     // NglCore.cpp transactions
     kReportNetErrorTrans,
@@ -251,6 +252,7 @@ static const char * s_transTypes[] = {
     "ScoreSetPointsTrans",
     "ScoreGetRanksTrans",
     "SendFriendInviteTrans",
+    "ScoreGetHighScoresTrans",
     
     // NglGame.cpp
     "JoinAgeRequestTrans",
@@ -273,7 +275,7 @@ static const char * s_transTypes[] = {
 };
 static_assert(arrsize(s_transTypes) == kNumTransTypes, "Ngl Trans array and enum differ in size");
 
-static long s_perfTransCount[kNumTransTypes];
+static std::atomic<long> s_perfTransCount[kNumTransTypes];
 
 
 namespace Auth { struct CliAuConn; }
@@ -287,7 +289,7 @@ enum ENetTransState {
     kTransStateComplete,
 };
 
-struct NetTrans : AtomicRef {
+struct NetTrans : hsRefCnt {
     LINK(NetTrans)  m_link;
     ENetTransState  m_state;
     ENetError       m_result;

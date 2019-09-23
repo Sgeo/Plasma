@@ -42,7 +42,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #ifndef plDispatch_inc
 #define plDispatch_inc
+
 #include <list>
+#include <mutex>
 #include "hsTemplates.h"
 #include "plgDispatch.h"
 #include "hsThread.h"
@@ -74,10 +76,10 @@ protected:
     hsKeyedObject*                  fOwner;
 
     plMsgWrap*                      fFutureMsgQueue;
-    static int32_t                    fNumBufferReq;
+    static int32_t                  fNumBufferReq;
     static plMsgWrap*               fMsgCurrent;
-    static hsMutex                  fMsgCurrentMutex; // mutex for above
-    static hsMutex                  fMsgDispatchLock;   // mutex for IMsgDispatch
+    static std::mutex               fMsgCurrentMutex; // mutex for above
+    static std::mutex               fMsgDispatchLock;   // mutex for IMsgDispatch
     static plMsgWrap*               fMsgHead;
     static plMsgWrap*               fMsgTail;
     static bool                     fMsgActive;
@@ -86,7 +88,7 @@ protected:
 
     hsTArray<plTypeFilter*>         fRegisteredExactTypes;
     std::list<plMessage*>           fQueuedMsgList;
-    hsMutex                         fQueuedMsgListMutex; // mutex for above
+    std::mutex                      fQueuedMsgListMutex; // mutex for above
     bool                            fQueuedMsgOn;       // Turns on or off Queued Messages, Plugins need them off
 
     hsKeyedObject*                  IGetOwner() { return fOwner; }
@@ -116,42 +118,51 @@ public:
     CLASSNAME_REGISTER( plDispatch );
     GETINTERFACE_ANY( plDispatch, plCreatable );
 
-    virtual void RegisterForType(uint16_t hClass, const plKey& receiver);
-    virtual void RegisterForExactType(uint16_t hClass, const plKey& receiver);
+    void RegisterForType(uint16_t hClass, const plKey& receiver) HS_OVERRIDE;
+    void RegisterForExactType(uint16_t hClass, const plKey& receiver) HS_OVERRIDE;
 
-    virtual void UnRegisterForType(uint16_t hClass, const plKey& receiver);
-    virtual void UnRegisterForExactType(uint16_t hClass, const plKey& receiver);
+    void UnRegisterForType(uint16_t hClass, const plKey& receiver) HS_OVERRIDE;
+    void UnRegisterForExactType(uint16_t hClass, const plKey& receiver) HS_OVERRIDE;
 
-    virtual void UnRegisterAll(const plKey& receiver);
+    void UnRegisterAll(const plKey& receiver) HS_OVERRIDE;
 
-    virtual bool    MsgSend(plMessage* msg, bool async=false);
-    virtual void    MsgQueue(plMessage* msg);   // Used by other thread to Send Messages, they are handled as soon as Practicable
-    virtual void    MsgQueueProcess();
-    virtual void    MsgQueueOnOff(bool );     // Turn on or off Queued Messages, if off, uses MsgSend Immediately
+    bool MsgSend(plMessage* msg, bool async=false) HS_OVERRIDE;
 
-    virtual bool    SetMsgBuffering(bool on); // On starts deferring msg delivery until buffering is set to off again.
+    // Used by other thread to Send Messages, they are handled as soon as
+    // Practicable
+    void MsgQueue(plMessage* msg) HS_OVERRIDE;
+    void MsgQueueProcess() HS_OVERRIDE;
 
-    virtual void    BeginShutdown();
+    // Turn on or off Queued Messages, if off, uses MsgSend Immediately (for
+    // plugins)
+    void MsgQueueOnOff(bool sw) HS_OVERRIDE;
 
-    static void SetMsgRecieveCallback(MsgRecieveCallback callback) { fMsgRecieveCallback = callback; }
+    // On starts deferring msg delivery until buffering is set to off again.
+    bool SetMsgBuffering(bool on) HS_OVERRIDE;
+
+    void BeginShutdown() HS_OVERRIDE;
+
+    static void SetMsgRecieveCallback(MsgRecieveCallback callback) {
+        fMsgRecieveCallback = callback;
+    }
 };
+
 
 class plNullDispatch : public plDispatch
 {
 public:
 
-    virtual void RegisterForExactType(uint16_t hClass, const plKey& receiver) {}
-    virtual void RegisterForType(uint16_t hClass, const plKey& receiver) {}
+    void RegisterForExactType(uint16_t hClass, const plKey& receiver) HS_OVERRIDE {}
+    void RegisterForType(uint16_t hClass, const plKey& receiver) HS_OVERRIDE {}
 
-    virtual void UnRegisterForExactType(uint16_t hClass, const plKey& receiver) {}
-    virtual void UnRegisterForType(uint16_t hClass, const plKey& receiver) {}
+    void UnRegisterForExactType(uint16_t hClass, const plKey& receiver) HS_OVERRIDE {}
+    void UnRegisterForType(uint16_t hClass, const plKey& receiver) HS_OVERRIDE {}
 
+    bool MsgSend(plMessage* msg, bool async=false) HS_OVERRIDE { return true; }
+    void MsgQueue(plMessage* msg) HS_OVERRIDE {}
+    void MsgQueueProcess() HS_OVERRIDE {}
 
-    virtual bool MsgSend(plMessage* msg) { return true; }
-    virtual void MsgQueue(plMessage* msg) {}
-    virtual void MsgQueueProcess() {}
-
-    virtual void BeginShutdown() {}
+    void BeginShutdown() HS_OVERRIDE {}
 
 };
 

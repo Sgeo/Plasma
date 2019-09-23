@@ -80,7 +80,7 @@ static PyObject * GetChildFolder (RelVaultNode * node, unsigned type) {
     PyObject * result = nil;
     if (RelVaultNode * rvn = node->GetChildFolderNodeIncRef(type, 1)) {
         result = pyVaultFolderNode::New(rvn);
-        rvn->DecRef();
+        rvn->UnRef();
     }
     return result;
 }
@@ -89,20 +89,16 @@ static PyObject * GetChildFolder (RelVaultNode * node, unsigned type) {
 //============================================================================
 static PyObject * GetChildPlayerInfoList (RelVaultNode * node, unsigned type) {
     PyObject * result = nil;
-    if (RelVaultNode * rvn = node->GetChildPlayerInfoListNodeIncRef(type, 1)) {
+    if (hsRef<RelVaultNode> rvn = node->GetChildPlayerInfoListNode(type, 1))
         result = pyVaultPlayerInfoListNode::New(rvn);
-        rvn->DecRef();
-    }
     return result;
 }
 
 //============================================================================
 static PyObject * GetChildAgeInfoList (RelVaultNode * node, unsigned type) {
     PyObject * result = nil;
-    if (RelVaultNode * rvn = node->GetChildAgeInfoListNodeIncRef(type, 1)) {
+    if (hsRef<RelVaultNode> rvn = node->GetChildAgeInfoListNode(type, 1))
         result = pyVaultAgeInfoListNode::New(rvn);
-        rvn->DecRef();
-    }
     return result;
 }
 
@@ -173,59 +169,50 @@ PyObject * pyVaultAgeInfoNode::GetParentAgeLink () const
     if (!fNode)
         PYTHON_RETURN_NONE;
 
-    if (RelVaultNode * rvn = fNode->GetParentAgeLinkIncRef()) {
-        PyObject * result = pyVaultAgeLinkNode::New(rvn);
-        rvn->DecRef();
-        return result;
-    }
+    if (hsRef<RelVaultNode> rvn = fNode->GetParentAgeLink())
+        return pyVaultAgeLinkNode::New(rvn);
 
     // just return a None object.
     PYTHON_RETURN_NONE
 }
 
 
-const char * pyVaultAgeInfoNode::GetAgeFilename() const
+ST::string pyVaultAgeInfoNode::GetAgeFilename() const
 {
     if (fNode) {
-        char str[MAX_PATH];
         VaultAgeInfoNode access(fNode);
-        StrToAnsi(str, access.GetAgeFilename(), arrsize(str));
-        fAgeFilename = str;
+        return access.GetAgeFilename();
     }
-    return fAgeFilename.c_str();
+    return ST::null;
 }
 
-void pyVaultAgeInfoNode::SetAgeFilename( const char * v )
+void pyVaultAgeInfoNode::SetAgeFilename(const ST::string& v)
 {
 }
 
-const char * pyVaultAgeInfoNode::GetAgeInstanceName() const
+ST::string pyVaultAgeInfoNode::GetAgeInstanceName() const
 {
     if (fNode) {
-        char str[MAX_PATH];
         VaultAgeInfoNode access(fNode);
-        StrToAnsi(str, access.GetAgeInstanceName(), arrsize(str));
-        fAgeInstName = str;
+        return access.GetAgeInstanceName();
     }
-    return fAgeInstName.c_str();
+    return ST::null;
 }
 
-void pyVaultAgeInfoNode::SetAgeInstanceName( const char * v )
+void pyVaultAgeInfoNode::SetAgeInstanceName(const ST::string& v)
 {
 }
 
-const char * pyVaultAgeInfoNode::GetAgeUserDefinedName() const
+ST::string pyVaultAgeInfoNode::GetAgeUserDefinedName() const
 {
     if (fNode) {
-        char str[MAX_PATH];
         VaultAgeInfoNode access(fNode);
-        StrToAnsi(str, access.GetAgeUserDefinedName(), arrsize(str));
-        fAgeUserName = str;
+        return access.GetAgeUserDefinedName();
     }
-    return fAgeUserName.c_str();
+    return ST::null;
 }
 
-void pyVaultAgeInfoNode::SetAgeUserDefinedName( const char * v )
+void pyVaultAgeInfoNode::SetAgeUserDefinedName(const ST::string& v)
 {
 }
 
@@ -243,19 +230,16 @@ void pyVaultAgeInfoNode::SetAgeInstanceGuid( const char * sguid )
 {
 }
 
-const char * pyVaultAgeInfoNode::GetAgeDescription() const
+ST::string pyVaultAgeInfoNode::GetAgeDescription() const
 {
     if (fNode) {
-        char str[MAX_PATH];
-        memset(str, 0, sizeof(str));
         VaultAgeInfoNode access(fNode);
-        StrToAnsi(str, access.GetAgeDescription(), arrsize(str));
-        fAgeDescription = str;
+        return access.GetAgeDescription();
     }
-    return fAgeDescription.c_str();
+    return ST::null;
 }
 
-void pyVaultAgeInfoNode::SetAgeDescription( const char * v )
+void pyVaultAgeInfoNode::SetAgeDescription(const ST::string& v)
 {
 }
 
@@ -310,18 +294,16 @@ bool pyVaultAgeInfoNode::IsPublic() const
     return false;
 }
 
-const char * pyVaultAgeInfoNode::GetDisplayName() const
+ST::string pyVaultAgeInfoNode::GetDisplayName() const
 {
     if (fNode) {
-        char str[MAX_PATH];
         VaultAgeInfoNode access(fNode);
         if (access.GetAgeSequenceNumber() > 0)
-            StrPrintf(str, arrsize(str), "%S(%d) %S", access.GetAgeUserDefinedName(), access.GetAgeSequenceNumber(), access.GetAgeInstanceName());
+            return ST::format("{}({}) {}", access.GetAgeUserDefinedName(), access.GetAgeSequenceNumber(), access.GetAgeInstanceName());
         else
-            StrPrintf(str, arrsize(str), "%S %S", access.GetAgeUserDefinedName(), access.GetAgeInstanceName());
-        fAgeDispName = str;
+            return ST::format("{} {}", access.GetAgeUserDefinedName(), access.GetAgeInstanceName());
     }
-    return fAgeDispName.c_str();
+    return ST::null;
 }
 
 PyObject * pyVaultAgeInfoNode::AsAgeInfoStruct() const

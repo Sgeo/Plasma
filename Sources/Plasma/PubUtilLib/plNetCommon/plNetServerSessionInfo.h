@@ -42,8 +42,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #ifndef plNetServerSessionInfo_h_inc
 #define plNetServerSessionInfo_h_inc
 
-#include "HeadSpin.h"
 #include <string>
+#include "HeadSpin.h"
 
 #include "pnFactory/plCreatable.h"
 #include "pnNetCommon/plNetServers.h"
@@ -64,19 +64,19 @@ class plAgeInfoStruct : public plCreatable
     mutable uint8_t           fFlags;
 
     // Age dataset name "Neighborhood"
-    std::string     fAgeFilename;
+    ST::string      fAgeFilename;
 
     // Age string ID "Bevin"
-    std::string     fAgeInstanceName;
+    ST::string      fAgeInstanceName;
 
     // Age guid. Same as game server guid.
     plUUID  fAgeInstanceGuid;
 
     // User-defined age name: "My Teledahn"
-    std::string     fAgeUserDefinedName;
+    ST::string      fAgeUserDefinedName;
 
     // User-defined age description "This is Joe's Neighborhood"
-    std::string     fAgeDescription;
+    ST::string      fAgeDescription;
 
     // A modifier to user-defined name to make it unique in gui lists.
     // Assigned by vault server.
@@ -112,24 +112,24 @@ public:
 
     void    Clear();
     void    UpdateFlags() const;
-    void    CopyFrom( const plAgeInfoStruct * other ) { *this=*other; }
+    void    CopyFrom( const plAgeInfoStruct * other );
     void    CopyFrom( const plVaultAgeInfoNode * node );
     void    CopyFrom(const struct NetAgeInfo & info);
     bool    IsEqualTo( const plAgeInfoStruct * other ) const;
 
-    const char * GetAgeFilename() const { return fAgeFilename.c_str(); }
-    const char * GetAgeInstanceName() const { return fAgeInstanceName.c_str(); }
+    ST::string  GetAgeFilename() const { return fAgeFilename; }
+    ST::string  GetAgeInstanceName() const { return fAgeInstanceName; }
     const plUUID * GetAgeInstanceGuid() const { return &fAgeInstanceGuid; }
-    const char * GetAgeUserDefinedName() const { return fAgeUserDefinedName.c_str(); }
-    const char * GetAgeDescription() const { return fAgeDescription.c_str(); }
+    ST::string  GetAgeUserDefinedName() const { return fAgeUserDefinedName; }
+    ST::string  GetAgeDescription() const { return fAgeDescription; }
     uint32_t  GetAgeSequenceNumber() const { return fAgeSequenceNumber; }
     uint32_t  GetAgeLanguage() const { return fAgeLanguage; }
 
-    void    SetAgeFilename( const char * v );
-    void    SetAgeInstanceName( const char * v );
+    void    SetAgeFilename( const ST::string & v );
+    void    SetAgeInstanceName( const ST::string & v );
     void    SetAgeInstanceGuid( const plUUID * v );
-    void    SetAgeUserDefinedName( const char * v );
-    void    SetAgeDescription( const char * v );
+    void    SetAgeUserDefinedName( const ST::string & v );
+    void    SetAgeDescription( const ST::string & v );
     void    SetAgeSequenceNumber( uint32_t v );
     void    SetAgeLanguage( uint32_t v );
 
@@ -144,7 +144,7 @@ public:
     void    Read( hsStream * s, hsResMgr* );
     void    Write( hsStream * s, hsResMgr* );
 
-    plString AsString() const;
+    ST::string AsString() const;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -217,7 +217,7 @@ public:
     void    Read( hsStream * s, hsResMgr* );
     void    Write( hsStream * s, hsResMgr* );
 
-    plString AsString() const;
+    ST::string AsString() const;
 };
 
 
@@ -227,12 +227,12 @@ public:
 
 class plNetServerSessionInfo : public plCreatable
 {
-    uint8_t           fFlags;
-    std::string     fServerName;
-    uint8_t           fServerType;
-    std::string     fServerAddr;
-    uint16_t          fServerPort;
-    plUUID  fServerGuid;
+    uint8_t     fFlags;
+    ST::string  fServerName;
+    uint8_t     fServerType;
+    ST::string  fServerAddr;
+    uint16_t    fServerPort;
+    plUUID      fServerGuid;
 
     enum
     {
@@ -256,17 +256,17 @@ public:
     CLASSNAME_REGISTER( plNetServerSessionInfo );
     GETINTERFACE_ANY( plNetServerSessionInfo, plCreatable );
 
-    void SetServerName(const char * val);
+    void SetServerName(const ST::string & val);
     void SetServerType(uint8_t val);
-    void SetServerAddr(const char * val);
+    void SetServerAddr(const ST::string & val);
     void SetServerPort(uint16_t val);
     void SetServerGuid(const plUUID * val);
     void CopyServerGuid(const plUUID & val);
 
-    const char *    GetServerName() const { return fServerName.c_str();}
-    uint8_t           GetServerType() const { return fServerType;}
-    const char *    GetServerAddr() const { return fServerAddr.c_str(); }
-    uint16_t          GetServerPort() const { return fServerPort; }
+    ST::string  GetServerName() const { return fServerName; }
+    uint8_t     GetServerType() const { return fServerType; }
+    ST::string  GetServerAddr() const { return fServerAddr; }
+    uint16_t    GetServerPort() const { return fServerPort; }
     const plUUID *GetServerGuid() const { return &fServerGuid; }
     plUUID *    GetServerGuid() { return &fServerGuid; }
 
@@ -288,8 +288,8 @@ public:
     void Clear();
     void CopyFrom(const plNetServerSessionInfo * other);
     bool IsEqualTo(const plNetServerSessionInfo * other) const;
-    virtual plString AsString() const;
-    virtual plString AsLogString() const;
+    virtual ST::string AsString() const;
+    virtual ST::string AsLogString() const;
 
     void Read(hsStream* s, hsResMgr* mgr=nil);
     void Write(hsStream* s, hsResMgr* mgr=nil);

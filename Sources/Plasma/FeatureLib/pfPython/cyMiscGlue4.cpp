@@ -144,17 +144,10 @@ PYTHON_GLOBAL_METHOD_DEFINITION(PtSetLightValue, args, "Params: key,name,r,g,b,a
         PYTHON_RETURN_ERROR;
     }
     pyKey* key = pyKey::ConvertFrom(keyObj);
-    plString name;
-    if (PyUnicode_Check(nameObj))
+    ST::string name;
+    if (PyString_CheckEx(nameObj))
     {
-        PyObject* utf8 = PyUnicode_AsUTF8String(nameObj);
-        name = plString::FromUtf8(PyString_AsString(utf8));
-        Py_DECREF(utf8);
-    }
-    else if (PyString_Check(nameObj))
-    {
-        // we'll allow this, just in case something goes weird
-        name = plString::FromUtf8(PyString_AsString(nameObj));
+        name = PyString_AsStringEx(nameObj);
     }
     else
     {
@@ -181,17 +174,10 @@ PYTHON_GLOBAL_METHOD_DEFINITION(PtSetLightAnimStart, args, "Params: key,name,sta
         PYTHON_RETURN_ERROR;
     }
     pyKey* key = pyKey::ConvertFrom(keyObj);
-    plString name;
-    if (PyUnicode_Check(nameObj))
+    ST::string name;
+    if (PyString_CheckEx(nameObj))
     {
-        PyObject* utf8 = PyUnicode_AsUTF8String(nameObj);
-        name = plString::FromUtf8(PyString_AsString(utf8));
-        Py_DECREF(utf8);
-    }
-    else if (PyString_Check(nameObj))
-    {
-        // we'll allow this, just in case something goes weird
-        name = plString::FromUtf8(PyString_AsString(nameObj));
+        name = PyString_AsStringEx(nameObj);
     }
     else
     {
@@ -337,7 +323,7 @@ PYTHON_GLOBAL_METHOD_DEFINITION(PtGetCameraNumber, args, "Params: x\nReturns cam
         PyErr_SetString(PyExc_TypeError, "PtGetCameraNumber expects an int");
         PYTHON_RETURN_ERROR;
     }
-    return PyString_FromPlString(cyMisc::GetCameraNumber(x));
+    return PyString_FromSTString(cyMisc::GetCameraNumber(x));
 }
 
 PYTHON_GLOBAL_METHOD_DEFINITION_NOARGS(PtGetNumCameras, "returns camera stack size")
@@ -354,7 +340,7 @@ PYTHON_GLOBAL_METHOD_DEFINITION(PtRebuildCameraStack, args, "Params: name,ageNam
         PyErr_SetString(PyExc_TypeError, "PtRebuildCameraStack expects two strings");
         PYTHON_RETURN_ERROR;
     }
-    cyMisc::RebuildCameraStack(plString::FromUtf8(name), ageName);
+    cyMisc::RebuildCameraStack(ST::string::from_utf8(name), ageName);
     PYTHON_RETURN_NONE;
 }
 
@@ -414,6 +400,40 @@ PYTHON_GLOBAL_METHOD_DEFINITION(PtDebugAssert, args, "Params: cond, msg\nDebug o
     }
     cyMisc::DebugAssert(cond != 0, msg);
     PYTHON_RETURN_NONE;
+}
+
+PYTHON_GLOBAL_METHOD_DEFINITION_WKEY(PtDebugPrint, args, kwargs, "Params: *msgs, **kwargs\nPrints msgs to the Python log given the message's level")
+{
+    uint32_t  level = cyMisc::kErrorLevel;
+
+    do {
+        // Grabbin' levelz
+        if (kwargs && PyDict_Check(kwargs)) {
+            PyObject* value = PyDict_GetItem(kwargs, PyString_FromString("level"));
+            if (value) {
+                if (PyInt_Check(value))
+                    level = PyInt_AsLong(value);
+                else
+                    break;
+            }
+        }
+
+        for (size_t i = 0; i < PySequence_Fast_GET_SIZE(args); ++i) {
+            PyObject* theMsg = PySequence_Fast_GET_ITEM(args, i);
+            if (!PyString_CheckEx(theMsg))
+                theMsg = PyObject_Repr(theMsg);
+
+            if (theMsg)
+                cyMisc::DebugPrint(PyString_AsStringEx(theMsg), level);
+            else
+                break;
+        }
+        PYTHON_RETURN_NONE;
+    } while (false);
+
+    // fell through to the type error case
+    PyErr_SetString(PyExc_TypeError, "PtDebugPrint expects a sequence of strings and an optional int");
+    PYTHON_RETURN_ERROR;
 }
 
 PYTHON_GLOBAL_METHOD_DEFINITION(PtSetAlarm, args, "Params: secs, cbObject, cbContext\nsecs is the amount of time before your alarm goes off.\n"
@@ -661,66 +681,26 @@ PYTHON_GLOBAL_METHOD_DEFINITION(PtSetBehaviorNetFlags, args, "Params: behKey, ne
 
 PYTHON_GLOBAL_METHOD_DEFINITION(PtSendFriendInvite, args, "Params: emailAddress, toName = \"Friend\"\nSends an email with invite code")
 {
-    PyObject* emailObj;
-    PyObject* toNameObj = nil;
-    if (!PyArg_ParseTuple(args, "O|O", &emailObj, &toNameObj))
+    char* emailIn = nullptr;
+    char* nameIn = nullptr;
+    if (!PyArg_ParseTuple(args, "es|es", "utf8", &emailIn, "utf8", &nameIn))
     {
         PyErr_SetString(PyExc_TypeError, "PtSendFriendInvite expects a string and optionally another string");
         PYTHON_RETURN_ERROR;
     }
 
-    wchar_t emailAddr[kMaxEmailAddressLength];
-    memset(emailAddr, 0, sizeof(emailAddr));
+    ST::string email = emailIn;
+    ST::string name = nameIn ? nameIn : ST_LITERAL("Friend");
+    PyMem_Free(emailIn);
+    PyMem_Free(nameIn);
 
-    wchar_t toName[kMaxPlayerNameLength];
-    memset(toName, 0, sizeof(toName));
-
-    // Check and see if the email address is ok
-    int origStrLen = 0;
-    if (PyUnicode_Check(emailObj))
-    {
-        origStrLen = PyUnicode_GET_SIZE(emailObj);
-        PyUnicode_AsWideChar((PyUnicodeObject*)emailObj, emailAddr, arrsize(emailAddr) - 1);
-    }
-    else if (PyString_Check(emailObj))
-    {
-        char* cAddr = PyString_AsString(emailObj);
-        origStrLen = StrLen(cAddr);
-        StrToUnicode(emailAddr, cAddr, arrsize(emailAddr));
-    }
-    else
-    {
-        PyErr_SetString(PyExc_TypeError, "PtSendFriendInvite expects a string and optionally another string");
-        PYTHON_RETURN_ERROR;
-    }
-
-    if (origStrLen >= kMaxEmailAddressLength)
+    if (email.size() >= kMaxEmailAddressLength)
     {
         PyErr_SetString(PyExc_TypeError, "PtSendFriendInvite: Email address too long");
         PYTHON_RETURN_ERROR;
     }
 
-    // Check if the "to name" field is ok
-    if (toNameObj)
-    {
-        if (PyUnicode_Check(toNameObj))
-        {
-            origStrLen = PyUnicode_GET_SIZE(toNameObj);
-            PyUnicode_AsWideChar((PyUnicodeObject*)toNameObj, toName, arrsize(toName) - 1);
-        }
-        else if (PyString_Check(toNameObj))
-        {
-            char* cName = PyString_AsString(toNameObj);
-            origStrLen = StrLen(cName);
-            StrToUnicode(toName, cName, arrsize(toName));
-        }
-        else
-            StrCopy(toName, L"Friend", arrsize(toName));
-    }
-    else
-        StrCopy(toName, L"Friend", arrsize(toName));
-
-    cyMisc::SendFriendInvite(emailAddr, toName);
+    cyMisc::SendFriendInvite(email, name);
     PYTHON_RETURN_NONE;
 }
 
@@ -812,6 +792,7 @@ void cyMisc::AddPlasmaMethods4(std::vector<PyMethodDef> &methods)
     
     PYTHON_GLOBAL_METHOD(methods, PtSetGlobalClickability);
     PYTHON_GLOBAL_METHOD(methods, PtDebugAssert);
+    PYTHON_GLOBAL_METHOD(methods, PtDebugPrint);
     PYTHON_GLOBAL_METHOD(methods, PtSetAlarm);
     
     PYTHON_GLOBAL_METHOD(methods, PtSaveScreenShot);

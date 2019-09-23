@@ -48,7 +48,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "../Pch.h"
 #pragma hdrstop
 
+#include <regex>
 #include "pnEncryption/plChallengeHash.h"
+#include "plVault/plVaultConstants.h"
 
 namespace Ngl { namespace Auth {
 /*****************************************************************************
@@ -57,7 +59,7 @@ namespace Ngl { namespace Auth {
 *
 ***/
 
-struct CliAuConn : AtomicRef {
+struct CliAuConn : hsRefCnt {
     CliAuConn ();
     ~CliAuConn ();
 
@@ -86,15 +88,16 @@ struct CliAuConn : AtomicRef {
     
     void Send (const uintptr_t fields[], unsigned count);
 
-    CCritSect       critsect;
+    std::recursive_mutex  critsect;
     LINK(CliAuConn) link;
     AsyncSocket     sock;
     NetCli *        cli;
-    char            name[MAX_PATH];
+    ST::string      name;
     plNetAddress    addr;
     plUUID          token;
     unsigned        seq;
     unsigned        serverChallenge;
+    hsBitVector     caps;
     AsyncCancelId   cancelId;
     bool            abandoned;
 };
@@ -193,14 +196,14 @@ struct LoginRequestTrans : NetAuthTrans {
 struct AgeRequestTrans : NetAuthTrans {
     FNetCliAuthAgeRequestCallback       m_callback;
     void *                              m_param;
-    wchar_t                               m_ageName[kMaxAgeNameLength];
+    ST::string                          m_ageName;
     unsigned                            m_ageMcpId;
     plUUID                              m_ageInstId;
     unsigned                            m_ageVaultId;
     uint32_t                            m_gameSrvNode;
 
     AgeRequestTrans (
-        const wchar_t                         ageName[],
+        const ST::string&                   ageName,
         const plUUID&                       ageInstId,
         FNetCliAuthAgeRequestCallback       callback,
         void *                              param
@@ -289,19 +292,19 @@ struct PlayerCreateRequestTrans : NetAuthTrans {
     FNetCliAuthPlayerCreateRequestCallback  m_callback;
     void *                                  m_param;
 
-    // send    
-    wchar_t                                   m_playerName[kMaxPlayerNameLength];
-    wchar_t                                   m_avatarShape[MAX_PATH];
-    wchar_t                                   m_friendInvite[MAX_PATH];
+    // send
+    ST::string                              m_playerName;
+    ST::string                              m_avatarShape;
+    ST::string                              m_friendInvite;
 
     // recv
     NetCliAuthPlayerInfo                    m_playerInfo;
 
 
     PlayerCreateRequestTrans (
-        const wchar_t                             playerName[],
-        const wchar_t                             avatarShape[],
-        const wchar_t                             friendInvite[],
+        const ST::string&                       playerName,
+        const ST::string&                       avatarShape,
+        const ST::string&                       friendInvite,
         FNetCliAuthPlayerCreateRequestCallback  callback,
         void *                                  param
     );
@@ -399,13 +402,13 @@ struct AccountChangePasswordRequestTrans : NetAuthTrans {
     FNetCliAuthAccountChangePasswordRequestCallback m_callback;
     void *                                          m_param;
 
-    // send    
-    wchar_t                                   m_accountName[kMaxAccountNameLength];
+    // send
+    ST::string                              m_accountName;
     ShaDigest                               m_namePassHash;
 
     AccountChangePasswordRequestTrans (
-        const wchar_t                                     accountName[],
-        const wchar_t                                     password[],
+        const ST::string&                               accountName,
+        const ST::string&                               password,
         FNetCliAuthAccountChangePasswordRequestCallback callback,
         void *                                          param
     );
@@ -426,17 +429,17 @@ struct GetPublicAgeListTrans : NetAuthTrans {
     void *                                  m_param;
     
     // send
-    wchar_t                                   m_ageName[MAX_PATH];
-    
+    ST::string                              m_ageName;
+
     // recv
     ARRAY(NetAgeInfo)                       m_ages;
     
     GetPublicAgeListTrans (
-        const wchar_t                         ageName[],
+        const ST::string&                   ageName,
         FNetCliAuthGetPublicAgeListCallback callback,
         void *                              param
     );
-        
+
     bool Send ();
     void Post ();
     bool Recv (
@@ -685,10 +688,10 @@ struct VaultInitAgeTrans : NetAuthTrans {
 
     plUUID                      m_ageInstId;
     plUUID                      m_parentAgeInstId;
-    wchar_t *                   m_ageFilename;
-    wchar_t *                   m_ageInstName;
-    wchar_t *                   m_ageUserName;
-    wchar_t *                   m_ageDesc;
+    ST::string                  m_ageFilename;
+    ST::string                  m_ageInstName;
+    ST::string                  m_ageUserName;
+    ST::string                  m_ageDesc;
     unsigned                    m_ageSequenceNumber;
     unsigned                    m_ageLanguage;
 
@@ -700,10 +703,10 @@ struct VaultInitAgeTrans : NetAuthTrans {
         void *                      param,              // optional
         const plUUID&               ageInstId,          // optional. is used in match
         const plUUID&               parentAgeInstId,    // optional. is used in match
-        const wchar_t               ageFilename[],      // optional. is used in match
-        const wchar_t               ageInstName[],      // optional. not used in match
-        const wchar_t               ageUserName[],      // optional. not used in match
-        const wchar_t               ageDesc[],          // optional. not used in match
+        const ST::string&           ageFilename,        // optional. is used in match
+        const ST::string&           ageInstName,        // optional. not used in match
+        const ST::string&           ageUserName,        // optional. not used in match
+        const ST::string&           ageDesc,            // optional. not used in match
         unsigned                    ageSequenceNumber,  // optional. not used in match
         unsigned                    ageLanguage         // optional. not used in match
     );
@@ -726,7 +729,7 @@ struct VaultFetchNodeTrans : NetAuthTrans {
     FNetCliAuthVaultNodeFetched m_callback;
     void *                      m_param;
     
-    NetVaultNode *              m_node;
+    hsRef<NetVaultNode>         m_node;
     
     VaultFetchNodeTrans (
         unsigned                    nodeId,
@@ -751,14 +754,13 @@ struct VaultFindNodeTrans : NetAuthTrans {
     FNetCliAuthVaultNodeFind    m_callback;
     void *                      m_param;
     
-    NetVaultNode *              m_node;
+    hsRef<NetVaultNode>         m_node;
     
     VaultFindNodeTrans (
         NetVaultNode *              templateNode,
         FNetCliAuthVaultNodeFind    callback,
         void *                      param
     );
-    ~VaultFindNodeTrans ();
 
     
     bool Send ();
@@ -774,7 +776,7 @@ struct VaultFindNodeTrans : NetAuthTrans {
 //============================================================================
 struct VaultCreateNodeTrans : NetAuthTrans {
 
-    NetVaultNode *                  m_templateNode;
+    hsRef<NetVaultNode>             m_templateNode;
     FNetCliAuthVaultNodeCreated     m_callback;
     void *                          m_param;
     
@@ -942,14 +944,14 @@ struct SendFriendInviteTrans : NetAuthTrans {
     FNetCliAuthSendFriendInviteCallback m_callback;
     void *                              m_param;
 
-    // send    
-    wchar_t                               m_emailAddress[kMaxEmailAddressLength];
-    wchar_t                               m_toName[kMaxPlayerNameLength];
+    // send
+    ST::string                            m_emailAddress;
+    ST::string                            m_toName;
     plUUID                                m_inviteUuid;
 
     SendFriendInviteTrans(
-        const wchar_t                           emailAddr[],
-        const wchar_t                           toName[],
+        const ST::string&                       emailAddr,
+        const ST::string&                       toName,
         const plUUID&                           inviteUuid,
         FNetCliAuthSendFriendInviteCallback     callback,
         void *                                  param
@@ -982,17 +984,17 @@ struct ScoreCreateTrans : NetAuthTrans {
 
     // send    
     unsigned                        m_ownerId;
-    char                            m_gameName[kMaxGameScoreNameLength];
+    ST::string                      m_gameName;
     unsigned                        m_gameType;
     int                             m_value;
 
     // recv
     unsigned                        m_scoreId;
-    uint32_t                          m_createdTime;
+    uint32_t                        m_createdTime;
 
     ScoreCreateTrans (
         unsigned                        ownerId,
-        const char*                     gameName,
+        const ST::string&               gameName,
         unsigned                        gameType,
         int                             value,
         FNetCliAuthCreateScoreCallback  callback,
@@ -1038,9 +1040,9 @@ struct ScoreGetScoresTrans : NetAuthTrans {
     FNetCliAuthGetScoresCallback    m_callback;
     void *                          m_param;
 
-    // send    
+    // send
     unsigned                        m_ownerId;
-    char                            m_gameName[kMaxGameScoreNameLength];
+    ST::string                      m_gameName;
 
     // recv
     NetGameScore *                  m_scores;
@@ -1048,7 +1050,7 @@ struct ScoreGetScoresTrans : NetAuthTrans {
 
     ScoreGetScoresTrans (
         unsigned                        ownerId,
-        const char*                     gameName,
+        const ST::string&               gameName,
         FNetCliAuthGetScoresCallback    callback,
         void *                          param
     );
@@ -1150,11 +1152,11 @@ struct ScoreGetRanksTrans : NetAuthTrans {
     FNetCliAuthGetRanksCallback     m_callback;
     void *                          m_param;
 
-    // send    
+    // send
     unsigned                        m_ownerId;
     unsigned                        m_scoreGroup;
     unsigned                        m_parentFolderId;
-    wchar_t                           m_gameName[kMaxGameScoreNameLength];
+    ST::string                      m_gameName;
     unsigned                        m_timePeriod;
     unsigned                        m_numResults;
     unsigned                        m_pageNumber;
@@ -1168,7 +1170,7 @@ struct ScoreGetRanksTrans : NetAuthTrans {
         unsigned                    ownerId,
         unsigned                    scoreGroup,
         unsigned                    parentFolderId,
-        const char *                cGameName,
+        const ST::string&           gameName,
         unsigned                    timePeriod,
         unsigned                    numResults,
         unsigned                    pageNumber,
@@ -1183,6 +1185,40 @@ struct ScoreGetRanksTrans : NetAuthTrans {
         const uint8_t  msg[],
         unsigned    bytes
     );
+};
+
+//============================================================================
+// ScoreGetHighScoresTrans
+//============================================================================
+struct ScoreGetHighScoresTrans : NetAuthTrans {
+    FNetCliAuthGetScoresCallback    m_callback;
+    void *                          m_param;
+
+    // send
+    unsigned                        m_ageId;
+    unsigned                        m_maxScores;
+    ST::string                      m_gameName;
+
+    // recv
+    NetGameScore *                  m_scores;
+    unsigned                        m_scoreCount;
+
+    ScoreGetHighScoresTrans(
+        unsigned                        ageId,
+        unsigned                        maxScores,
+        const ST::string&               gameName,
+        FNetCliAuthGetScoresCallback    callback,
+        void *                          param
+        );
+
+    ~ScoreGetHighScoresTrans();
+
+    bool Send();
+    void Post();
+    bool Recv(
+        const uint8_t  msg[],
+        unsigned    bytes
+        );
 };
 
 
@@ -1200,15 +1236,15 @@ enum {
 };
 
 static bool                         s_running;
-static CCritSect                    s_critsect;
+static std::recursive_mutex         s_critsect;
 static LISTDECL(CliAuConn, link)    s_conns;
 static CliAuConn *                  s_active;
-static wchar_t                      s_accountName[kMaxAccountNameLength];
+static ST::string                   s_accountName;
 static ShaDigest                    s_accountNamePassHash;
 static wchar_t                      s_authToken[kMaxPublisherAuthKeyLength];
 static wchar_t                      s_os[kMaxGTOSIdLength];
 
-static long                         s_perf[kNumPerf];
+static std::atomic<long>            s_perf[kNumPerf];
 
 static uint32_t                     s_encryptionKey[4];
 
@@ -1231,48 +1267,34 @@ static FNotifyNewBuildHandler       s_notifyNewBuildHandler;
 ***/
 
 //===========================================================================
-static inline bool ICharIsSpace (unsigned ch) {
-    return ch == ' ';
-}
+static ENetError FixupPlayerName (ST::string& name) {
+    ASSERT(!name.empty());
 
-//===========================================================================
-static ENetError FixupPlayerName (wchar_t * name) {
-    ASSERT(name);
+    // Trim leading and trailing whitespace
+    name = name.trim(" \t\n\r");
 
-    // Trim leading and trailing whitespace and convert
-    // multiple internal spaces into only one space
-    unsigned nonSpaceChars = 0;
-    wchar_t *dst = name;
-    for (wchar_t *src = name; *src; ) {
-        // Skip whitespace
-        while (*src && ICharIsSpace(*src))
-            src++;
+    // Convert remaining internal whitespace to a single space.
+    // Kind of hacky, but meh.
+    std::vector<ST::string> things = name.tokenize(" \t\n\r");
 
-        // If the block skipped was not at the beginning
-        // of the string then add one space character
-        if (*src && (dst != name))
-            *dst++ = ' ';
-
-        // Copy characters until end-of-string or next whitespace
-        while (*src && !ICharIsSpace(*src)) {
-            ++nonSpaceChars;
-            *dst++ = *src++;
-        }
+    ST::string_stream ss;
+    for (auto it = things.begin(); it != things.end(); ++it) {
+        ss << *it;
+        if ((it + 1) != things.end())
+            ss << " ";
     }
+    name = ss.to_string();
 
-    // Ensure destination string is terminated
-    *dst = 0;
-
-    // Check for minimum name length
-    if (nonSpaceChars < 3)
+    // Now, check to see if we have the appropriate length
+    // We could count the characters, but lazy...
+    if (name.replace(" ", "").size() < 3)
         return kNetErrPlayerNameInvalid;
-
     return kNetSuccess;
 }
 
 //===========================================================================
 static unsigned GetNonZeroTimeMs () {
-    if (unsigned ms = TimeGetMs())
+    if (unsigned ms = hsTimer::GetMilliSeconds<uint32_t>())
         return ms;
     return 1;
 }
@@ -1280,7 +1302,7 @@ static unsigned GetNonZeroTimeMs () {
 //============================================================================
 static CliAuConn * GetConnIncRef_CS (const char tag[]) {
     if (CliAuConn * conn = s_active) {
-        conn->IncRef(tag);
+        conn->Ref(tag);
         return conn;
     }
     return nil;
@@ -1288,13 +1310,8 @@ static CliAuConn * GetConnIncRef_CS (const char tag[]) {
 
 //============================================================================
 static CliAuConn * GetConnIncRef (const char tag[]) {
-    CliAuConn * conn;
-    s_critsect.Enter();
-    {
-        conn = GetConnIncRef_CS(tag);
-    }
-    s_critsect.Leave();
-    return conn;
+    hsLockGuard(s_critsect);
+    return GetConnIncRef_CS(tag);
 }
 
 //============================================================================
@@ -1312,7 +1329,7 @@ static void UnlinkAndAbandonConn_CS (CliAuConn * conn) {
         AsyncSocketDisconnect(conn->sock, true);
     }
     else {
-        conn->DecRef("Lifetime");
+        conn->UnRef("Lifetime");
     }
 }
 
@@ -1369,7 +1386,7 @@ static void CheckedReconnect (CliAuConn * conn, ENetError error) {
         // Cancel all transactions in progress on this connection.
         NetTransCancelByConnId(conn->seq, kNetErrTimeout);
         // conn is dead.
-        conn->DecRef("Lifetime");
+        conn->UnRef("Lifetime");
         ReportNetError(kNetProtocolCli2Auth, error);
     }
     else {
@@ -1393,19 +1410,18 @@ static void CheckedReconnect (CliAuConn * conn, ENetError error) {
 //============================================================================
 static void NotifyConnSocketConnectFailed (CliAuConn * conn) {
 
-    s_critsect.Enter();
     {
+        hsLockGuard(s_critsect);
         conn->cancelId = 0;
         s_conns.Unlink(conn);
 
         if (conn == s_active)
             s_active = nil;
     }
-    s_critsect.Leave();
     
     CheckedReconnect(conn, kNetErrConnectFailed);
     
-    conn->DecRef("Connecting");
+    conn->UnRef("Connecting");
 }
 
 //============================================================================
@@ -1413,20 +1429,19 @@ static void NotifyConnSocketDisconnect (CliAuConn * conn) {
 
     conn->StopAutoPing();
 
-    s_critsect.Enter();
     {
+        hsLockGuard(s_critsect);
         conn->cancelId = 0;
         s_conns.Unlink(conn);
             
         if (conn == s_active)
             s_active = nil;
     }
-    s_critsect.Leave();
 
 
     CheckedReconnect(conn, kNetErrDisconnected);
 
-    conn->DecRef("Connected");
+    conn->UnRef("Connected");
 }
 
 //============================================================================
@@ -1453,13 +1468,12 @@ static bool SocketNotifyCallback (
             conn = (CliAuConn *) notify->param;
             *userState = conn;
             bool abandoned;
-            s_critsect.Enter();
             {
+                hsLockGuard(s_critsect);
                 conn->sock      = sock;
                 conn->cancelId  = 0;
                 abandoned       = conn->abandoned;
             }
-            s_critsect.Leave();
             if (abandoned)
                 AsyncSocketDisconnect(sock, true);
             else
@@ -1493,8 +1507,8 @@ static void Connect (
 
     conn->pingSendTimeMs = 0;
 
-    s_critsect.Enter();
     {
+        hsLockGuard(s_critsect);
         while (CliAuConn * oldConn = s_conns.Head()) {
             if (oldConn != conn)
                 UnlinkAndAbandonConn_CS(oldConn);
@@ -1503,7 +1517,6 @@ static void Connect (
         }
         s_conns.Link(conn);
     }
-    s_critsect.Leave();
     
     Cli2Auth_Connect connect;
     connect.hdr.connType        = kConnTypeCliToAuth;
@@ -1529,7 +1542,7 @@ static void Connect (
 
 //============================================================================
 static void Connect (
-    const char          name[],
+    const ST::string&   name,
     const plNetAddress& addr
 ) {
     ASSERT(s_running);
@@ -1538,9 +1551,9 @@ static void Connect (
     conn->addr              = addr;
     conn->seq               = ConnNextSequence();
     conn->lastHeardTimeMs   = GetNonZeroTimeMs();   // used in connect timeout, and ping timeout
-    strncpy(conn->name, name, arrsize(conn->name));
+    conn->name              = name;
 
-    conn->IncRef("Lifetime");
+    conn->Ref("Lifetime");
     conn->AutoReconnect();
 }
 
@@ -1571,7 +1584,7 @@ static void AsyncLookupCallback (
 //===========================================================================
 static unsigned CliAuConnTimerDestroyed (void * param) {
     CliAuConn * conn = (CliAuConn *) param;
-    conn->DecRef("TimerDestroyed");
+    conn->UnRef("TimerDestroyed");
     return kAsyncTimeInfinite;
 }
 
@@ -1589,21 +1602,19 @@ static unsigned CliAuConnPingTimerProc (void * param) {
 
 //============================================================================
 CliAuConn::CliAuConn ()
-    : reconnectTimer(nil), reconnectStartMs(0)
+    : hsRefCnt(0), reconnectTimer(nil), reconnectStartMs(0)
     , pingTimer(nil), pingSendTimeMs(0), lastHeardTimeMs(0)
     , sock(nil), cli(nil), seq(0), serverChallenge(0)
     , cancelId(nil), abandoned(false)
 {
-    memset(name, 0, sizeof(name));
-
-    AtomicAdd(&s_perf[kPerfConnCount], 1);
+    ++s_perf[kPerfConnCount];
 }
 
 //============================================================================
 CliAuConn::~CliAuConn () {
     if (cli)
         NetCliDelete(cli, true);
-    AtomicAdd(&s_perf[kPerfConnCount], -1);
+    --s_perf[kPerfConnCount];
 }
 
 //===========================================================================
@@ -1612,12 +1623,11 @@ void CliAuConn::TimerReconnect () {
     ASSERT(!cancelId);
     
     if (!s_running) {
-        s_critsect.Enter();
+        hsLockGuard(s_critsect);
         UnlinkAndAbandonConn_CS(this);
-        s_critsect.Leave();
     }
     else {
-        IncRef("Connecting");
+        Ref("Connecting");
 
         // Remember the time we started the reconnect attempt, guarding against
         // TimeGetMs() returning zero (unlikely), as a value of zero indicates
@@ -1631,7 +1641,7 @@ void CliAuConn::TimerReconnect () {
 //===========================================================================
 // This function is called when after a disconnect to start a new connection
 void CliAuConn::StartAutoReconnect () {
-    critsect.Enter();
+    hsLockGuard(critsect);
     if (reconnectTimer && !s_perf[kAutoReconnectDisabled]) {
         // Make reconnect attempts at regular intervals. If the last attempt
         // took more than the specified max interval time then reconnect
@@ -1646,7 +1656,6 @@ void CliAuConn::StartAutoReconnect () {
         }
         AsyncTimerUpdate(reconnectTimer, remainingMs);
     }
-    critsect.Leave();
 }
 
 //===========================================================================
@@ -1656,29 +1665,23 @@ void CliAuConn::StartAutoReconnect () {
 void CliAuConn::AutoReconnect () {
         
     ASSERT(!reconnectTimer);
-    IncRef("ReconnectTimer");
-    critsect.Enter();
-    {
-        AsyncTimerCreate(
-            &reconnectTimer,
-            CliAuConnReconnectTimerProc,
-            0,  // immediate callback
-            this
-        );
-    }
-    critsect.Leave();
+    Ref("ReconnectTimer");
+    hsLockGuard(critsect);
+    AsyncTimerCreate(
+        &reconnectTimer,
+        CliAuConnReconnectTimerProc,
+        0,  // immediate callback
+        this
+    );
 }
 
 //============================================================================
 void CliAuConn::StopAutoReconnect () {
-    critsect.Enter();
-    {
-        if (AsyncTimer * timer = reconnectTimer) {
-            reconnectTimer = nil;
-            AsyncTimerDeleteCallback(timer, CliAuConnTimerDestroyed);
-        }
+    hsLockGuard(critsect);
+    if (AsyncTimer * timer = reconnectTimer) {
+        reconnectTimer = nil;
+        AsyncTimerDeleteCallback(timer, CliAuConnTimerDestroyed);
     }
-    critsect.Leave();
 }
 
 //============================================================================
@@ -1690,29 +1693,23 @@ bool CliAuConn::AutoReconnectEnabled () {
 //============================================================================
 void CliAuConn::AutoPing () {
     ASSERT(!pingTimer);
-    IncRef("PingTimer");
-    critsect.Enter();
-    {
-        AsyncTimerCreate(
-            &pingTimer,
-            CliAuConnPingTimerProc,
-            sock ? 0 : kAsyncTimeInfinite,
-            this
-        );
-    }
-    critsect.Leave();
+    Ref("PingTimer");
+    hsLockGuard(critsect);
+    AsyncTimerCreate(
+        &pingTimer,
+        CliAuConnPingTimerProc,
+        sock ? 0 : kAsyncTimeInfinite,
+        this
+    );
 }
 
 //============================================================================
 void CliAuConn::StopAutoPing () {
-    critsect.Enter();
-    {
-        if (pingTimer) {
-            AsyncTimerDeleteCallback(pingTimer, CliAuConnTimerDestroyed);
-            pingTimer = nil;
-        }
+    hsLockGuard(critsect);
+    if (pingTimer) {
+        AsyncTimerDeleteCallback(pingTimer, CliAuConnTimerDestroyed);
+        pingTimer = nil;
     }
-    critsect.Leave();
 }
 
 //============================================================================
@@ -1733,12 +1730,9 @@ void CliAuConn::TimerPing () {
 
 //============================================================================
 void CliAuConn::Send (const uintptr_t fields[], unsigned count) {
-    critsect.Enter();
-    {
-        NetCliSend(cli, fields, count);
-        NetCliFlush(cli);
-    }
-    critsect.Leave();
+    hsLockGuard(critsect);
+    NetCliSend(cli, fields, count);
+    NetCliFlush(cli);
 }
 
 
@@ -1789,11 +1783,8 @@ static bool Recv_ClientRegisterReply (
     conn->serverChallenge = reply.serverChallenge;
 
     // Make this the active server
-    s_critsect.Enter();
-    {
-        s_active = conn;
-    }
-    s_critsect.Leave();
+    hsLockGuard(s_critsect);
+    s_active = conn;
 
     return true;
 }
@@ -2199,17 +2190,14 @@ static bool Recv_ServerAddr (
     // the auth (but only if we reconnect in a short period of time!)
     const Auth2Cli_ServerAddr & msg = *(const Auth2Cli_ServerAddr *)in;
     
-    s_critsect.Enter();
-    {
-        if (s_active) {
-            s_active->token = msg.token;
-            s_active->addr.SetHost(msg.srvAddr);
+    hsLockGuard(s_critsect);
+    if (s_active) {
+        s_active->token = msg.token;
+        s_active->addr.SetHost(msg.srvAddr);
 
-            LogMsg(kLogPerf, "SrvAuth addr: %s", s_active->addr.GetHostString().c_str());
-        }
+        LogMsg(kLogPerf, "SrvAuth addr: %s", s_active->addr.GetHostString().c_str());
     }
-    s_critsect.Leave();
-    
+
     return true;
 }
 
@@ -2355,13 +2343,40 @@ static bool Recv_ScoreGetRanksReply (
     return true;
 }
 
+//============================================================================
+static bool Recv_ScoreGetHighScoresReply(
+    const uint8_t   msg[],
+    unsigned        bytes,
+    void *
+    ) {
+    const Auth2Cli_ScoreGetHighScoresReply & reply = *(const Auth2Cli_ScoreGetHighScoresReply *)msg;
+
+    NetTransRecv(reply.transId, msg, bytes);
+
+    return true;
+}
+
+//============================================================================
+static bool Recv_ServerCaps(
+    const uint8_t   msg[],
+    unsigned        bytes,
+    void *          param
+    ) {
+    const Auth2Cli_ServerCaps & caps = *(const Auth2Cli_ServerCaps *)msg;
+
+    hsReadOnlyStream stream(caps.byteCount, reinterpret_cast<const void*>(caps.buffer));
+    ((CliAuConn*)param)->caps.Read(&stream);
+
+    return true;
+}
+
 /*****************************************************************************
 *
 *   Cli2Auth protocol
 *
 ***/
 
-#define MSG(s)  kNetMsg_Cli2Auth_##s
+#define MSG(s)  &kNetMsg_Cli2Auth_##s
 static NetMsgInitSend s_send[] = {
     { MSG(PingRequest)              },
     { MSG(ClientRegisterRequest)    },
@@ -2409,10 +2424,11 @@ static NetMsgInitSend s_send[] = {
     { MSG(ScoreSetPoints)           },
     { MSG(ScoreGetRanks)            },
     { MSG(AccountExistsRequest)     },
+    { MSG(ScoreGetHighScores)       },
 };
 #undef MSG
 
-#define MSG(s)  kNetMsg_Auth2Cli_##s, Recv_##s
+#define MSG(s)  &kNetMsg_Auth2Cli_##s, Recv_##s
 static NetMsgInitRecv s_recv[] = {
     { MSG(PingReply)                },
     { MSG(ClientRegisterReply)      },
@@ -2458,6 +2474,8 @@ static NetMsgInitRecv s_recv[] = {
     { MSG(ScoreSetPointsReply)      },
     { MSG(ScoreGetRanksReply)       },
     { MSG(AccountExistsReply)       },
+    { MSG(ScoreGetHighScoresReply)  },
+    { MSG(ServerCaps)               },
 };
 #undef MSG
 
@@ -2523,7 +2541,7 @@ bool PingRequestTrans::Recv (
     const Auth2Cli_PingReply & reply = *(const Auth2Cli_PingReply *)msg;
 
     m_payload.Set(reply.payload, reply.payloadBytes);
-    m_replyAtMs     = TimeGetMs();
+    m_replyAtMs     = hsTimer::GetMilliSeconds<uint32_t>();
     m_result        = kNetSuccess;
     m_state         = kTransStateComplete;
 
@@ -2613,17 +2631,17 @@ LoginRequestTrans::LoginRequestTrans (
 
 //============================================================================
 void LoginRequestTrans::AddPlayer (
-    unsigned    playerInt,
+    unsigned      playerInt,
     const wchar_t playerName[],
     const wchar_t avatarShape[],
-    unsigned    explorer
+    unsigned      explorer
 ) {
     unsigned index = m_playerCount++;
     ASSERT(index < kMaxPlayersPerAccount);
-    m_players[index].playerInt  = playerInt;
-    m_players[index].explorer   = explorer;
-    StrCopy(m_players[index].playerName, playerName, arrsize(m_players[index].playerName));
-    StrCopy(m_players[index].avatarShape, avatarShape, arrsize(m_players[index].avatarShape));
+    m_players[index].playerInt   = playerInt;
+    m_players[index].explorer    = explorer;
+    m_players[index].playerName  = ST::string::from_wchar(playerName);
+    m_players[index].avatarShape = ST::string::from_wchar(avatarShape);
 }
 
 //============================================================================
@@ -2636,8 +2654,10 @@ bool LoginRequestTrans::Send () {
     uint32_t clientChallenge = 0;
 
     // Regex search for primary email domain
-    std::vector<plString> match = plString::FromWchar(s_accountName).RESearch("[^@]+@([^.]+\\.)*([^.]+)\\.[^.]+");
-    if (match.empty() || match[2].CompareI("gametap") == 0) {
+    static const std::regex re_domain("[^@]+@([^.]+\\.)*([^.]+)\\.[^.]+");
+    std::cmatch match;
+    std::regex_search(s_accountName.c_str(), match, re_domain);
+    if (match.empty() || ST::string(match[2].str().c_str()).compare_i("gametap") == 0) {
         memcpy(challengeHash, s_accountNamePassHash, sizeof(ShaDigest));
     } else {
         CryptCreateRandomSeed(
@@ -2653,11 +2673,13 @@ bool LoginRequestTrans::Send () {
         );
     }
 
+    ST::utf16_buffer accountName = s_accountName.to_utf16();
+
     const uintptr_t msg[] = {
         kCli2Auth_AcctLoginRequest,
         m_transId,
         clientChallenge,
-        (uintptr_t) s_accountName,
+        (uintptr_t) accountName.data(),
         (uintptr_t) &challengeHash,
         (uintptr_t) s_authToken,
         (uintptr_t) s_os,
@@ -2702,7 +2724,7 @@ bool LoginRequestTrans::Recv (
             m_accountFlags  = reply.accountFlags;
             m_billingType   = reply.billingType;
 
-            unsigned memSize = min(arrsize(s_encryptionKey), arrsize(reply.encryptionKey));
+            unsigned memSize = std::min(arrsize(s_encryptionKey), arrsize(reply.encryptionKey));
             memSize *= sizeof(uint32_t);
             memcpy(s_encryptionKey, reply.encryptionKey, memSize);
         }
@@ -2723,16 +2745,16 @@ bool LoginRequestTrans::Recv (
 
 //============================================================================
 AgeRequestTrans::AgeRequestTrans (
-    const wchar_t                         ageName[],
+    const ST::string&                   ageName,
     const plUUID&                       ageInstId,
     FNetCliAuthAgeRequestCallback       callback,
     void *                              param
 ) : NetAuthTrans(kAgeRequestTrans)
+,   m_ageName(ageName)
 ,   m_ageInstId(ageInstId)
 ,   m_callback(callback)
 ,   m_param(param)
 {
-    StrCopy(m_ageName, ageName, arrsize(m_ageName));
 }
 
 //============================================================================
@@ -2744,10 +2766,12 @@ bool AgeRequestTrans::Send () {
     if (!AcquireConn())
         return true;
 
+    ST::utf16_buffer ageName = m_ageName.to_utf16();
+
     const uintptr_t msg[] = {
-        kCli2Auth_AgeRequest,
-                        m_transId,
-        (uintptr_t)  m_ageName,
+                     kCli2Auth_AgeRequest,
+                     m_transId,
+        (uintptr_t)  ageName.data(),
         (uintptr_t) &m_ageInstId,
     };
 
@@ -2809,8 +2833,8 @@ AccountCreateRequestTrans::AccountCreateRequestTrans (
     StrCopy(m_accountName, accountName, arrsize(m_accountName));
 
     CryptHashPassword(
-        plString::FromWchar(m_accountName),
-        plString::FromWchar(password),
+        ST::string::from_wchar(m_accountName),
+        ST::string::from_wchar(password),
         m_namePassHash
     );
 }
@@ -2879,8 +2903,8 @@ AccountCreateFromKeyRequestTrans::AccountCreateFromKeyRequestTrans (
     StrCopy(m_accountName, accountName, arrsize(m_accountName));
 
     CryptHashPassword(
-        plString::FromWchar(m_accountName),
-        plString::FromWchar(password),
+        ST::string::from_wchar(m_accountName),
+        ST::string::from_wchar(password),
         m_namePassHash
     );
 }
@@ -2936,21 +2960,18 @@ bool AccountCreateFromKeyRequestTrans::Recv (
 
 //============================================================================
 PlayerCreateRequestTrans::PlayerCreateRequestTrans (
-    const wchar_t                             playerName[],
-    const wchar_t                             avatarShape[],
-    const wchar_t                             friendInvite[],
+    const ST::string&                       playerName,
+    const ST::string&                       avatarShape,
+    const ST::string&                       friendInvite,
     FNetCliAuthPlayerCreateRequestCallback  callback,
     void *                                  param
 ) : NetAuthTrans(kPlayerCreateRequestTrans)
+,   m_playerName(playerName)
+,   m_avatarShape(avatarShape)
+,   m_friendInvite(friendInvite)
 ,   m_callback(callback)
 ,   m_param(param)
 {
-    StrCopy(m_playerName, playerName, arrsize(m_playerName));
-    StrCopy(m_avatarShape, avatarShape, arrsize(m_avatarShape));
-    if (friendInvite)
-        StrCopy(m_friendInvite, friendInvite, arrsize(m_friendInvite));
-    else
-        m_friendInvite[0] = 0;
     memset(&m_playerInfo, 0, sizeof(m_playerInfo));
 }
 
@@ -2959,16 +2980,20 @@ bool PlayerCreateRequestTrans::Send () {
     if (!AcquireConn())
         return false;
 
+    ST::utf16_buffer playerName = m_playerName.to_utf16();
+    ST::utf16_buffer avatarShape = m_avatarShape.to_utf16();
+    ST::utf16_buffer friendInvite = m_friendInvite.to_utf16();
+
     const uintptr_t msg[] = {
         kCli2Auth_PlayerCreateRequest,
                         m_transId,
-        (uintptr_t)  m_playerName,
-        (uintptr_t)  m_avatarShape,
-        (uintptr_t)  m_friendInvite,
+        (uintptr_t)     playerName.data(),
+        (uintptr_t)     avatarShape.data(),
+        (uintptr_t)     friendInvite.data(),
     };
 
     m_conn->Send(msg, arrsize(msg));
-    
+
     return true;
 }
 
@@ -2988,10 +3013,10 @@ bool PlayerCreateRequestTrans::Recv (
 ) {
     const Auth2Cli_PlayerCreateReply & reply = *(const Auth2Cli_PlayerCreateReply *) msg;
     if (!IS_NET_ERROR(reply.result)) {
-        m_playerInfo.playerInt  = reply.playerInt;
-        m_playerInfo.explorer   = reply.explorer;
-        StrCopy(m_playerInfo.playerName, reply.playerName, arrsize(m_playerInfo.playerName));
-        StrCopy(m_playerInfo.avatarShape, reply.avatarShape, arrsize(m_playerInfo.avatarShape));
+        m_playerInfo.playerInt   = reply.playerInt;
+        m_playerInfo.explorer    = reply.explorer;
+        m_playerInfo.playerName  = ST::string::from_wchar(reply.playerName);
+        m_playerInfo.avatarShape = ST::string::from_wchar(reply.avatarShape);
     }
     m_result    = reply.result;
     m_state     = kTransStateComplete;
@@ -3166,19 +3191,18 @@ bool SetPlayerRequestTrans::Recv (
 
 //============================================================================
 AccountChangePasswordRequestTrans::AccountChangePasswordRequestTrans (
-    const wchar_t                                   accountName[],
-    const wchar_t                                   password[],
+    const ST::string&                               accountName,
+    const ST::string&                               password,
     FNetCliAuthAccountChangePasswordRequestCallback callback,
     void *                                          param
 ) : NetAuthTrans(kAccountChangePasswordRequestTrans)
+,   m_accountName(accountName)
 ,   m_callback(callback)
 ,   m_param(param)
 {
-    StrCopy(m_accountName, accountName, arrsize(m_accountName));
-    
     CryptHashPassword(
-        plString::FromWchar(m_accountName),
-        plString::FromWchar(password),
+        m_accountName,
+        password,
         m_namePassHash
     );
 }
@@ -3188,10 +3212,12 @@ bool AccountChangePasswordRequestTrans::Send () {
     if (!AcquireConn())
         return false;
 
+    ST::utf16_buffer accountName = m_accountName.to_utf16();
+
     const uintptr_t msg[] = {
         kCli2Auth_AcctChangePasswordRequest,
                         m_transId,
-        (uintptr_t)  m_accountName,
+        (uintptr_t)  accountName.data(),
         (uintptr_t)  &m_namePassHash,
     };
 
@@ -3228,14 +3254,14 @@ bool AccountChangePasswordRequestTrans::Recv (
 
 //============================================================================
 GetPublicAgeListTrans::GetPublicAgeListTrans (
-    const wchar_t                         ageName[],
+    const ST::string&                   ageName,
     FNetCliAuthGetPublicAgeListCallback callback,
     void *                              param
 ) : NetAuthTrans(kGetPublicAgeListTrans)
+,   m_ageName(ageName)
 ,   m_callback(callback)
 ,   m_param(param)
 {
-    StrCopy(m_ageName, ageName, arrsize(m_ageName));
 }
 
 //============================================================================
@@ -3243,10 +3269,12 @@ bool GetPublicAgeListTrans::Send () {
     if (!AcquireConn())
         return false;
 
+    ST::utf16_buffer ageName = m_ageName.to_utf16();
+
     const uintptr_t msg[] = {
         kCli2Auth_GetPublicAgeList,
                         m_transId,
-        (uintptr_t)  &m_ageName,
+        (uintptr_t)     ageName.data(),
     };
 
     m_conn->Send(msg, arrsize(msg));
@@ -3588,10 +3616,13 @@ bool FileDownloadRequestTrans::Send () {
     if (!AcquireConn())
         return false;
 
+    wchar_t filename[MAX_PATH];
+    wcsncpy(filename, m_filename.WideString().data(), arrsize(filename));
+
     const uintptr_t msg[] = {
         kCli2Auth_FileDownloadRequest,
         m_transId,
-        reinterpret_cast<uintptr_t>(m_filename.AsString().ToWchar().GetData()),
+        reinterpret_cast<uintptr_t>(filename),
     };
 
     m_conn->Send(msg, arrsize(msg));
@@ -3814,10 +3845,10 @@ VaultInitAgeTrans::VaultInitAgeTrans (
     void *                      param,              // optional
     const plUUID&               ageInstId,          // optional. is used in match
     const plUUID&               parentAgeInstId,    // optional. is used in match
-    const wchar_t               ageFilename[],      // optional. is used in match
-    const wchar_t               ageInstName[],      // optional. not used in match
-    const wchar_t               ageUserName[],      // optional. not used in match
-    const wchar_t               ageDesc[],          // optional. not used in match
+    const ST::string&           ageFilename,      // optional. is used in match
+    const ST::string&           ageInstName,      // optional. not used in match
+    const ST::string&           ageUserName,      // optional. not used in match
+    const ST::string&           ageDesc,          // optional. not used in match
     unsigned                    ageSequenceNumber,  // optional. not used in match
     unsigned                    ageLanguage         // optional. not used in match
 ) : NetAuthTrans(kVaultInitAgeTrans)
@@ -3825,10 +3856,10 @@ VaultInitAgeTrans::VaultInitAgeTrans (
 ,   m_param(param)
 ,   m_ageInstId(ageInstId)
 ,   m_parentAgeInstId(parentAgeInstId)
-,   m_ageFilename(StrDup(ageFilename ? ageFilename : L""))
-,   m_ageInstName(StrDup(ageInstName ? ageInstName : L""))
-,   m_ageUserName(StrDup(ageUserName ? ageUserName : L""))
-,   m_ageDesc(StrDup(ageDesc ? ageDesc : L""))
+,   m_ageFilename(ageFilename)
+,   m_ageInstName(ageInstName)
+,   m_ageUserName(ageUserName)
+,   m_ageDesc(ageDesc)
 ,   m_ageSequenceNumber(ageSequenceNumber)
 ,   m_ageLanguage(ageLanguage)
 ,   m_ageId(0)
@@ -3838,10 +3869,6 @@ VaultInitAgeTrans::VaultInitAgeTrans (
 
 //============================================================================
 VaultInitAgeTrans::~VaultInitAgeTrans () {
-    free(m_ageFilename);
-    free(m_ageInstName);
-    free(m_ageUserName);
-    free(m_ageDesc);
 }
 
 //============================================================================
@@ -3849,19 +3876,24 @@ bool VaultInitAgeTrans::Send () {
     if (!AcquireConn())
         return false;
 
+    ST::utf16_buffer ageFilename = m_ageFilename.to_utf16();
+    ST::utf16_buffer ageInstName = m_ageInstName.to_utf16();
+    ST::utf16_buffer ageUserName = m_ageUserName.to_utf16();
+    ST::utf16_buffer ageDesc = m_ageDesc.to_utf16();
+
     const uintptr_t msg[] = {
         kCli2Auth_VaultInitAgeRequest,
                         m_transId,
         (uintptr_t) &m_ageInstId,
         (uintptr_t) &m_parentAgeInstId,
-        (uintptr_t)  m_ageFilename,
-        (uintptr_t)  m_ageInstName,
-        (uintptr_t)  m_ageUserName,
-        (uintptr_t)  m_ageDesc,
-                        m_ageSequenceNumber,
-                        m_ageLanguage,
+        (uintptr_t)  ageFilename.data(),
+        (uintptr_t)  ageInstName.data(),
+        (uintptr_t)  ageUserName.data(),
+        (uintptr_t)  ageDesc.data(),
+                     m_ageSequenceNumber,
+                     m_ageLanguage,
     };
-    
+
     m_conn->Send(msg, arrsize(msg));
 
     return true;
@@ -3937,8 +3969,6 @@ void VaultFetchNodeTrans::Post () {
         m_param,
         m_node
     );
-    if (m_node)
-        m_node->DecRef("Recv");
 }
 
 //============================================================================
@@ -3950,8 +3980,7 @@ bool VaultFetchNodeTrans::Recv (
     
     if (IS_NET_SUCCESS(reply.result)) {
         m_node = new NetVaultNode;
-        m_node->Read_LCS(reply.nodeBuffer, reply.nodeBytes, 0);
-        m_node->IncRef("Recv");
+        m_node->Read(reply.nodeBuffer, reply.nodeBytes);
     }
 
     m_result = reply.result;
@@ -3977,12 +4006,6 @@ VaultFindNodeTrans::VaultFindNodeTrans (
 ,   m_param(param)
 ,   m_node(templateNode)
 {
-    m_node->IncRef();
-}
-
-//============================================================================
-VaultFindNodeTrans::~VaultFindNodeTrans () {
-    m_node->DecRef();
 }
 
 //============================================================================
@@ -3991,9 +4014,7 @@ bool VaultFindNodeTrans::Send () {
         return false;
         
     ARRAY(uint8_t) buffer;
-    m_node->critsect.Enter();
-    m_node->Write_LCS(&buffer, 0);
-    m_node->critsect.Leave();
+    m_node->Write(&buffer);
 
     const uintptr_t msg[] = {
         kCli2Auth_VaultNodeFind,
@@ -4053,7 +4074,6 @@ VaultCreateNodeTrans::VaultCreateNodeTrans (
 ,   m_param(param)
 ,   m_nodeId(0)
 {
-    m_templateNode->IncRef();
 }
 
 //============================================================================
@@ -4062,7 +4082,7 @@ bool VaultCreateNodeTrans::Send () {
         return false;
         
     ARRAY(uint8_t) buffer;
-    m_templateNode->Write_LCS(&buffer, 0);
+    m_templateNode->Write(&buffer, 0);
 
     const uintptr_t msg[] = {
         kCli2Auth_VaultNodeCreate,
@@ -4083,7 +4103,6 @@ void VaultCreateNodeTrans::Post () {
         m_param,
         m_nodeId
     );
-    m_templateNode->DecRef();
 }
 
 //============================================================================
@@ -4426,8 +4445,8 @@ bool ChangePlayerNameRequestTrans::Recv (
 
 //============================================================================
 SendFriendInviteTrans::SendFriendInviteTrans (
-    const wchar_t                           emailAddr[],
-    const wchar_t                           toName[],
+    const ST::string&                       emailAddr,
+    const ST::string&                       toName,
     const plUUID&                           inviteUuid,
     FNetCliAuthSendFriendInviteCallback     callback,
     void *                                  param
@@ -4435,9 +4454,9 @@ SendFriendInviteTrans::SendFriendInviteTrans (
 ,   m_callback(callback)
 ,   m_param(param)
 ,   m_inviteUuid(inviteUuid)
+,   m_toName(toName)
+,   m_emailAddress(emailAddr)
 {
-    StrCopy(m_emailAddress, emailAddr, arrsize(m_emailAddress));
-    StrCopy(m_toName, toName, arrsize(m_toName));
 }
 
 //============================================================================
@@ -4445,12 +4464,15 @@ bool SendFriendInviteTrans::Send () {
     if (!AcquireConn())
         return false;
 
+    ST::utf16_buffer emailAddress = m_emailAddress.to_utf16();
+    ST::utf16_buffer toName = m_toName.to_utf16();
+
     const uintptr_t msg[] = {
         kCli2Auth_SendFriendInviteRequest,
                         m_transId,
         (uintptr_t) &m_inviteUuid,
-        (uintptr_t)  m_emailAddress,
-        (uintptr_t)  m_toName,
+        (uintptr_t)  emailAddress.data(),
+        (uintptr_t)  toName.data(),
     };
 
     m_conn->Send(msg, arrsize(msg));
@@ -4501,7 +4523,7 @@ void AuthConnectedNotifyTrans::Post() {
 //============================================================================
 ScoreCreateTrans::ScoreCreateTrans (
     unsigned                        ownerId,
-    const char*                     gameName,
+    const ST::string&               gameName,
     unsigned                        gameType,
     int                             value,
     FNetCliAuthCreateScoreCallback  callback,
@@ -4510,12 +4532,12 @@ ScoreCreateTrans::ScoreCreateTrans (
 ,   m_callback(callback)
 ,   m_param(param)
 ,   m_ownerId(ownerId)
+,   m_gameName(gameName)
 ,   m_gameType(gameType)
 ,   m_value(value)
 ,   m_scoreId(0)
 ,   m_createdTime(0)
 {
-    StrCopy(m_gameName, gameName, arrsize(m_gameName));
 }
 
 //============================================================================
@@ -4523,16 +4545,15 @@ bool ScoreCreateTrans::Send () {
     if (!AcquireConn())
         return false;
 
-    wchar_t wgameName[kMaxGameScoreNameLength];
-    StrToUnicode(wgameName, m_gameName, arrsize(wgameName));
+    ST::utf16_buffer gameName = m_gameName.to_utf16();
 
     const uintptr_t msg[] = {
-            kCli2Auth_ScoreCreate,
+                        kCli2Auth_ScoreCreate,
                         m_transId,
                         m_ownerId,
-        (uintptr_t)  wgameName,
+           (uintptr_t)  gameName.data(),
                         m_gameType,
-                        (uintptr_t)m_value
+           (uintptr_t)  m_value
     };
 
     m_conn->Send(msg, arrsize(msg));
@@ -4636,17 +4657,17 @@ bool ScoreDeleteTrans::Recv (
 //============================================================================
 ScoreGetScoresTrans::ScoreGetScoresTrans (
     unsigned                        ownerId,
-    const char*                     gameName,
+    const ST::string&               gameName,
     FNetCliAuthGetScoresCallback    callback,
     void *                          param
 ) : NetAuthTrans(kScoreGetScoresTrans)
 ,   m_callback(callback)
 ,   m_param(param)
 ,   m_ownerId(ownerId)
-,   m_scores(nil)
+,   m_gameName(gameName)
+,   m_scores(nullptr)
 ,   m_scoreCount(0)
 {
-    StrCopy(m_gameName, gameName, arrsize(m_gameName));
 }
 
 //============================================================================
@@ -4659,14 +4680,13 @@ bool ScoreGetScoresTrans::Send () {
     if (!AcquireConn())
         return false;
 
-    wchar_t wgameName[kMaxGameScoreNameLength];
-    StrToUnicode(wgameName, m_gameName, arrsize(wgameName));
+    ST::utf16_buffer gameName = m_gameName.to_utf16();
 
     const uintptr_t msg[] = {
-        kCli2Auth_ScoreGetScores,
-                        m_transId,
-                        m_ownerId,
-        (uintptr_t)  wgameName
+                    kCli2Auth_ScoreGetScores,
+                    m_transId,
+                    m_ownerId,
+        (uintptr_t) gameName.data()
     };
 
     m_conn->Send(msg, arrsize(msg));
@@ -4906,7 +4926,7 @@ ScoreGetRanksTrans::ScoreGetRanksTrans (
     unsigned                    ownerId,
     unsigned                    scoreGroup,
     unsigned                    parentFolderId,
-    const char *                cGameName,
+    const ST::string&           gameName,
     unsigned                    timePeriod,
     unsigned                    numResults,
     unsigned                    pageNumber,
@@ -4919,12 +4939,12 @@ ScoreGetRanksTrans::ScoreGetRanksTrans (
 ,   m_ownerId(ownerId)
 ,   m_scoreGroup(scoreGroup)
 ,   m_parentFolderId(parentFolderId)
+,   m_gameName(gameName)
 ,   m_timePeriod(timePeriod)
 ,   m_numResults(numResults)
 ,   m_pageNumber(pageNumber)
 ,   m_sortDesc(sortDesc)
 {
-    StrToUnicode(m_gameName, cGameName, arrsize(m_gameName));
 }
 
 //============================================================================
@@ -4932,13 +4952,15 @@ bool ScoreGetRanksTrans::Send () {
     if (!AcquireConn())
         return false;
 
+    ST::utf16_buffer gameName = m_gameName.to_utf16();
+
     const uintptr_t msg[] = {
         kCli2Auth_ScoreGetRanks,
                         m_transId,
                         m_ownerId,
                         m_scoreGroup,
                         m_parentFolderId,
-        (uintptr_t)  m_gameName,
+        (uintptr_t)     gameName.data(),
                         m_timePeriod,
                         m_numResults,
                         m_pageNumber,
@@ -4990,6 +5012,95 @@ bool ScoreGetRanksTrans::Recv (
     return true;
 }
 
+/*****************************************************************************
+*
+*   ScoreGetHighScoresTrans
+*
+***/
+
+//============================================================================
+ScoreGetHighScoresTrans::ScoreGetHighScoresTrans(
+    unsigned                        ageId,
+    unsigned                        maxScores,
+    const ST::string&               gameName,
+    FNetCliAuthGetScoresCallback    callback,
+    void *                          param
+    ) : NetAuthTrans(kScoreGetHighScoresTrans)
+    , m_callback(callback)
+    , m_param(param)
+    , m_ageId(ageId)
+    , m_maxScores(maxScores)
+    , m_gameName(gameName)
+    , m_scores(nullptr)
+    , m_scoreCount(0)
+{
+}
+
+//============================================================================
+ScoreGetHighScoresTrans::~ScoreGetHighScoresTrans() {
+    delete[] m_scores;
+}
+
+//============================================================================
+bool ScoreGetHighScoresTrans::Send() {
+    if (!AcquireConn())
+        return false;
+
+    ST::utf16_buffer gameName = m_gameName.to_utf16();
+
+    const uintptr_t msg[] = {
+        kCli2Auth_ScoreGetHighScores,
+        m_transId,
+        m_ageId,
+        m_maxScores,
+        (uintptr_t)gameName.data()
+    };
+
+    m_conn->Send(msg, arrsize(msg));
+
+    return true;
+}
+
+//============================================================================
+void ScoreGetHighScoresTrans::Post() {
+    if (m_callback) {
+        m_callback(
+            m_result,
+            m_param,
+            m_scores,
+            m_scoreCount
+            );
+    }
+}
+
+//============================================================================
+bool ScoreGetHighScoresTrans::Recv(
+    const uint8_t msg[],
+    unsigned      bytes
+    ) {
+    const Auth2Cli_ScoreGetHighScoresReply & reply = *(const Auth2Cli_ScoreGetHighScoresReply *)msg;
+
+    if (reply.scoreCount > 0) {
+        m_scoreCount = reply.scoreCount;
+        m_scores = new NetGameScore[m_scoreCount];
+
+        uint8_t*    bufferPos = const_cast<uint8_t*>(reply.buffer);
+        unsigned    bufferLength = reply.byteCount;
+
+        for (unsigned i = 0; i < m_scoreCount; ++i) {
+            bufferLength -= m_scores[i].Read(bufferPos, bufferLength, &bufferPos);
+        }
+    }
+    else {
+        m_scoreCount = 0;
+        m_scores = nullptr;
+    }
+
+    m_result = reply.result;
+    m_state = kTransStateComplete;
+    return true;
+}
+
 } using namespace Auth;
 
 
@@ -5021,7 +5132,7 @@ bool NetAuthTrans::AcquireConn () {
 //============================================================================
 void NetAuthTrans::ReleaseConn () {
     if (m_conn) {
-        m_conn->DecRef("AcquireConn");
+        m_conn->UnRef("AcquireConn");
         m_conn = nil;
     }
 }
@@ -5069,13 +5180,12 @@ void AuthDestroy (bool wait) {
         false
     );
 
-    s_critsect.Enter();
     {
+        hsLockGuard(s_critsect);
         while (CliAuConn * conn = s_conns.Head())
             UnlinkAndAbandonConn_CS(conn);
         s_active = nil;
     }
-    s_critsect.Leave();
 
     if (!wait)
         return;
@@ -5088,28 +5198,20 @@ void AuthDestroy (bool wait) {
 
 //============================================================================
 bool AuthQueryConnected () {
-    bool result;
-    s_critsect.Enter();
-    {
-        result = (s_active && s_active->cli);
-    }
-    s_critsect.Leave();
-    return result;
+    hsLockGuard(s_critsect);
+    return (s_active && s_active->cli);
 }
 
 //============================================================================
 unsigned AuthGetConnId () {
-    unsigned connId;
-    s_critsect.Enter();
-    connId = (s_active) ? s_active->seq : 0;
-    s_critsect.Leave();
-    return connId;
+    hsLockGuard(s_critsect);
+    return (s_active) ? s_active->seq : 0;
 }
 
 //============================================================================
 void AuthPingEnable (bool enable) {
     s_perf[kPingDisabled] = !enable;
-    s_critsect.Enter();
+    hsLockGuard(s_critsect);
     for (;;) {
         if (!s_active)
             break;
@@ -5119,7 +5221,6 @@ void AuthPingEnable (bool enable) {
             s_active->StopAutoPing();
         break;
     }
-    s_critsect.Leave();
 }
 
 
@@ -5134,16 +5235,16 @@ void AuthPingEnable (bool enable) {
 
 //============================================================================
 void NetCliAuthStartConnect (
-    const char*     authAddrList[],
-    uint32_t        authAddrCount
+    const ST::string  authAddrList[],
+    uint32_t          authAddrCount
 ) {
     // TEMP: Only connect to one auth server until we fill out this module
     // to choose the "best" auth connection.
-    authAddrCount = min(authAddrCount, 1);
+    authAddrCount = std::min(authAddrCount, 1u);
 
     for (unsigned i = 0; i < authAddrCount; ++i) {
         // Do we need to lookup the address?
-        const char* name = authAddrList[i];
+        const char* name = authAddrList[i].c_str();
         while (unsigned ch = *name) {
             ++name;
             if (!(isdigit(ch) || ch == L'.' || ch == L':')) {
@@ -5151,15 +5252,15 @@ void NetCliAuthStartConnect (
                 AsyncAddressLookupName(
                     &cancelId,
                     AsyncLookupCallback,
-                    authAddrList[i],
-                    kNetDefaultClientPort,
+                    authAddrList[i].c_str(),
+                    GetClientPort(),
                     nil
                 );
                 break;
             }
         }
         if (!name[0]) {
-            plNetAddress addr(authAddrList[i], kNetDefaultClientPort);
+            plNetAddress addr(authAddrList[i], GetClientPort());
             Connect(authAddrList[i], addr);
         }
     }
@@ -5180,23 +5281,17 @@ void NetCliAuthAutoReconnectEnable (bool enable) {
 //============================================================================
 void NetCliAuthDisconnect () {
 
-    s_critsect.Enter();
-    {
-        while (CliAuConn * conn = s_conns.Head())
-            UnlinkAndAbandonConn_CS(conn);
-        s_active = nil;
-    }
-    s_critsect.Leave();
+    hsLockGuard(s_critsect);
+    while (CliAuConn * conn = s_conns.Head())
+        UnlinkAndAbandonConn_CS(conn);
+    s_active = nil;
 }
 
 //============================================================================
 void NetCliAuthUnexpectedDisconnect () {
-    s_critsect.Enter();
-    {
-        if (s_active && s_active->sock)
-            AsyncSocketDisconnect(s_active->sock, true);
-    }
-    s_critsect.Leave();
+    hsLockGuard(s_critsect);
+    if (s_active && s_active->sock)
+        AsyncSocketDisconnect(s_active->sock, true);
 }
 
 //============================================================================
@@ -5204,6 +5299,12 @@ void NetCliAuthSetConnectCallback (
     FNetCliAuthConnectCallback  callback
 ) {
     s_connectedCb = callback;
+}
+
+//============================================================================
+bool NetCliAuthCheckCap (uint32_t cap) {
+    hsLockGuard(s_critsect);
+    return s_active ? s_active->caps.IsBitSet(cap) : false;
 }
 
 //============================================================================
@@ -5240,7 +5341,7 @@ void NetCliAuthAccountExistsRequest (
 
 //============================================================================
 void NetCliAuthLoginRequest (
-    const wchar_t                   accountName[],
+    const ST::string&               accountName,
     const ShaDigest *               accountNamePassHash,
     const wchar_t                   authToken[],
     const wchar_t                   os[],
@@ -5248,8 +5349,8 @@ void NetCliAuthLoginRequest (
     void *                          param
 ) {
     // Cache updated login info if provided.
-    if (accountName)
-        StrCopy(s_accountName, accountName, arrsize(s_accountName));
+    if (!accountName.empty())
+        s_accountName = accountName;
     if (accountNamePassHash)
         memcpy(s_accountNamePassHash, *accountNamePassHash, sizeof(ShaDigest));
     if (authToken)
@@ -5263,7 +5364,7 @@ void NetCliAuthLoginRequest (
 
 //============================================================================
 void NetCliAuthAgeRequest (
-    const wchar_t                         ageName[],
+    const ST::string&                   ageName,
     const plUUID&                       ageInstId,
     FNetCliAuthAgeRequestCallback       callback,
     void *                              param
@@ -5279,10 +5380,10 @@ void NetCliAuthAgeRequest (
 
 //============================================================================
 void NetCliAuthGetEncryptionKey (
-    uint32_t      key[],
-    unsigned    size
+    uint32_t    key[],
+    size_t      size
 ) {
-    unsigned memSize = min(arrsize(s_encryptionKey), size);
+    unsigned memSize = std::min(arrsize(s_encryptionKey), size);
     memSize *= sizeof(uint32_t);
     memcpy(key, s_encryptionKey, memSize);
 }
@@ -5329,14 +5430,13 @@ void NetCliAuthAccountCreateFromKeyRequest (
 
 //============================================================================
 void NetCliAuthPlayerCreateRequest (
-    const wchar_t                             playerName[],
-    const wchar_t                             avatarShape[],
-    const wchar_t                             friendInvite[],
+    const ST::string&                       playerName,
+    const ST::string&                       avatarShape,
+    const ST::string&                       friendInvite,
     FNetCliAuthPlayerCreateRequestCallback  callback,
     void *                                  param
 ) {
-    wchar_t name[kMaxPlayerNameLength];
-    StrCopy(name, playerName, arrsize(name));
+    ST::string name = playerName;
     ENetError error = FixupPlayerName(name);
     if (IS_NET_ERROR(error)) {
         NetCliAuthPlayerInfo playerInfo;
@@ -5396,7 +5496,7 @@ void NetCliAuthSetCCRLevel (
     };
     
     conn->Send(msg, arrsize(msg));
-    conn->DecRef("SetCCRLevel");
+    conn->UnRef("SetCCRLevel");
 }
 
 //============================================================================
@@ -5430,12 +5530,12 @@ void NetCliAuthSetAgePublic (
     
     conn->Send(msg, arrsize(msg));
 
-    conn->DecRef("SetAgePublic");
+    conn->UnRef("SetAgePublic");
 }
 
 //============================================================================
 void NetCliAuthGetPublicAgeList (
-    const wchar_t                         ageName[],
+    const ST::string&                   ageName,
     FNetCliAuthGetPublicAgeListCallback callback,
     void *                              param
 ) {
@@ -5449,8 +5549,8 @@ void NetCliAuthGetPublicAgeList (
 
 //============================================================================
 void NetCliAuthAccountChangePasswordRequest (
-    const wchar_t                                     accountName[],
-    const wchar_t                                     password[],
+    const ST::string&                               accountName,
+    const ST::string&                               password,
     FNetCliAuthAccountChangePasswordRequestCallback callback,
     void *                                          param
 ) {
@@ -5617,43 +5717,34 @@ unsigned NetCliAuthVaultNodeSave (
     FNetCliAuthVaultNodeSaveCallback    callback,
     void *                              param
 ) {
-    ASSERTMSG(!(node->GetDirtyFlags() & NetVaultNode::kNodeType), "Node type may not be changed");
-    
-    // Clear dirty bits of read-only fields before we write the node to the msg buffer
-    node->ClearDirtyFlags(
-        NetVaultNode::kNodeId |
-        NetVaultNode::kNodeType |
-        NetVaultNode::kCreatorAcct |
-        NetVaultNode::kCreatorId |
-        NetVaultNode::kCreateTime
-    );
-    
-    if (!node->GetDirtyFlags())
+    if (!node->IsDirty())
         return 0;
-        
+
     if (!node->GetNodeId())
         return 0;
-        
-    // force sending of the nodeType value, since the auth needs it.
-    // auth will clear the field before sending it on to the vault.
-    node->SetDirtyFlags(NetVaultNode::kNodeType);
 
     // We're definitely saving this node, so assign a revisionId
-    node->revisionId = plUUID::Generate();
+    node->GenerateRevision();
+
+    // Lots of hacks for MOULa :(
+    uint32_t ioFlags = NetVaultNode::kDirtyOnly | NetVaultNode::kClearDirty;
+    if (node->GetNodeType() == plVault::kNodeType_SDL)
+        ioFlags |= NetVaultNode::kDirtyString64_1;
+    ioFlags |= NetVaultNode::kDirtyNodeType;
 
     ARRAY(uint8_t) buffer;
-    unsigned bytes = node->Write_LCS(&buffer, NetVaultNode::kRwDirtyOnly | NetVaultNode::kRwUpdateDirty);
-    
+    node->Write(&buffer, ioFlags);
+
     VaultSaveNodeTrans * trans = new VaultSaveNodeTrans(
         node->GetNodeId(),
-        node->revisionId,
+        node->GetRevision(),
         buffer.Count(),
         buffer.Ptr(),
         callback,
         param
     );
     NetTransSend(trans);
-    return bytes;
+    return buffer.Count();
 }
 
 //============================================================================
@@ -5730,7 +5821,7 @@ void NetCliAuthVaultSetSeen (
     
     conn->Send(msg, arrsize(msg));
 
-    conn->DecRef("SetSeen");
+    conn->UnRef("SetSeen");
 }
 
 //============================================================================
@@ -5750,17 +5841,17 @@ void NetCliAuthVaultSendNode (
     
     conn->Send(msg, arrsize(msg));
 
-    conn->DecRef("SendNode");
+    conn->UnRef("SendNode");
 }
 
 //============================================================================
 void NetCliAuthVaultInitAge (
     const plUUID&               ageInstId,          // optional. is used in match
     const plUUID&               parentAgeInstId,    // optional. is used in match
-    const wchar_t               ageFilename[],      // optional. is used in match
-    const wchar_t               ageInstName[],      // optional. not used in match
-    const wchar_t               ageUserName[],      // optional. not used in match
-    const wchar_t               ageDesc[],          // optional. not used in match
+    const ST::string&           ageFilename,        // optional. is used in match
+    const ST::string&           ageInstName,        // optional. not used in match
+    const ST::string&           ageUserName,        // optional. not used in match
+    const ST::string&           ageDesc,            // optional. not used in match
     unsigned                    ageSequenceNumber,  // optional. not used in match
     unsigned                    ageLanguage,        // optional. not used in match
     FNetCliAuthAgeInitCallback  callback,           // optional
@@ -5790,7 +5881,7 @@ void NetCliAuthSetRecvBufferHandler (
 
 //============================================================================
 void NetCliAuthSendCCRPetition (
-    const wchar_t *       petitionText
+    const ST::string&     petitionText
 ) {
     hsAssert(false, "eric, implement me.");
 }
@@ -5814,7 +5905,7 @@ void NetCliAuthPropagateBuffer (
 
     conn->Send(msg, arrsize(msg));
 
-    conn->DecRef("PropBuffer");
+    conn->UnRef("PropBuffer");
 
 }
 
@@ -5831,7 +5922,7 @@ void NetCliAuthLogPythonTraceback (const wchar_t traceback[]) {
 
     conn->Send(msg, arrsize(msg));
 
-    conn->DecRef("LogTraceback");
+    conn->UnRef("LogTraceback");
 }
 
 
@@ -5848,7 +5939,7 @@ void NetCliAuthLogStackDump (const wchar_t stackdump[]) {
 
     conn->Send(msg, arrsize(msg));
 
-    conn->DecRef("LogStackDump");
+    conn->UnRef("LogStackDump");
 }
 
 //============================================================================
@@ -5866,7 +5957,7 @@ void NetCliAuthLogClientDebuggerConnect () {
 
     conn->Send(msg, arrsize(msg));
 
-    conn->DecRef();
+    conn->UnRef();
 }
 
 //============================================================================
@@ -5905,7 +5996,7 @@ void NetCliAuthKickPlayer (
     };
 
     conn->Send(msg, arrsize(msg));
-    conn->DecRef("KickPlayer");
+    conn->UnRef("KickPlayer");
 }
 
 //============================================================================
@@ -5926,9 +6017,9 @@ void NetCliAuthChangePlayerNameRequest (
 
 //============================================================================
 void NetCliAuthSendFriendInvite (
-    const wchar_t                         emailAddress[],
-    const wchar_t                         toName[],
-    const plUUID&                         inviteUuid,
+    const ST::string&                   emailAddress,
+    const ST::string&                   toName,
+    const plUUID&                       inviteUuid,
     FNetCliAuthSendFriendInviteCallback callback,
     void *                              param
 ) {
@@ -5945,7 +6036,7 @@ void NetCliAuthSendFriendInvite (
 //============================================================================
 void NetCliAuthScoreCreate (
     unsigned                        ownerId,
-    const char*                     gameName,
+    const ST::string&               gameName,
     unsigned                        gameType,
     int                             value,
     FNetCliAuthCreateScoreCallback  callback,
@@ -5979,7 +6070,7 @@ void NetCliAuthScoreDelete(
 //============================================================================
 void NetCliAuthScoreGetScores(
     unsigned                        ownerId,
-    const char*                     gameName,
+    const ST::string&               gameName,
     FNetCliAuthGetScoresCallback    callback,
     void *                          param
 ) {
@@ -6047,7 +6138,7 @@ void NetCliAuthScoreGetRankList(
     unsigned                    ownerId,
     unsigned                    scoreGroup,
     unsigned                    parentFolderId,
-    const char *                gameName,
+    const ST::string&           gameName,
     unsigned                    timePeriod,
     unsigned                    numResults,
     unsigned                    pageNumber,
@@ -6064,6 +6155,24 @@ void NetCliAuthScoreGetRankList(
         numResults,
         pageNumber,
         sortDesc,
+        callback,
+        param
+    );
+    NetTransSend(trans);
+}
+
+//============================================================================
+void NetCliAuthScoreGetHighScores(
+    unsigned                        ageId,
+    unsigned                        maxScores,
+    const ST::string&               gameName,
+    FNetCliAuthGetScoresCallback    callback,
+    void *                          param
+    ) {
+    ScoreGetHighScoresTrans * trans = new ScoreGetHighScoresTrans(
+        ageId,
+        maxScores,
+        gameName,
         callback,
         param
     );

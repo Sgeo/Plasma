@@ -48,6 +48,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsSTLStream.h"
 
 #if !HS_BUILD_FOR_WIN32
+#include <errno.h>
 #define INVALID_HANDLE_VALUE 0
 #endif
 
@@ -110,8 +111,8 @@ plSecureStream::~plSecureStream()
 
 void plSecureStream::IEncipher(uint32_t* const v, uint32_t n)
 {
-    register unsigned long y=v[0], z=v[n-1], e, delta=0x9E3779B9;
-    register unsigned long q = 6 + 52/n, p, sum = 0;
+    unsigned long y=v[0], z=v[n-1], e, delta=0x9E3779B9;
+    unsigned long q = 6 + 52/n, p, sum = 0;
 
     while (q-- > 0)
     {
@@ -131,8 +132,8 @@ void plSecureStream::IEncipher(uint32_t* const v, uint32_t n)
 
 void plSecureStream::IDecipher(uint32_t* const v, uint32_t n)
 {
-    register unsigned long y=v[0], z=v[n-1], e, delta=0x9E3779B9;
-    register unsigned long q = 6 + 52/n, p, sum = q * delta;
+    unsigned long y=v[0], z=v[n-1], e, delta=0x9E3779B9;
+    unsigned long q = 6 + 52/n, p, sum = q * delta;
 
     while (sum > 0)
     {
@@ -157,7 +158,7 @@ bool plSecureStream::Open(const plFileName& name, const char* mode)
 #if HS_BUILD_FOR_WIN32
         if (fDeleteOnExit)
         {
-            fRef = CreateFileW(name.AsString().ToWchar(),
+            fRef = CreateFileW(name.WideString().data(),
                                 GENERIC_READ,   // open for reading
                                 0,              // no one can open the file until we're done
                                 NULL,           // default security
@@ -167,7 +168,7 @@ bool plSecureStream::Open(const plFileName& name, const char* mode)
         }
         else
         {
-            fRef = CreateFileW(name.AsString().ToWchar(),
+            fRef = CreateFileW(name.WideString().data(),
                                 GENERIC_READ,   // open for reading
                                 0,              // no one can open the file until we're done
                                 NULL,           // default security
@@ -293,7 +294,7 @@ bool plSecureStream::Close()
         fRAMStream = nil;
     }
 
-    fWriteFileName = plString::Null;
+    fWriteFileName = ST::null;
     fActualFileSize = 0;
     fBufferedStream = false;
     fOpenMode = kOpenFail;
@@ -325,7 +326,11 @@ uint32_t plSecureStream::IRead(uint32_t bytes, void* buffer)
         }
         else
         {
+#if HS_BUILD_FOR_WIN32
             hsDebugMessage("Error on Windows read", GetLastError());
+#else
+            hsDebugMessage("Error on POSIX read", errno);
+#endif
         }
     }
     return numItems;
@@ -434,7 +439,7 @@ uint32_t plSecureStream::Read(uint32_t bytes, void* buffer)
     // Offset into the first buffer (0 if we are aligned on a chunk, which means no extra block read)
     uint32_t startChunkPos = startPos % kEncryptChunkSize;
     // Amount of data in the partial first chunk (0 if we're aligned)
-    uint32_t startAmt = (startChunkPos != 0) ? hsMinimum(kEncryptChunkSize - startChunkPos, bytes) : 0;
+    uint32_t startAmt = (startChunkPos != 0) ? std::min(kEncryptChunkSize - startChunkPos, bytes) : 0;
 
     uint32_t totalNumRead = IRead(bytes, buffer);
 
@@ -639,7 +644,7 @@ bool plSecureStream::IsSecureFile(const plFileName& fileName)
     hsFD fp = INVALID_HANDLE_VALUE;
 
 #if HS_BUILD_FOR_WIN32
-    fp = CreateFileW(fileName.AsString().ToWchar(),
+    fp = CreateFileW(fileName.WideString().data(),
         GENERIC_READ,   // open for reading
         0,              // no one can open the file until we're done
         NULL,           // default security
@@ -667,17 +672,13 @@ bool plSecureStream::IsSecureFile(const plFileName& fileName)
 hsStream* plSecureStream::OpenSecureFile(const plFileName& fileName, const uint32_t flags /* = kRequireEncryption */, uint32_t* key /* = nil */)
 {
     bool requireEncryption = flags & kRequireEncryption;
-#ifndef PLASMA_EXTERNAL_RELEASE
-    requireEncryption = false;
-#endif
-
     bool deleteOnExit = flags & kDeleteOnExit;
     bool isEncrypted = IsSecureFile(fileName);
 
-    hsStream* s = nil;
+    hsStream* s = nullptr;
     if (isEncrypted)
         s = new plSecureStream(deleteOnExit, key);
-    else if (!requireEncryption) // If this isn't an external release, let them use unencrypted data
+    else if (!requireEncryption)
         s = new hsUNIXStream;
 
     if (s)
@@ -717,7 +718,7 @@ bool plSecureStream::GetSecureEncryptionKey(const plFileName& filename, uint32_t
 
         file.Close();
 
-        unsigned memSize = min(bytesToRead, bytesRead);
+        unsigned memSize = std::min(bytesToRead, bytesRead);
         memcpy(key, buffer, memSize);
         free(buffer);
 
@@ -725,7 +726,7 @@ bool plSecureStream::GetSecureEncryptionKey(const plFileName& filename, uint32_t
     }
 
     // file doesn't exist, use default key
-    unsigned memSize = min(length, arrsize(plSecureStream::kDefaultKey));
+    unsigned memSize = std::min(size_t(length), arrsize(plSecureStream::kDefaultKey));
     memSize *= sizeof(uint32_t);
     memcpy(key, plSecureStream::kDefaultKey, memSize);
 

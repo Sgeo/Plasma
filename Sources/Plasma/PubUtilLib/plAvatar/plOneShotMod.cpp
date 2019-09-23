@@ -61,51 +61,41 @@ plOneShotMod::plOneShotMod()
   fReversable(false),
   fSeekDuration(1.0f),
   fSmartSeek(false),
-  fAnimName(nil),
   fNoSeek(false)
 {
     // this constructor is called from the loader. 
 }
 
 // CTOR(char *)
-plOneShotMod::plOneShotMod(const char *animName,
+plOneShotMod::plOneShotMod(const ST::string &animName,
                            bool drivable,
                            bool reversable,
                            float seekDuration,
                            bool smartSeek,
                            bool noSeek)
-: fDrivable(drivable),
+: fAnimName(animName),
+  fDrivable(drivable),
   fReversable(reversable),
   fSeekDuration(seekDuration),
   fSmartSeek((float)smartSeek),
   fNoSeek(noSeek)
 {
-    fAnimName = hsStrcpy(animName);
 }
 
 // INIT
-void plOneShotMod::Init(const char *animName,
+void plOneShotMod::Init(const ST::string &animName,
                         bool drivable,
                         bool reversable,
                         float seekDuration,
                         bool smartSeek,
                         bool noSeek)
 {
-    fAnimName = hsStrcpy(animName);
+    fAnimName = animName;
     fDrivable = drivable;
     fReversable = reversable;
     fSeekDuration = seekDuration;
     fSmartSeek = (float)smartSeek;
     fNoSeek = noSeek;
-}
-
-// DTOR()
-plOneShotMod::~plOneShotMod()
-{
-    if(fAnimName) {
-        delete[] fAnimName;
-        fAnimName = nil;
-    }
 }
 
 
@@ -130,7 +120,7 @@ bool plOneShotMod::MsgReceive(plMessage* msg)
 
                 if(avMod)
                 {
-                    plString animName = avMod->MakeAnimationName(fAnimName);
+                    ST::string animName = avMod->MakeAnimationName(fAnimName);
 
                     plAvOneShotMsg *avOSmsg = new plAvOneShotMsg(myKey, oneShotMsg->fPlayerKey, objKey,
                                                                  fSeekDuration, (bool)fSmartSeek, animName, fDrivable,

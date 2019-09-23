@@ -61,7 +61,18 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #       define _WIN32_IE    0x400
 #   endif
 
-#   define NOMINMAX
+    // HACK: Max headers depend on the min() and max() macros normally pulled
+    // in by windows.h... However, we usually disable those, since they break
+    // std::min and std::max.  Therefore, we bring the std:: versions down to
+    // the global namespace so we can still compile max code without breaking
+    // everything else :/
+#   ifndef NOMINMAX
+#       define NOMINMAX
+#       include <algorithm>
+        using std::min;
+        using std::max;
+#   endif
+
 #   define WIN32_LEAN_AND_MEAN
 #   include <windows.h>
 #   include <ws2tcpip.h> // Pulls in WinSock 2 for us
@@ -70,6 +81,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #   ifdef USE_VLD
 #       include <vld.h>
 #   endif // USE_VLD
+
+    const RTL_OSVERSIONINFOEXW& hsGetWindowsVersion();
 #endif // HS_BUILD_FOR_WIN32
 
 #endif // _hsWindows_inc_

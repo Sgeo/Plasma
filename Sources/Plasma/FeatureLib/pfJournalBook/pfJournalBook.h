@@ -129,7 +129,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //          tint=yes/no       - Defines whether or not this decal is tinted //
 //                              with the cover. Overridden by the tintfirst //
 //                              option on the <cover> tag. Defaults to no   //
-//      <movie> - Places a movie (.bik file) inline with the text. Options: //
+//      <movie> - Places a movie (.webm file) inline with the text. Options://
 //          src=<movie name>  - Selects the movie to be used. (nead search  //
 //                              methods here eventually)                    //
 //          align=left/right/center                                         //
@@ -188,7 +188,7 @@ class plLayerInterface;
 class plMipmap;
 class pfGUIProgressCtrl;
 class hsGMaterial;
-class plLayerBink;
+class plLayerAVI;
 class pfGUIMultiLineEditCtrl;
 
 class pfJournalBook;
@@ -213,7 +213,7 @@ public:
         kTurnBackPage
     };
     
-    pfBookData(const plString &guiName = plString::Null);
+    pfBookData(const ST::string &guiName = ST::null);
     virtual ~pfBookData();
 
     void LoadGUI(); // need this seperate because the plKey isn't setup until the constructor is done
@@ -286,7 +286,7 @@ protected:
         kRefDefaultCover
     };
 
-    plString            fGUIName;
+    ST::string          fGUIName;
 
     // The pointer to our dialog
     pfGUIDialogMod      *fDialog;
@@ -364,8 +364,8 @@ class pfJournalBook : public hsKeyedObject
         // The constructor takes in the esHTML source for the journal, along with
         // the name of the mipmap to use as the cover of the book. The callback
         // key is the keyed object to send event messages to (see <img> tag).
-        pfJournalBook( const char *esHTMLSource, plKey coverImageKey = nil, plKey callbackKey = nil, const plLocation &hintLoc = plLocation::kGlobalFixedLoc, const plString &guiName = plString::Null );
-        pfJournalBook( const wchar_t *esHTMLSource, plKey coverImageKey = nil, plKey callbackKey = nil, const plLocation &hintLoc = plLocation::kGlobalFixedLoc, const plString &guiName = plString::Null );
+        pfJournalBook( const char *esHTMLSource, plKey coverImageKey = nil, plKey callbackKey = nil, const plLocation &hintLoc = plLocation::kGlobalFixedLoc, const ST::string &guiName = ST::null );
+        pfJournalBook( const wchar_t *esHTMLSource, plKey coverImageKey = nil, plKey callbackKey = nil, const plLocation &hintLoc = plLocation::kGlobalFixedLoc, const ST::string &guiName = ST::null );
 
         virtual ~pfJournalBook();
 
@@ -382,15 +382,15 @@ class pfJournalBook : public hsKeyedObject
         static void SingletonShutdown( void );
         
         // loads a gui
-        static void LoadGUI( const plString &guiName );
+        static void LoadGUI( const ST::string &guiName );
 
         // unloads a gui if we don't need it any more and want to free up memory
-        static void UnloadGUI( const plString &guiName );
+        static void UnloadGUI( const ST::string &guiName );
 
         // unloads all GUIs except for the default
         static void UnloadAllGUIs();
 
-        void    SetGUI( const plString &guiName );
+        void    SetGUI( const ST::string &guiName );
 
         // Shows the book, optionally starting open or closed
         void    Show( bool startOpened = false );
@@ -453,7 +453,7 @@ class pfJournalBook : public hsKeyedObject
         struct loadedMovie
         {
             pfEsHTMLChunk *movieChunk;
-            plLayerBink *movieLayer;
+            plLayerAVI *movieLayer;
         };
 
         friend class pfJournalDlgProc;
@@ -507,8 +507,8 @@ class pfJournalBook : public hsKeyedObject
         // Current list of linkable image chunks we have visible on the screen, for quick hit testing
         hsTArray<pfEsHTMLChunk *>   fVisibleLinks;
 
-        static std::map<plString,pfBookData*> fBookGUIs;
-        plString fCurBookGUI;
+        static std::map<ST::string,pfBookData*> fBookGUIs;
+        ST::string fCurBookGUI;
 
         enum Refs
         {
@@ -535,7 +535,7 @@ class pfJournalBook : public hsKeyedObject
 
         // Starting at the given chunk, works backwards to determine the full set of current
         // font properties at that point, or assigns defaults if none were specified
-        void    IFindFontProps( uint32_t chunkIdx, const wchar_t *&face, uint8_t &size, uint8_t &flags, hsColorRGBA &color, int16_t &spacing );
+        void    IFindFontProps( uint32_t chunkIdx, ST::string &face, uint8_t &size, uint8_t &flags, hsColorRGBA &color, int16_t &spacing );
 
         // Find the last paragraph chunk and thus the last par alignment settings
         uint8_t   IFindLastAlignment( void ) const;
@@ -574,7 +574,7 @@ class pfJournalBook : public hsKeyedObject
         // Movie functions
         loadedMovie         *IMovieAlreadyLoaded(pfEsHTMLChunk *chunk);
         loadedMovie         *IGetMovieByIndex(uint8_t index);
-        plLayerBink         *IMakeMovieLayer(pfEsHTMLChunk *chunk, uint16_t x, uint16_t y, plMipmap *baseMipmap, uint32_t whichDTMap, bool dontRender);
+        plLayerAVI          *IMakeMovieLayer(pfEsHTMLChunk *chunk, uint16_t x, uint16_t y, plMipmap *baseMipmap, uint32_t whichDTMap, bool dontRender);
 
         // Cover functions
         plLayerInterface    *IMakeBaseLayer(plMipmap *image);

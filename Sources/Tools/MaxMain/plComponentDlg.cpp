@@ -51,6 +51,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include <algorithm>
 #include <notify.h>
 #include <utilapi.h>
+#include <notify.h>
 #include <vector>
 #pragma hdrstop
 
@@ -173,8 +174,8 @@ void plComponentDlg::IPositionControl(HWND hControl, int hDiff, int wDiff, int f
     RECT rect;
     GetWindowRect(hControl, &rect);
 
-    hsAssert(!((flags & kMoveX) & (flags & kResizeX)), "Moving AND resizing in X in IPositionControl");
-    hsAssert(!((flags & kMoveY) & (flags & kResizeY)), "Moving AND resizing in Y in IPositionControl");
+    hsAssert(!((flags & kMoveX) && (flags & kResizeX)), "Moving AND resizing in X in IPositionControl");
+    hsAssert(!((flags & kMoveY) && (flags & kResizeY)), "Moving AND resizing in Y in IPositionControl");
 
     if (flags & kMoveX || flags & kMoveY)
     {

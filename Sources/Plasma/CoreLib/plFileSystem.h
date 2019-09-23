@@ -43,7 +43,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #ifndef plFileSystem_Defined
 #define plFileSystem_Defined
 
-#include "plString.h"
+#include <string_theory/formatter>
 #include <cstdio>
 #include <cstddef>
 
@@ -65,11 +65,14 @@ public:
     /** Construct an empty filename. */
     plFileName() { }
 
+    /** Construct an empty filename. */
+    plFileName(const ST::null_t &) { }
+
     /** Construct a filename from the UTF-8 character data in \a cstr. */
     plFileName(const char *cstr) : fName(cstr) { }
 
-    /** Construct a filename from the plString argument \a copy. */
-    plFileName(const plString &copy) : fName(copy) { }
+    /** Construct a filename from the ST::string argument \a copy. */
+    plFileName(const ST::string &copy) : fName(copy) { }
 
     /** Copy constructor. */
     plFileName(const plFileName &copy) : fName(copy.fName) { }
@@ -81,8 +84,15 @@ public:
         return *this;
     }
 
-    /** Assignment operator.  Same as plFileName(const plString &). */
-    plFileName &operator=(const plString &copy)
+    /** Assignment operator.  Same as plFileName(const ST::null_t &). */
+    plFileName &operator=(const ST::null_t &)
+    {
+        fName.operator=(ST::null);
+        return *this;
+    }
+
+    /** Assignment operator.  Same as plFileName(const ST::string &). */
+    plFileName &operator=(const ST::string &copy)
     {
         fName.operator=(copy);
         return *this;
@@ -108,43 +118,46 @@ public:
     bool operator!=(const plFileName &other) const { return fName.operator!=(other.fName); }
 
     /** Operator overload for use in containers which depend on \c std::less. */
-    bool operator<(const plFileName &other) const { return fName.Compare(other.fName) < 0; }
+    bool operator<(const plFileName &other) const { return fName.compare(other.fName) < 0; }
 
     /** Functor which compares two filenames case-insensitively for sorting. */
     struct less_i
     {
         bool operator()(const plFileName &_L, const plFileName &_R) const
-        { return _L.fName.Compare(_R.fName, plString::kCaseInsensitive) < 0; }
+        { return _L.fName.compare_i(_R.fName) < 0; }
     };
 
     /** Return whether this filename is valid (not empty). */
-    bool IsValid() const { return !fName.IsEmpty(); }
+    bool IsValid() const { return !fName.empty(); }
 
     /** Return the length of the filename string (UTF-8). */
-    size_t GetSize() const { return fName.GetSize(); }
+    size_t GetSize() const { return fName.size(); }
 
     /** Convert the filename to a string.  This does not resolve relative
      *  paths or normalize slashes, it just returns the stored name string.
      */
-    const plString &AsString() const { return fName; }
+    const ST::string &AsString() const { return fName; }
+
+    /** Convert the filename to a wchar_t buffer (for use in Win32 APIs). */
+    ST::wchar_buffer WideString() const { return fName.to_wchar(); }
 
     /** Return the name portion of the path (including extension).
      *  For example:
      *  <pre>plFileName("C:\\Path\\Filename.ext") => "Filename.ext"</pre>
      */
-    plString GetFileName() const;
+    ST::string GetFileName() const;
 
     /** Return the file extension from the filename.
      *  For example:
      *  <pre>plFileName("C:\\Path\\Filename.ext") => "ext"</pre>
      */
-    plString GetFileExt() const;
+    ST::string GetFileExt() const;
 
     /** Return the name portion of the path, excluding its extension.
      *  For example:
      *  <pre>plFileName("C:\\Path\\Filename.ext") => "Filename"</pre>
      */
-    plString GetFileNameNoExt() const;
+    ST::string GetFileNameNoExt() const;
 
     /** Return the path with the filename portion stripped off.
      *  For example:
@@ -198,10 +211,10 @@ public:
      *  Not to be confused with Join() -- do not use this for joining path
      *  components, or you will be shot by Zrax.
      */
-    plFileName &operator+=(const plString &str) { return operator=(fName + str); }
+    plFileName &operator+=(const ST::string &str) { return operator=(fName + str); }
 
 private:
-    plString fName;
+    ST::string fName;
 
     // See the comments in plString's nullptr_t constructors for more info:
     plFileName(std::nullptr_t) { }
@@ -209,6 +222,11 @@ private:
     void operator==(std::nullptr_t) const { }
     void operator!=(std::nullptr_t) const { }
 };
+
+inline ST_FORMAT_TYPE(const plFileName &)
+{
+    ST_FORMAT_FORWARD(value.AsString());
+}
 
 /** Concatentate a plFileName with a string constant.  Not to be confused with
  *  plFileName::Join() -- do not use this for joining path components, or you
@@ -259,10 +277,10 @@ public:
     uint64_t ModifyTime() const { return fModifyTime; }
 
     /** Returns \p true if this file is a directory. */
-    bool IsDirectory() const { return (fFlags & kIsDirectory); }
+    bool IsDirectory() const { return (fFlags & kIsDirectory) != 0; }
 
     /** Returns \p true if this file is a regular file. */
-    bool IsFile() const { return (fFlags & kIsNormalFile); }
+    bool IsFile() const { return (fFlags & kIsNormalFile) != 0; }
 
 private:
     plFileName fName;
@@ -333,11 +351,8 @@ namespace plFileSystem
     /** Get the full path and filename of the current process. */
     plFileName GetCurrentAppPath();
 
-    /** Create a temporary filename.  If path is specified, the returned
-     *  filename will be relative to the supplied path -- otherwise, the
-     *  system temp path is used.
-     */
-    plFileName GetTempFilename(const char *prefix = "tmp", const plFileName &path = "");
+    /** Convert a file size from bytes to a human readable size. */
+    ST::string ConvertFileSize(uint64_t size);
 }
 
 #endif // plFileSystem_Defined

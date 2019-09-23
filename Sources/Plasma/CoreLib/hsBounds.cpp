@@ -195,9 +195,9 @@ void hsBounds3::MakeSymmetric(const hsPoint3* p)
         float delUp;
 
         delUp = fMaxs[i] - (*p)[i];
-        delMax = hsMaximum(delMax, delUp);
+        delMax = std::max(delMax, delUp);
         delUp = (*p)[i] - fMins[i];
-        delMax = hsMaximum(delMax, delUp);
+        delMax = std::max(delMax, delUp);
     }
     const float sqrtTwo = 1.41421f;
     delMax *= sqrtTwo;
@@ -1493,7 +1493,6 @@ bool hsBounds3Ext::ISectBB(const hsBounds3Ext &other, const hsVector3 &myVel, hs
     if( !(other.fExtFlags & (kDistsSet|kAxisAligned)) )
         other.IMakeDists();
 
-    const float kRealBig = 1.e30f;
     float tstDepths[9];
     hsVector3 tstAxes[9];
     float totDepth = 0;
@@ -1644,9 +1643,6 @@ bool hsBounds3Ext::ISectBB(const hsBounds3Ext &other, const hsVector3 &myVel, hs
 
 bool hsBounds3Ext::ISectABB(const hsBounds3Ext &other, const hsVector3 &myVel) const
 {
-    hsPoint3 effMaxs = fMaxs;
-    hsPoint3 effMins = fMins;
-
     int i;
     for( i = 0; i < 3; i++ )
     {
@@ -2208,9 +2204,11 @@ bool hsBounds3Ext::ISectBoxBS(const hsBounds3Ext &other, const hsVector3 &myVel,
     hsVector3 tstAxis;
     float tstDepth;
     int i;
+
     for( i = 0; i < 3; i++ )
     {
-        bool tryAxis;
+        bool tryAxis = false;
+
         if( other.fExtFlags & kAxisAligned )
         {
             // first try the other box axes
@@ -2223,31 +2221,28 @@ bool hsBounds3Ext::ISectBoxBS(const hsBounds3Ext &other, const hsVector3 &myVel,
                 effMin += velDist;
             effMax += fRadius;
             effMin -= fRadius;
-            
+
             if( effMax < other.fMins[i] )
                 return false;
             if( effMin > other.fMaxs[i] )
                 return false;
-            
-            if( (other.fMins[i] <= effMin)
-                &&(other.fMaxs[i] <= effMax) )
+
+            if ((other.fMins[i] <= effMin) &&
+                (other.fMaxs[i] <= effMax))
             {
                 tstDepth = other.fMaxs[i] - effMin;
                 hsAssert(tstDepth > -kRealSmall, "Late to be finding sep axis");
                 tstAxis.Set(i == 0 ? 1.f : 0, i & 1 ? 1.f : 0, i & 2 ? 1.f : 0);
                 tryAxis = true;
             }
-            else
-            if( (other.fMins[i] >= effMin)
-                &&(other.fMaxs[i] >= effMax) )
+            else if ((other.fMins[i] >= effMin) &&
+                     (other.fMaxs[i] >= effMax))
             {
                 tstDepth = effMax - other.fMins[i];
                 hsAssert(tstDepth > -kRealSmall, "Late to be finding sep axis");
                 tstAxis.Set(i == 0 ? -1.f : 0, i & 1 ? -1.f : 0, i & 2 ? -1.f : 0);
                 tryAxis = true;
             }
-            else 
-                tryAxis = false;
         }
         else
         {
@@ -2263,7 +2258,7 @@ bool hsBounds3Ext::ISectBoxBS(const hsBounds3Ext &other, const hsVector3 &myVel,
                 effMin += velDist;
             effMax += radScaled;
             effMin -= radScaled;
-            
+
             if( !(other.fExtFlags & kDistsSet) )
                 other.IMakeDists();
 
@@ -2271,24 +2266,21 @@ bool hsBounds3Ext::ISectBoxBS(const hsBounds3Ext &other, const hsVector3 &myVel,
                 return false;
             if( effMin > other.fDists[i].fY )
                 return false;
-            
-            if( centerDist <= other.fDists[i].fX )
+
+            if (centerDist <= other.fDists[i].fX)
             {
                 tstDepth = effMax - other.fDists[i].fX;
                 tstAxis = -other.fAxes[i];
                 hsAssert(tstDepth > -kRealSmall, "Late to be finding sep axis");
             }
-            else
-            if( centerDist >= other.fDists[i].fY )
+            else if (centerDist >= other.fDists[i].fY)
             {
                 tstDepth = other.fDists[i].fY - effMin;
                 tstAxis = other.fAxes[i];
                 hsAssert(tstDepth > -kRealSmall, "Late to be finding sep axis");
             }
-            else 
-                tryAxis = false;
-            
         }
+
         if( tryAxis )
         {
             float magSq = tstAxis.MagnitudeSquared();

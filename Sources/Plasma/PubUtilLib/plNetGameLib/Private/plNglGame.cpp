@@ -55,10 +55,10 @@ namespace Ngl { namespace Game {
 *
 ***/
 
-struct CliGmConn : AtomicRef {
+struct CliGmConn : hsRefCnt {
     LINK(CliGmConn) link;
 
-    CCritSect       critsect;
+    std::recursive_mutex  critsect;
     AsyncSocket     sock;
     AsyncCancelId   cancelId;
     NetCli *        cli;
@@ -124,20 +124,6 @@ struct RcvdPropagatedBufferTrans : NetNotifyTrans {
     void Post ();
 };
 
-//============================================================================
-// RcvdGameMgrMsgTrans
-//============================================================================
-struct RcvdGameMgrMsgTrans : NetNotifyTrans {
-
-    unsigned        bufferBytes;
-    uint8_t *          bufferData;
-
-    RcvdGameMgrMsgTrans () : NetNotifyTrans(kGmRcvdGameMgrMsgTrans) {}
-    ~RcvdGameMgrMsgTrans ();
-    void Post ();
-};
-
-
 /*****************************************************************************
 *
 *   Private data
@@ -151,12 +137,11 @@ enum {
 };
 
 static bool                             s_running;
-static CCritSect                        s_critsect;
+static std::recursive_mutex             s_critsect;
 static LISTDECL(CliGmConn, link)        s_conns;
 static CliGmConn *                      s_active;
 static FNetCliGameRecvBufferHandler     s_bufHandler;
-static FNetCliGameRecvGameMgrMsgHandler s_gameMgrMsgHandler;
-static long                             s_perf[kNumPerf];
+static std::atomic<long>                s_perf[kNumPerf];
 
 
 /*****************************************************************************
@@ -167,7 +152,7 @@ static long                             s_perf[kNumPerf];
 
 //===========================================================================
 static unsigned GetNonZeroTimeMs () {
-    if (unsigned ms = TimeGetMs())
+    if (unsigned ms = hsTimer::GetMilliSeconds<uint32_t>())
         return ms;
     return 1;
 }
@@ -176,7 +161,7 @@ static unsigned GetNonZeroTimeMs () {
 static CliGmConn * GetConnIncRef_CS (const char tag[]) {
     if (CliGmConn * conn = s_active)
         if (conn->cli) {
-            conn->IncRef(tag);
+            conn->Ref(tag);
             return conn;
         }
     return nil;
@@ -184,13 +169,8 @@ static CliGmConn * GetConnIncRef_CS (const char tag[]) {
 
 //============================================================================
 static CliGmConn * GetConnIncRef (const char tag[]) {
-    CliGmConn * conn;
-    s_critsect.Enter();
-    {
-        conn = GetConnIncRef_CS(tag);
-    }
-    s_critsect.Leave();
-    return conn;
+    hsLockGuard(s_critsect);
+    return GetConnIncRef_CS(tag);
 }
 
 //============================================================================
@@ -205,7 +185,7 @@ static void UnlinkAndAbandonConn_CS (CliGmConn * conn) {
         AsyncSocketDisconnect(conn->sock, true);
     }
     else {
-        conn->DecRef("Lifetime");
+        conn->UnRef("Lifetime");
     }
 }
 
@@ -216,11 +196,8 @@ static bool ConnEncrypt (ENetError error, void * param) {
         conn->AutoPing();
 
     if (IS_NET_SUCCESS(error)) {
-        s_critsect.Enter();
-        {
-            SWAP(s_active, conn);
-        }
-        s_critsect.Leave();
+        hsLockGuard(s_critsect);
+        std::swap(s_active, conn);
     }
 
     return IS_NET_SUCCESS(error);
@@ -244,8 +221,8 @@ static void NotifyConnSocketConnect (CliGmConn * conn) {
 //============================================================================
 static void NotifyConnSocketConnectFailed (CliGmConn * conn) {
     bool notify;
-    s_critsect.Enter();
     {
+        hsLockGuard(s_critsect);
         conn->cancelId = 0;
         s_conns.Unlink(conn);
         
@@ -257,11 +234,10 @@ static void NotifyConnSocketConnectFailed (CliGmConn * conn) {
         if (conn == s_active)
             s_active = nil;
     }
-    s_critsect.Leave();
 
     NetTransCancelByConnId(conn->seq, kNetErrTimeout);
-    conn->DecRef("Connecting");
-    conn->DecRef("Lifetime");
+    conn->UnRef("Connecting");
+    conn->UnRef("Lifetime");
 
     if (notify)
         ReportNetError(kNetProtocolCli2Game, kNetErrConnectFailed);
@@ -272,8 +248,8 @@ static void NotifyConnSocketDisconnect (CliGmConn * conn) {
     conn->StopAutoPing();
 
     bool notify;
-    s_critsect.Enter();
     {
+        hsLockGuard(s_critsect);
         s_conns.Unlink(conn);
 
         notify
@@ -284,12 +260,11 @@ static void NotifyConnSocketDisconnect (CliGmConn * conn) {
         if (conn == s_active)
             s_active = nil;
     }
-    s_critsect.Leave();
 
     // Cancel all transactions in process on this connection.
     NetTransCancelByConnId(conn->seq, kNetErrTimeout);
-    conn->DecRef("Connected");
-    conn->DecRef("Lifetime");
+    conn->UnRef("Connected");
+    conn->UnRef("Lifetime");
 
     if (notify)
         ReportNetError(kNetProtocolCli2Game, kNetErrDisconnected);
@@ -320,13 +295,12 @@ static bool SocketNotifyCallback (
             *userState = conn;
             conn->TransferRef("Connecting", "Connected");
             bool abandoned;
-            s_critsect.Enter();
             {
+                hsLockGuard(s_critsect);
                 conn->sock      = sock;
                 conn->cancelId  = 0;
                 abandoned       = conn->abandoned;
             }
-            s_critsect.Leave();
             if (abandoned)
                 AsyncSocketDisconnect(sock, true);
             else
@@ -361,16 +335,15 @@ static void Connect (
     conn->seq               = ConnNextSequence();
     conn->lastHeardTimeMs   = GetNonZeroTimeMs();
 
-    conn->IncRef("Lifetime");
-    conn->IncRef("Connecting");
+    conn->Ref("Lifetime");
+    conn->Ref("Connecting");
 
-    s_critsect.Enter();
     {
+        hsLockGuard(s_critsect);
         while (CliGmConn * conn = s_conns.Head())
             UnlinkAndAbandonConn_CS(conn);
         s_conns.Link(conn);
     }
-    s_critsect.Leave();
 
     Cli2Game_Connect connect;
     connect.hdr.connType    = kConnTypeCliToGame;
@@ -403,7 +376,7 @@ static void Connect (
 //===========================================================================
 static unsigned CliGmConnTimerDestroyed (void * param) {
     CliGmConn * conn = (CliGmConn *) param;
-    conn->DecRef("TimerDestroyed");
+    conn->UnRef("TimerDestroyed");
     return kAsyncTimeInfinite;
 }
 
@@ -415,45 +388,40 @@ static unsigned CliGmConnPingTimerProc (void * param) {
 
 //============================================================================
 CliGmConn::CliGmConn ()
-    : sock(nil), cancelId(nil), cli(nil), seq(0), abandoned(false)
+    : hsRefCnt(0), sock(nil), cancelId(nil), cli(nil)
+    , seq(0), abandoned(false)
     , pingTimer(nil), pingSendTimeMs(0), lastHeardTimeMs(0)
 {
-    AtomicAdd(&s_perf[kPerfConnCount], 1);
+    ++s_perf[kPerfConnCount];
 }
 
 //============================================================================
 CliGmConn::~CliGmConn () {
     if (cli)
         NetCliDelete(cli, true);
-    AtomicAdd(&s_perf[kPerfConnCount], -1);
+    --s_perf[kPerfConnCount];
 }
 
 //============================================================================
 void CliGmConn::AutoPing () {
     ASSERT(!pingTimer);
-    IncRef("PingTimer");
-    critsect.Enter();
-    {
-        AsyncTimerCreate(
-            &pingTimer,
-            CliGmConnPingTimerProc,
-            sock ? 0 : kAsyncTimeInfinite,
-            this
-        );
-    }
-    critsect.Leave();
+    Ref("PingTimer");
+    hsLockGuard(critsect);
+    AsyncTimerCreate(
+        &pingTimer,
+        CliGmConnPingTimerProc,
+        sock ? 0 : kAsyncTimeInfinite,
+        this
+    );
 }
 
 //============================================================================
 void CliGmConn::StopAutoPing () {
-    critsect.Enter();
-    {
-        if (pingTimer) {
-            AsyncTimerDeleteCallback(pingTimer, CliGmConnTimerDestroyed);
-            pingTimer = nil;
-        }
+    hsLockGuard(critsect);
+    if (pingTimer) {
+        AsyncTimerDeleteCallback(pingTimer, CliGmConnTimerDestroyed);
+        pingTimer = nil;
     }
-    critsect.Leave();
 }
 
 //============================================================================
@@ -471,12 +439,9 @@ void CliGmConn::TimerPing () {
 
 //============================================================================
 void CliGmConn::Send (const uintptr_t fields[], unsigned count) {
-    critsect.Enter();
-    {
-        NetCliSend(cli, fields, count);
-        NetCliFlush(cli);
-    }
-    critsect.Leave();
+    hsLockGuard(critsect);
+    NetCliSend(cli, fields, count);
+    NetCliFlush(cli);
 }
 
 
@@ -534,14 +499,7 @@ static bool Recv_GameMgrMsg (
     unsigned        bytes,
     void *          param
 ) {
-    const Game2Cli_GameMgrMsg & reply = *(const Game2Cli_GameMgrMsg *)msg;
-
-    RcvdGameMgrMsgTrans * trans = new RcvdGameMgrMsgTrans;
-    trans->bufferBytes  = reply.bytes;
-    trans->bufferData   = (uint8_t *)malloc(reply.bytes);
-    memcpy(trans->bufferData, reply.buffer, reply.bytes);
-    NetTransSend(trans);
-
+    // What do you expect me to do with this crap?
     return true;
 }
 
@@ -549,7 +507,7 @@ static bool Recv_GameMgrMsg (
 //============================================================================
 // Send/Recv protocol handler init
 //============================================================================
-#define MSG(s)  kNetMsg_Cli2Game_##s
+#define MSG(s)  &kNetMsg_Cli2Game_##s
 static NetMsgInitSend s_send[] = {
     { MSG(PingRequest),         },
     { MSG(JoinAgeRequest),      },
@@ -558,7 +516,7 @@ static NetMsgInitSend s_send[] = {
 };
 #undef MSG
 
-#define MSG(s)  kNetMsg_Game2Cli_##s, Recv_##s
+#define MSG(s)  &kNetMsg_Game2Cli_##s, Recv_##s
 static NetMsgInitRecv s_recv[] = {
     { MSG(PingReply)            },
     { MSG(JoinAgeReply),        },
@@ -644,24 +602,6 @@ void RcvdPropagatedBufferTrans::Post () {
         s_bufHandler(bufferType, bufferBytes, bufferData);
 }
 
-/*****************************************************************************
-*
-*   RcvdGameMgrMsgTrans
-*
-***/
-
-//============================================================================
-RcvdGameMgrMsgTrans::~RcvdGameMgrMsgTrans () {
-    free(bufferData);
-}
-
-//============================================================================
-void RcvdGameMgrMsgTrans::Post () {
-    if (s_gameMgrMsgHandler)
-        s_gameMgrMsgHandler((GameMsgHeader *)bufferData);
-}
-
-
 } using namespace Game;
 
 
@@ -693,7 +633,7 @@ bool NetGameTrans::AcquireConn () {
 //============================================================================
 void NetGameTrans::ReleaseConn () {
     if (m_conn) {
-        m_conn->DecRef("AcquireConn");
+        m_conn->UnRef("AcquireConn");
         m_conn = nil;
     }
 }
@@ -723,7 +663,6 @@ void GameInitialize () {
 void GameDestroy (bool wait) {
     s_running = false;
     s_bufHandler = nil;
-    s_gameMgrMsgHandler = nil;
 
     NetTransCancelByProtocol(
         kNetProtocolCli2Game,
@@ -734,13 +673,12 @@ void GameDestroy (bool wait) {
         false
     );
     
-    s_critsect.Enter();
     {
+        hsLockGuard(s_critsect);
         while (CliGmConn * conn = s_conns.Head())
             UnlinkAndAbandonConn_CS(conn);
         s_active = nil;
     }
-    s_critsect.Leave();
     
     if (!wait)
         return;
@@ -753,28 +691,20 @@ void GameDestroy (bool wait) {
 
 //============================================================================
 bool GameQueryConnected () {
-    bool result;
-    s_critsect.Enter();
-    {
-        result = (s_active && s_active->cli);
-    }
-    s_critsect.Leave();
-    return result;
+    hsLockGuard(s_critsect);
+    return (s_active && s_active->cli);
 }
 
 //============================================================================
 unsigned GameGetConnId () {
-    unsigned connId;
-    s_critsect.Enter();
-    connId = (s_active) ? s_active->seq : 0;
-    s_critsect.Leave();
-    return connId;
+    hsLockGuard(s_critsect);
+    return (s_active) ? s_active->seq : 0;
 }
 
 //============================================================================
 void GamePingEnable (bool enable) {
     s_perf[kPingDisabled] = !enable;
-    s_critsect.Enter();
+    hsLockGuard(s_critsect);
     for (;;) {
         if (!s_active)
             break;
@@ -784,7 +714,6 @@ void GamePingEnable (bool enable) {
             s_active->StopAutoPing();
         break;
     }
-    s_critsect.Leave();
 }
 
 } using namespace Ngl;
@@ -800,20 +729,16 @@ void GamePingEnable (bool enable) {
 void NetCliGameStartConnect (
     const uint32_t node
 ) {
-    plNetAddress addr(node, kNetDefaultClientPort);
+    plNetAddress addr(node, GetClientPort());
     Connect(addr);
 }
 
 //============================================================================
 void NetCliGameDisconnect () {
-    
-    s_critsect.Enter();
-    {
-        while (CliGmConn * conn = s_conns.Head())
-            UnlinkAndAbandonConn_CS(conn);
-        s_active = nil;
-    }
-    s_critsect.Leave();
+    hsLockGuard(s_critsect);
+    while (CliGmConn * conn = s_conns.Head())
+        UnlinkAndAbandonConn_CS(conn);
+    s_active = nil;
 }
 
 //============================================================================
@@ -860,27 +785,6 @@ void NetCliGamePropagateBuffer (
 
     conn->Send(msg, arrsize(msg));
 
-    conn->DecRef("PropBuffer");
+    conn->UnRef("PropBuffer");
 }
 
-//============================================================================
-void NetCliGameSetRecvGameMgrMsgHandler (FNetCliGameRecvGameMgrMsgHandler handler) {
-    s_gameMgrMsgHandler = handler;
-}
-
-//============================================================================
-void NetCliGameSendGameMgrMsg (GameMsgHeader * msgHdr) {
-    CliGmConn * conn = GetConnIncRef("GameMgrMsg");
-    if (!conn)
-        return;
-
-    const uintptr_t msg[] = {
-        kCli2Game_GameMgrMsg,
-                        msgHdr->messageBytes,
-        (uintptr_t)  msgHdr,
-    };
-    
-    conn->Send(msg, arrsize(msg));
-    
-    conn->DecRef("GameMgrMsg");
-}

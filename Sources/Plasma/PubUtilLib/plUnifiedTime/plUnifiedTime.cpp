@@ -305,8 +305,8 @@ const char* plUnifiedTime::Print() const
 //  short year, month, day, hour, minute, second;
 //  GetTime(year, month, day, hour, minute, second);
 //
-//  s = plString::Format("yr %d mo %d day %d hour %d min %d sec %d",
-//          year, month, day, hour, minute, second);
+//  s = ST::format("yr {} mo {} day {} hour {} min {} sec {}",
+//                 year, month, day, hour, minute, second);
 
     s = Format("%c");
     return s.c_str();
@@ -314,8 +314,8 @@ const char* plUnifiedTime::Print() const
 
 const char* plUnifiedTime::PrintWMillis() const
 {
-    static plString s;
-    s = plString::Format("%s,s:%lu,ms:%d",
+    static ST::string s;
+    s = ST::format("{},s:{},ms:{}",
         Print(), (unsigned long)GetSecs(), GetMillis() );
     return s.c_str();
 }
@@ -448,7 +448,7 @@ plUnifiedTime::operator timeval() const
     // tv_secs should be a time_t, but on Windows it is a long
     struct timeval t = {(long)fSecs, (long)fMicros};
 #else
-    struct timeval t = {fSecs, fMicros};
+    struct timeval t = {fSecs, (suseconds_t)fMicros};
 #endif
     return t;
 }

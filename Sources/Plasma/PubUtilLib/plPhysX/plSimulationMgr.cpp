@@ -42,6 +42,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plSimulationMgr.h"
 
 #include <NxPhysics.h>
+#include <NxCooking.h>
+
+#include <algorithm>
 
 #include "plgDispatch.h"
 #include "hsTimer.h"
@@ -49,6 +52,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plPXPhysical.h"
 #include "plPXPhysicalControllerCore.h"
 #include "plPXConvert.h"
+#include "plPXSubWorld.h"
 #include "plLOSDispatch.h"
 #include "plPhysical/plPhysicsSoundMgr.h"
 #include "plStatusLog/plStatusLog.h"
@@ -290,11 +294,20 @@ plSimulationMgr::plSimulationMgr()
 bool plSimulationMgr::InitSimulation()
 {
     fSDK = NxCreatePhysicsSDK(NX_PHYSICS_SDK_VERSION, NULL, &gErrorStream);
-    if (!fSDK)
+    if (!fSDK) {
+        fLog->AddLine("Phailed to init PhysX SDK");
         return false; // client will handle this and ask user to install
+    }
 
     fLog = plStatusLogMgr::GetInstance().CreateStatusLog(40, "Simulation.log", plStatusLog::kFilledBackground | plStatusLog::kAlignToTop);
-    fLog->AddLine("Initialized simulation mgr");
+    fLog->AddLine("Initialized PhysX SDK");
+
+    if (!NxInitCooking(nullptr, &gErrorStream)) {
+        fLog->AddLine("Phailed to init NxCooking");
+        fSDK->release();
+        fSDK = nullptr;
+        return false;
+    }
 
 #ifndef PLASMA_EXTERNAL_RELEASE
     // If this is an internal build, enable the PhysX debugger
@@ -314,8 +327,10 @@ plSimulationMgr::~plSimulationMgr()
 
     hsAssert(fScenes.empty(), "Unreleased scenes at shutdown");
 
-    if (fSDK)
+    if (fSDK) {
+        NxCloseCooking();
         fSDK->release();
+    }
 
     delete fLog;
     fLog = nil;
@@ -325,13 +340,21 @@ NxScene* plSimulationMgr::GetScene(plKey world)
 {
     if (!world)
         world = GetKey();
-
     NxScene* scene = fScenes[world];
 
-    if (!scene)
-    {
+    if (!scene) {
+        // The world key is assumed to be loaded (or null for main world) if we are here.
+        // As such, let us grab the plSceneObject's PXSubWorld definition to figure out
+        // what gravity should look like. Who knows, we might be in MC Escher land...
+        NxVec3 gravity(X_GRAVITY, Y_GRAVITY, Z_GRAVITY);
+        if (plSceneObject* so = plSceneObject::ConvertNoRef(world->VerifyLoaded())) {
+            if (plPXSubWorld* subworld = plPXSubWorld::ConvertNoRef(so->GetGenericInterface(plPXSubWorld::Index()))) {
+                gravity = plPXConvert::Vector(subworld->GetGravity());
+            }
+        }
+
         NxSceneDesc sceneDesc;
-        sceneDesc.gravity.set(0, 0, -32.174049f);
+        sceneDesc.gravity = gravity;
         sceneDesc.userTriggerReport = &gSensorReport;
         sceneDesc.userContactReport = &gContactReport;
         scene = fSDK->createScene(sceneDesc);
@@ -370,7 +393,7 @@ NxScene* plSimulationMgr::GetScene(plKey world)
         scene->setGroupCollisionFlag(plSimDefs::kGroupAvatar, plSimDefs::kGroupAvatarBlocker, true);
         scene->setGroupCollisionFlag(plSimDefs::kGroupDynamic, plSimDefs::kGroupDynamicBlocker, true);
         scene->setGroupCollisionFlag(plSimDefs::kGroupAvatar, plSimDefs::kGroupStatic, true);
-        scene->setGroupCollisionFlag( plSimDefs::kGroupStatic, plSimDefs::kGroupAvatar, true);
+        scene->setGroupCollisionFlag(plSimDefs::kGroupStatic, plSimDefs::kGroupAvatar, true);
         scene->setGroupCollisionFlag(plSimDefs::kGroupAvatar, plSimDefs::kGroupDynamic, true);
 
         // Kinematically controlled avatars interact with detectors and dynamics
@@ -581,8 +604,8 @@ void plSimulationMgr::ISendUpdates()
                     const plKey physKey = physical->GetKey();
                     if (physKey)
                     {
-                        const plString &physName = physical->GetKeyName();
-                        if (!physName.IsNull())
+                        ST::string physName = physical->GetKeyName();
+                        if (!physName.empty())
                         {
                             plSimulationMgr::Log("Removing physical <%s> because of missing scene node.\n", physName.c_str());
                         }
@@ -650,7 +673,10 @@ int plSimulationMgr::GetMaterialIdx(NxScene* scene, float friction, float restit
     desc.dynamicFriction = friction;
     desc.staticFriction = friction;
     NxMaterial* mat = scene->createMaterial(desc);
-    return mat->getMaterialIndex();
+    if (mat)
+        return mat->getMaterialIndex();
+    else
+        return NULL;
 }
 
 /////////////////////////////////////////////////////////////////
@@ -698,7 +724,7 @@ void plSimulationMgr::ConsiderSynch(plPXPhysical* physical, plPXPhysical* other)
         // If both objects are capable of syncing, we want to do it at the same
         // time, so no interpenetration issues pop up on other clients
         if (syncOther)
-            timeElapsed = hsMaximum(timeElapsed, timeNow - other->GetLastSyncTime());
+            timeElapsed = std::max(timeElapsed, timeNow - other->GetLastSyncTime());
 
         // Set the sync time to 1 second from the last sync
         double syncTime = 0.0;

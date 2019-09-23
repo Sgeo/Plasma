@@ -48,6 +48,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "HeadSpin.h"
 #include <map>
 
+#include "plFileSystem.h"
 #include "hsGeometry3.h"
 
 #include "pnKeyedObject/hsKeyedObject.h"
@@ -102,7 +103,7 @@ public:
         do away with this bookeeping entirely. */
     void AddSeekPoint(plSeekPointMod *seekpoint);
     void RemoveSeekPoint(plSeekPointMod *seekpoint);
-    plSeekPointMod *FindSeekPoint(const plString &name);
+    plSeekPointMod *FindSeekPoint(const ST::string &name);
     // \}
 
     // \{
@@ -110,12 +111,14 @@ public:
         scripting only. */
     void AddOneShot(plOneShotMod *oneshot);
     void RemoveOneShot(plOneShotMod *oneshot);
-    plOneShotMod *FindOneShot(const plString &name);
+    plOneShotMod *FindOneShot(const ST::string &name);
     // \}
     
-    plKey LoadPlayer(const char* name, const char *account);
-    plKey LoadPlayer(const char* name, const char *account, const char *linkName);
-    plKey LoadAvatar(const char *name, const char *accountName, bool isPlayer, plKey spawnPoint, plAvTask *initialTask, const char *userStr = nil);
+    plKey LoadPlayer(const ST::string &name, const ST::string &account);
+    plKey LoadPlayer(const ST::string &name, const ST::string &account, const ST::string &linkName);
+    plKey LoadPlayerFromFile(const ST::string &name, const ST::string &account, const plFileName &clothingFile);
+    plKey LoadAvatar(ST::string name, const ST::string &accountName, bool isPlayer, plKey spawnPoint, plAvTask *initialTask,
+                     const ST::string &userStr = ST::null, const plFileName &clothingFile = ST::null);
 
     /**
      * Unload an avatar clone
@@ -138,9 +141,9 @@ public:
 
     plArmatureMod *GetLocalAvatar();
     plKey GetLocalAvatarKey();
-    static plArmatureMod *FindAvatar(plKey& avatarKey); // Key of the sceneObject
+    static plArmatureMod *FindAvatar(const plKey& avatarKey); // Key of the sceneObject
     plArmatureMod *FindAvatarByPlayerID(uint32_t pid);
-    plArmatureMod *FindAvatarByModelName(const plString& name); // Probably only useful for custom NPCs. All players are
+    plArmatureMod *FindAvatarByModelName(const ST::string& name); // Probably only useful for custom NPCs. All players are
                                                       // either "Male" or "Female".
     void FindAllAvatarsByModelName(const char* name, plArmatureModPtrVec& outVec);
     plArmatureMod *GetFirstRemoteAvatar();
@@ -207,10 +210,10 @@ protected:
 
     static plAvatarMgr* fInstance;      // the single instance of the avatar manager
 
-    typedef std::map<plString, plSeekPointMod *, plString::less_i> plSeekPointMap;
+    typedef std::map<ST::string, plSeekPointMod *, ST::less_i> plSeekPointMap;
     plSeekPointMap fSeekPoints;
 
-    typedef std::map<plString, plOneShotMod *, plString::less_i> plOneShotMap;
+    typedef std::map<ST::string, plOneShotMod *, ST::less_i> plOneShotMap;
     plOneShotMap fOneShots;
 
     typedef std::map<plKey, plMessage *> DeferredInits;

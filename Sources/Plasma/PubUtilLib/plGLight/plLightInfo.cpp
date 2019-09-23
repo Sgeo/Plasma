@@ -52,7 +52,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plDrawable/plSpaceTree.h"
 #include "plDrawable/plDrawableGenerator.h"
 #include "plDrawable/plDrawableSpans.h"
-#include "plPipeline/hsGDeviceRef.h"
+#include "hsGDeviceRef.h"
 #include "plPipeline/plRenderTarget.h"
 #include "hsFastMath.h"
 #include "pnSceneObject/plDrawInterface.h"
@@ -65,7 +65,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plScene/plRenderRequest.h"
 #include "plPipeline.h"
 #include "plIntersect/plSoftVolume.h"
-#include "plPipeline/plPipeDebugFlags.h"
+#include "plPipeDebugFlags.h"
 #include "pnMessage/plPipeResMakeMsg.h"
 
 #include "plScene/plVisRegion.h"
@@ -395,7 +395,7 @@ bool plLightInfo::MsgReceive(plMessage* msg)
             case kProjection:
                 fProjection = plLayerInterface::ConvertNoRef(refMsg->GetRef());
                 {
-                    if( GetKey() && !GetKey()->GetName().CompareN("RTPatternLight", strlen("RTPatternLight")) )
+                    if( GetKey() && GetKey()->GetName().starts_with("RTPatternLight") )
                         SetProperty(kLPForceProj, true);
                 }
                 break;
@@ -951,7 +951,7 @@ void plSpotLightInfo::IRefresh()
         float yon = GetRadius();
         if( yon < kMinHither )
             yon = kMaxYon;
-        float hither = hsMinimum(kMinHither, yon * 0.5f);
+        float hither = std::min(kMinHither, yon * 0.5f);
 
         float sinFOV, cosFOV;
         hsFastMath::SinCos(effFOV, sinFOV, cosFOV);

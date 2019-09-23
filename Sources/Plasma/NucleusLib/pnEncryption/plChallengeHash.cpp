@@ -42,14 +42,17 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "plChallengeHash.h"
 
+#include <algorithm>
+#include <string_theory/string_stream>
+
 ShaDigest fSeed;
 
 void CryptCreateRandomSeed(size_t length, uint8_t* data)
 {
     uint32_t seedIdx = 0;
     uint32_t dataIdx = 0;
-    uint32_t cur = 0;
-    uint32_t end = max(length, sizeof(ShaDigest));
+    size_t cur = 0;
+    size_t end = std::max(length, sizeof(ShaDigest));
 
     // Combine seed with input data
     for (; cur < end; cur++) {
@@ -90,13 +93,13 @@ void CryptCreateRandomSeed(size_t length, uint8_t* data)
     }
 }
 
-void CryptHashPassword(const plString& username, const plString& password, ShaDigest dest)
+void CryptHashPassword(const ST::string& username, const ST::string& password, ShaDigest dest)
 {
-    plStringStream buf;
-    buf << password.Left(password.GetSize() - 1) << '\0';
-    buf << username.ToLower().Left(username.GetSize() - 1) << '\0';
-    plStringBuffer<uint16_t> result = buf.GetString().ToUtf16();
-    plSHAChecksum sum(result.GetSize() * sizeof(uint16_t), (uint8_t*)result.GetData());
+    ST::string_stream buf;
+    buf << password.left(password.size() - 1) << '\0';
+    buf << username.to_lower().left(username.size() - 1) << '\0';
+    ST::utf16_buffer result = buf.to_string().to_utf16();
+    plSHAChecksum sum(result.size() * sizeof(char16_t), (uint8_t*)result.data());
 
     memcpy(dest, sum.GetValue(), sizeof(ShaDigest));
 }

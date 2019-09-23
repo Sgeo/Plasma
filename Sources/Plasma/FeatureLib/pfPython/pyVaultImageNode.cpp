@@ -48,7 +48,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include <Python.h>
 #include "plPipeline.h"
 #include "hsResMgr.h"
-#include "plString.h"
 #pragma hdrstop
 
 #include "pyVaultImageNode.h"
@@ -68,7 +67,7 @@ static unsigned s_keyseq;
 
 //============================================================================
 static plKey CreateAndRefImageKey (unsigned nodeId, plMipmap * mipmap) {
-    plString keyName = plString::Format("VaultImg_%u_%u", nodeId, s_keyseq++);
+    ST::string keyName = ST::format("VaultImg_{}_{}", nodeId, s_keyseq++);
 
     plKey key = hsgResMgr::ResMgr()->NewKey(keyName, mipmap, plLocation::kGlobalFixedLoc);
 
@@ -116,12 +115,9 @@ void pyVaultImageNode::Image_SetTitle( const char * text )
 {
     if (!fNode)
         return;
-        
-    wchar_t * wStr = hsStringToWString(text);
 
     VaultImageNode image(fNode);
-    image.SetImageTitle(wStr);
-    delete [] wStr;
+    image.SetImageTitle(text);
 }
 
 void pyVaultImageNode::Image_SetTitleW( const wchar_t* text )
@@ -130,34 +126,16 @@ void pyVaultImageNode::Image_SetTitleW( const wchar_t* text )
         return;
 
     VaultImageNode image(fNode);
-    image.SetImageTitle(text);
+    image.SetImageTitle(ST::string::from_wchar(text));
 }
 
-std::string pyVaultImageNode::Image_GetTitle( void )
+ST::string pyVaultImageNode::Image_GetTitle() const
 {
-    if (!fNode)
-        return "";
-
-    VaultImageNode image(fNode);
-
-    std::string retVal = "";
-    if (image.GetImageTitle())
-    {
-        char* temp = hsWStringToString(image.GetImageTitle());
-        retVal = temp;
-        delete [] temp;
+    if (fNode) {
+        VaultImageNode image(fNode);
+        return image.GetImageTitle();
     }
-    
-    return retVal;
-}
-
-std::wstring pyVaultImageNode::Image_GetTitleW( void )
-{
-    if (!fNode)
-        return L"";
-
-    VaultImageNode image(fNode);
-    return image.GetImageTitle() ? image.GetImageTitle() : L"";
+    return ST::null;
 }
 
 PyObject* pyVaultImageNode::Image_GetImage( void )

@@ -56,7 +56,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 class plClientMsg : public plMessage
 {
     int fMsgFlag;
-    plString fAgeName;
+    ST::string fAgeName;
     std::vector<plLocation> fRoomLocs;
 
     void IReset();
@@ -114,23 +114,22 @@ public:
     void AddRoomLoc(plLocation loc);
 
     // Used for kLoadAgeKeys, kLetGoOfAgeKeys only
-    plString    GetAgeName() const { return fAgeName; }
-    void        SetAgeName(const plString& age) { fAgeName = age; }
+    ST::string  GetAgeName() const { return fAgeName; }
+    void        SetAgeName(const ST::string& age) { fAgeName = age; }
 
     int GetNumRoomLocs() { return fRoomLocs.size(); }
     const plLocation& GetRoomLoc(int i) const { return fRoomLocs[i]; }
     const std::vector<plLocation>& GetRoomLocs() { return fRoomLocs; }
 
-    // IO 
-    void Read(hsStream* stream, hsResMgr* mgr);
-    void Write(hsStream* stream, hsResMgr* mgr);
+    // IO
+    void Read(hsStream* stream, hsResMgr* mgr) HS_OVERRIDE;
+    void Write(hsStream* stream, hsResMgr* mgr) HS_OVERRIDE;
 };
 
 class plClientRefMsg : public plRefMsg
 {
-
 public:
-    enum 
+    enum
     {
         kLoadRoom   = 0,
         kLoadRoomHold,
@@ -143,27 +142,24 @@ public:
         : plRefMsg(r, refMsgFlags), fType(type), fWhich(which) {}
 
 
-    CLASSNAME_REGISTER( plClientRefMsg );
-    GETINTERFACE_ANY( plClientRefMsg, plRefMsg );
+    CLASSNAME_REGISTER(plClientRefMsg);
+    GETINTERFACE_ANY(plClientRefMsg, plRefMsg);
 
     int8_t                    fType;
     int8_t                    fWhich;
 
     // IO - not really applicable to ref msgs, but anyway
-    void Read(hsStream* stream, hsResMgr* mgr)
-    {
+    void Read(hsStream* stream, hsResMgr* mgr) HS_OVERRIDE {
         plRefMsg::Read(stream, mgr);
         stream->ReadLE(&fType);
         stream->ReadLE(&fWhich);
     }
 
-    void Write(hsStream* stream, hsResMgr* mgr)
-    {
+    void Write(hsStream* stream, hsResMgr* mgr) HS_OVERRIDE {
         plRefMsg::Write(stream, mgr);
         stream->WriteLE(fType);
         stream->WriteLE(fWhich);
     }
 };
-
 
 #endif // plClientMsg

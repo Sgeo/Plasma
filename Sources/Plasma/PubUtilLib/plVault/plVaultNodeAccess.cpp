@@ -48,37 +48,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "Pch.h"
 #pragma hdrstop
 
-//============================================================================
-// Volatile Vault Node Fields - be very careful when adding to this
-//============================================================================
-struct NodeTypeToVolatileField {
-    unsigned    nodeType;
-    uint64_t       volatileFields;
-};
-
-NodeTypeToVolatileField volatileFieldList[] = {
-    {plVault::kNodeType_PlayerInfo, VaultPlayerInfoNode::kOnline | VaultPlayerInfoNode::kAgeInstName | VaultPlayerInfoNode::kAgeInstUuid},
-    {0, 0}
-};
-
-//============================================================================
-uint64_t GetNodeVolatileFields(NetVaultNode* node) {
-    uint64_t       volatileFields  = 0;
-    unsigned    index           = 0;
-
-    while (volatileFieldList[index].nodeType != 0) {
-        if (node->GetNodeType() == volatileFieldList[index].nodeType) {
-            volatileFields |= volatileFieldList[index].volatileFields;
-            break;
-        }
-
-        ++index;
-    }
-
-    return volatileFields;
-}
-
-
 /*****************************************************************************
 *
 *   VaultTextNoteNode
@@ -99,170 +68,67 @@ enum EAgeInfoFields {
 
 #ifdef CLIENT
 void VaultTextNoteNode::SetVisitInfo (const plAgeInfoStruct & info) {
-    
-    ARRAY(wchar_t) buf;
-    
+    ST::string_stream str;
+
     for (unsigned i = 0; i < kNumAgeInfoFields; ++i) {
         switch (i) {
-            case kAgeFilename: {
-                wchar_t src[128];
-                StrToUnicode(src, info.GetAgeFilename(), arrsize(src));
-                unsigned len = StrLen(src);
-                wchar_t * dst = buf.New(len);
-                memcpy(dst, src, len * sizeof(src[0]));
-            }
+        case kAgeFilename:
+            str << info.GetAgeFilename();
             break;
-            
-            case kAgeInstName: {
-                wchar_t src[128];
-                StrToUnicode(src, info.GetAgeInstanceName(), arrsize(src));
-                unsigned len = StrLen(src);
-                wchar_t * dst = buf.New(len);
-                memcpy(dst, src, len * sizeof(src[0]));
-            }
+        case kAgeInstName:
+            str << info.GetAgeInstanceName();
             break;
-            
-            case kAgeUserName: {
-                wchar_t src[128];
-                StrToUnicode(src, info.GetAgeUserDefinedName(), arrsize(src));
-                unsigned len = StrLen(src);
-                wchar_t * dst = buf.New(len);
-                memcpy(dst, src, len * sizeof(src[0]));
-            }
+        case kAgeUserName:
+            str << info.GetAgeUserDefinedName();
             break;
-            
-            case kAgeDesc: {
-                wchar_t src[128];
-                StrToUnicode(src, info.GetAgeDescription(), arrsize(src));
-                unsigned len = StrLen(src);
-                wchar_t * dst = buf.New(len);
-                memcpy(dst, src, len * sizeof(src[0]));
-            }
+        case kAgeDesc:
+            str << info.GetAgeDescription();
             break;
-            
-            case kAgeInstGuid: {
-                plUUID guid = *info.GetAgeInstanceGuid();
-                wchar_t src[64];
-                wcsncpy(src, guid.AsString().ToWchar(), 64);
-                unsigned len = StrLen(src);
-                wchar_t * dst = buf.New(len);
-                memcpy(dst, src, len * sizeof(src[0]));
-            }
+        case kAgeInstGuid:
+            str << info.GetAgeInstanceGuid()->AsString();
             break;
-            
-            case kAgeLanguage: {
-                wchar_t src[32];
-                StrPrintf(src, arrsize(src), L"%u", info.GetAgeLanguage());
-                unsigned len = StrLen(src);
-                wchar_t * dst = buf.New(len);
-                memcpy(dst, src, len * sizeof(src[0]));
-            }
+        case kAgeLanguage:
+            str << info.GetAgeLanguage();
             break;
-            
-            case kAgeSequence: {
-                wchar_t src[32];
-                StrPrintf(src, arrsize(src), L"%u", info.GetAgeSequenceNumber());
-                unsigned len = StrLen(src);
-                wchar_t * dst = buf.New(len);
-                memcpy(dst, src, len * sizeof(src[0]));
-            }
+        case kAgeSequence:
+            str << info.GetAgeSequenceNumber();
             break;
 
-            DEFAULT_FATAL(i);
+        DEFAULT_FATAL(i);
         }
-        
-        wchar_t * sep = buf.New(1);
-        *sep = L'|';            
+
+        if (i+1 != kNumAgeInfoFields)
+            str << "|";
     }
-    
-    wchar_t * term = buf.New(1);
-    *term = 0;
-    
-    SetNoteText(buf.Ptr());
+
+    SetNoteText(str.to_string());
 }
 #endif
 
 //============================================================================
 #ifdef CLIENT
 bool VaultTextNoteNode::GetVisitInfo (plAgeInfoStruct * info) {
+    std::vector<ST::string> toks = GetNoteText().split('|');
+    hsAssert(toks.size() == kNumAgeInfoFields, "visit text note malformed--discarding");
+    if (toks.size() != kNumAgeInfoFields)
+        return false;
 
-    wchar_t * mem;
-    const wchar_t * str = mem = wcsdup(GetNoteText());
-    
-    for (unsigned i = 0; i < kNumAgeInfoFields; ++i) {
-        
-        wchar_t token[1024];
-        switch (i) {
-            case kAgeFilename: {
-                StrTokenize(&str, token, arrsize(token), L"|", 1);
-                if (StrLen(token) > 0) {
-                    char ansi[1024];
-                    StrToAnsi(ansi, token, arrsize(ansi));
-                    info->SetAgeFilename(ansi);
-                }
-            }
-            break;
-            
-            case kAgeInstName: {
-                StrTokenize(&str, token, arrsize(token), L"|", 1);
-                if (StrLen(token) > 0) {
-                    char ansi[1024];
-                    StrToAnsi(ansi, token, arrsize(ansi));
-                    info->SetAgeInstanceName(ansi);
-                }
-            }
-            break;
-            
-            case kAgeUserName: {
-                StrTokenize(&str, token, arrsize(token), L"|", 1);
-                if (StrLen(token) > 0) {
-                    char ansi[1024];
-                    StrToAnsi(ansi, token, arrsize(ansi));
-                    info->SetAgeUserDefinedName(ansi);
-                }
-            }
-            break;
-            
-            case kAgeDesc: {
-                StrTokenize(&str, token, arrsize(token), L"|", 1);
-                if (StrLen(token) > 0) {
-                    char ansi[1024];
-                    StrToAnsi(ansi, token, arrsize(ansi));
-                    info->SetAgeDescription(ansi);
-                }
-            }
-            break;
-            
-            case kAgeInstGuid: {
-                StrTokenize(&str, token, arrsize(token), L"|", 1);
-                if (StrLen(token) > 0) {
-                    plUUID uuid(plString::FromWchar(token));
-                    info->SetAgeInstanceGuid(&uuid);
-                }
-            }
-            break;
-            
-            case kAgeLanguage: {
-                StrTokenize(&str, token, arrsize(token), L"|", 1);
-                if (StrLen(token) > 0) {
-                    info->SetAgeLanguage(StrToUnsigned(token, nil, 10));
-                }
-            }
-            break;
-            
-            case kAgeSequence: {
-                StrTokenize(&str, token, arrsize(token), L"|", 1);
-                if (StrLen(token) > 0) {
-                    info->SetAgeSequenceNumber(StrToUnsigned(token, nil, 10));
-                }
-            }
-            break;
-
-            DEFAULT_FATAL(i);
-        }
+    if (!toks[kAgeFilename].empty())
+        info->SetAgeFilename(toks[kAgeFilename]);
+    if (!toks[kAgeInstName].empty())
+        info->SetAgeInstanceName(toks[kAgeInstName]);
+    if (!toks[kAgeUserName].empty())
+        info->SetAgeUserDefinedName(toks[kAgeUserName]);
+    if (!toks[kAgeDesc].empty())
+        info->SetAgeDescription(toks[kAgeDesc]);
+    if (!toks[kAgeInstGuid].empty()) {
+        std::unique_ptr<plUUID> guid = std::make_unique<plUUID>(toks[kAgeInstGuid]);
+        info->SetAgeInstanceGuid(guid.get());
     }
-
-    free(mem);
+    if (!toks[kAgeLanguage].empty())
+        info->SetAgeLanguage(toks[kAgeLanguage].to_uint());
+    if (!toks[kAgeSequence].empty())
+        info->SetAgeSequenceNumber(toks[kAgeSequence].to_uint());
     return true;
 }
 #endif
@@ -284,7 +150,7 @@ bool VaultSDLNode::GetStateDataRecord (plStateDataRecord * rec, unsigned readOpt
     ram.Write(GetSDLDataLength(), GetSDLData());
     ram.Rewind();
 
-    plString sdlRecName;
+    ST::string sdlRecName;
     int sdlRecVersion;
     if (!plStateDataRecord::ReadStreamHeader(&ram, &sdlRecName, &sdlRecVersion))
         return false;
@@ -327,7 +193,7 @@ void VaultSDLNode::SetStateDataRecord (const plStateDataRecord * rec, unsigned w
 
 //============================================================================
 #ifdef CLIENT
-void VaultSDLNode::InitStateDataRecord (const wchar_t sdlRecName[], unsigned writeOptions) {
+void VaultSDLNode::InitStateDataRecord (const ST::string& sdlRecName, unsigned writeOptions) {
     {
         plStateDataRecord * rec = new plStateDataRecord;
         bool exists = GetStateDataRecord(rec, 0);
@@ -336,9 +202,7 @@ void VaultSDLNode::InitStateDataRecord (const wchar_t sdlRecName[], unsigned wri
             return;
     }
 
-    char aStr[MAX_PATH];
-    StrToAnsi(aStr, sdlRecName, arrsize(aStr));
-    if (plStateDescriptor * des = plSDLMgr::GetInstance()->FindDescriptor(aStr, plSDL::kLatestVersion)) {
+    if (plStateDescriptor * des = plSDLMgr::GetInstance()->FindDescriptor(sdlRecName, plSDL::kLatestVersion)) {
         plStateDataRecord rec(des);
         rec.SetFromDefaults(false);
         SetStateDataRecord(&rec, writeOptions|plSDL::kDontWriteDirtyFlag);
@@ -420,14 +284,14 @@ bool VaultImageNode::ExtractImage (plMipmap ** dst) {
 #ifdef CLIENT
 struct MatchesSpawnPointTitle
 {
-    plString fTitle;
-    MatchesSpawnPointTitle( const plString & title ):fTitle( title ){}
+    ST::string fTitle;
+    MatchesSpawnPointTitle( const ST::string & title ):fTitle( title ){}
     bool operator ()( const plSpawnPointInfo & p ) const { return ( p.fTitle==fTitle ); }
 };
 struct MatchesSpawnPointName
 {
-    plString fName;
-    MatchesSpawnPointName( const plString & name ):fName( name ){}
+    ST::string fName;
+    MatchesSpawnPointName( const ST::string & name ):fName( name ){}
     bool operator ()( const plSpawnPointInfo & p ) const { return ( p.fSpawnPt==fName ); }
 };
 #endif
@@ -435,14 +299,12 @@ struct MatchesSpawnPointName
 //============================================================================
 #ifdef CLIENT
 bool VaultAgeLinkNode::CopyTo (plAgeLinkStruct * link) {
-    if (RelVaultNode * me = VaultGetNodeIncRef(base->GetNodeId())) {
-        if (RelVaultNode * info = me->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
+    if (hsRef<RelVaultNode> me = VaultGetNode(base->GetNodeId())) {
+        if (hsRef<RelVaultNode> info = me->GetChildNode(plVault::kNodeType_AgeInfo, 1)) {
             VaultAgeInfoNode access(info);
             access.CopyTo(link->GetAgeInfo());
-            me->DecRef();
             return true;
         }
-        me->DecRef();
     }
     link->Clear();
     return false;
@@ -470,7 +332,7 @@ void VaultAgeLinkNode::AddSpawnPoint (const plSpawnPointInfo & point) {
 
 //============================================================================
 #ifdef CLIENT
-void VaultAgeLinkNode::RemoveSpawnPoint (const plString & spawnPtName) {
+void VaultAgeLinkNode::RemoveSpawnPoint (const ST::string & spawnPtName) {
 
     plSpawnPointVec points;
     GetSpawnPoints( &points );                                                  
@@ -486,7 +348,7 @@ void VaultAgeLinkNode::RemoveSpawnPoint (const plString & spawnPtName) {
 
 //============================================================================
 #ifdef CLIENT
-bool VaultAgeLinkNode::HasSpawnPoint (const plString & spawnPtName) const {
+bool VaultAgeLinkNode::HasSpawnPoint (const ST::string & spawnPtName) const {
 
     plSpawnPointVec points;
     GetSpawnPoints( &points );                                                  
@@ -505,13 +367,13 @@ bool VaultAgeLinkNode::HasSpawnPoint (const plSpawnPointInfo & point) const {
 //============================================================================
 #ifdef CLIENT
 void VaultAgeLinkNode::GetSpawnPoints (plSpawnPointVec * out) const {
-    
-    plString str = plString::FromUtf8(reinterpret_cast<const char*>(GetSpawnPoints()), GetSpawnPointsLength());
-    std::vector<plString> izer = str.Tokenize(";");
+
+    ST::string str = ST::string::from_utf8(reinterpret_cast<const char*>(GetSpawnPoints()), GetSpawnPointsLength());
+    std::vector<ST::string> izer = str.tokenize(";");
     for (auto token1 = izer.begin(); token1 != izer.end(); ++token1)
     {
         plSpawnPointInfo point;
-        std::vector<plString> izer2 = token1->Tokenize(":");
+        std::vector<ST::string> izer2 = token1->tokenize(":");
         if ( izer2.size() > 0)
             point.fTitle = izer2[0];
         if ( izer2.size() > 1)
@@ -528,15 +390,15 @@ void VaultAgeLinkNode::GetSpawnPoints (plSpawnPointVec * out) const {
 #ifdef CLIENT
 void VaultAgeLinkNode::SetSpawnPoints (const plSpawnPointVec & in) {
 
-    plStringStream ss;
+    ST::string_stream ss;
     for ( unsigned i=0; i<in.size(); i++ ) {
         ss
             << in[i].fTitle << ":"
             << in[i].fSpawnPt << ":"
             << in[i].fCameraStack << ";";
     }
-    plString blob = ss.GetString();
-    SetSpawnPoints(reinterpret_cast<const uint8_t *>(blob.c_str()), blob.GetSize());
+    ST::string blob = ss.to_string();
+    SetSpawnPoints(reinterpret_cast<const uint8_t *>(blob.c_str()), blob.size());
 }
 #endif
 
@@ -557,44 +419,17 @@ const class plUnifiedTime * VaultAgeInfoNode::GetAgeTime () const {
 //============================================================================
 #ifdef CLIENT
 void VaultAgeInfoNode::CopyFrom (const plAgeInfoStruct * info) {
-    wchar_t str[MAX_PATH];
-
     // age filename
-    if (info->HasAgeFilename()) {
-        StrToUnicode(str, info->GetAgeFilename(), arrsize(str));
-        SetAgeFilename(str);
-    }
-    else {
-        SetAgeFilename(nil);
-    }
+    SetAgeFilename(info->HasAgeFilename() ? info->GetAgeFilename() : "");
 
     // age instance name
-    if (info->HasAgeInstanceName()) {
-        StrToUnicode(str, info->GetAgeInstanceName(), arrsize(str));
-        SetAgeInstanceName(str);
-    }
-    else {
-        SetAgeInstanceName(nil);
-    }
-    
+    SetAgeInstanceName(info->HasAgeInstanceName() ? info->GetAgeInstanceName() : "");
+
     // age user-defined name
-    if (info->HasAgeUserDefinedName())  {
-        StrToUnicode(str, info->GetAgeUserDefinedName(), arrsize(str));
-        SetAgeUserDefinedName(str);
-    }
-    else {
-        SetAgeUserDefinedName(nil);
-    }
+    SetAgeUserDefinedName(info->HasAgeUserDefinedName() ? info->GetAgeUserDefinedName() : "");
 
     // age description
-    // TODO
-    if (info->HasAgeDescription())  {
-//      StrToUnicode(str, info->GetAgeDescription(), arrsize(str));
-//      SetAgeDescription(str);
-    }
-    else {
-//      SetAgeDescription(nil);
-    }
+    SetAgeDescription(info->HasAgeDescription() ? info->GetAgeDescription() : "");
 
     // age sequence number
     SetAgeSequenceNumber(info->GetAgeSequenceNumber());
@@ -610,22 +445,17 @@ void VaultAgeInfoNode::CopyFrom (const plAgeInfoStruct * info) {
 //============================================================================
 #ifdef CLIENT
 void VaultAgeInfoNode::CopyTo (plAgeInfoStruct * info) const {
-    char str[MAX_PATH];
-
     // age filename
-    StrToAnsi(str, GetAgeFilename(), arrsize(str));
-    info->SetAgeFilename(str);
+    info->SetAgeFilename(GetAgeFilename());
 
     // age instance name
-    StrToAnsi(str, GetAgeInstanceName(), arrsize(str));
-    info->SetAgeInstanceName(str);
+    info->SetAgeInstanceName(GetAgeInstanceName());
 
     // age user-defined name
-    StrToAnsi(str, GetAgeUserDefinedName(), arrsize(str));
-    info->SetAgeUserDefinedName(str);
+    info->SetAgeUserDefinedName(GetAgeUserDefinedName());
 
     // age description
-    // TODO
+    info->SetAgeDescription(GetAgeDescription());
 
     // age sequence number
     info->SetAgeSequenceNumber(GetAgeSequenceNumber());
@@ -638,3 +468,39 @@ void VaultAgeInfoNode::CopyTo (plAgeInfoStruct * info) const {
     info->SetAgeLanguage(GetAgeLanguage());
 }
 #endif // def CLIENT
+
+//============================================================================
+void VaultMarkerGameNode::GetMarkerData(std::vector<VaultMarker>& data) const
+{
+    if (base->GetBlob_1Length() < sizeof(uint32_t))
+        return;
+
+    hsReadOnlyStream stream(base->GetBlob_1Length(), base->GetBlob_1());
+    uint32_t size = stream.ReadLE32();
+    data.reserve(size);
+
+    for (uint32_t i = 0; i < size; ++i) {
+        VaultMarker marker;
+        marker.id = stream.ReadLE32();
+        marker.age = stream.ReadSafeString();
+        marker.pos.Read(&stream);
+        marker.description = stream.ReadSafeString();
+        data.push_back(marker);
+    }
+}
+
+//============================================================================
+void VaultMarkerGameNode::SetMarkerData(const std::vector<VaultMarker>& data)
+{
+    hsVectorStream stream;
+    stream.WriteLE32(data.size());
+    for (auto it = data.begin(); it != data.end(); ++it) {
+        stream.WriteLE32(it->id);
+        stream.WriteSafeString(it->age);
+        it->pos.Write(&stream);
+        stream.WriteSafeString(it->description);
+    }
+
+    // copies the buffer
+    base->SetBlob_1(reinterpret_cast<const uint8_t*>(stream.GetData()), stream.GetEOF());
+}

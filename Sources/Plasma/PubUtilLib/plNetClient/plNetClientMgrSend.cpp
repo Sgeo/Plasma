@@ -43,7 +43,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsResMgr.h"
 #include "plNetClientMgr.h"
 #include "plCreatableIndex.h"   
-#include "plNetObjectDebugger.h"
+#include "plNetCommon/plNetObjectDebugger.h"
 
 #include "pnNetCommon/plSynchedObject.h"
 #include "pnNetCommon/plSDLTypes.h"
@@ -102,7 +102,7 @@ int plNetClientMgr::ISendDirtyState(double secs)
 #if 0
     if (num)
     {
-        DebugMsg("%d dirty sdl state msgs queued, t=%f", num, secs);
+        DebugMsg("{} dirty sdl state msgs queued, t={f}", num, secs);
     }
 #endif
     int32_t i;
@@ -119,8 +119,8 @@ int plNetClientMgr::ISendDirtyState(double secs)
             int localOwned=obj->IsLocallyOwned();
             if (localOwned==plSynchedObject::kNo)
             {
-                DebugMsg("Late rejection of queued SDL state, obj %s, sdl %s",
-                    state->fObjKey->GetName().c_str(), state->fSDLName.c_str());
+                DebugMsg("Late rejection of queued SDL state, obj {}, sdl {}",
+                    state->fObjKey->GetName(), state->fSDLName);
                 continue;
             }
         }
@@ -155,7 +155,7 @@ void plNetClientMgr::ISendCCRPetition(plCCRPetitionMsg* petMsg)
     info.AddValue( "Petition", "Content", note );
     info.AddValue( "Petition", "Title", title );
     info.AddValue( "Petition", "Language", plLocalization::GetLanguageName( plLocalization::GetLanguage() ) );
-    info.AddValue( "Petition", "AcctName", NetCommGetAccount()->accountNameAnsi );
+    info.AddValue( "Petition", "AcctName", NetCommGetAccount()->accountName.c_str() );
     char buffy[20];
     sprintf(buffy, "%u", GetPlayerID());
     info.AddValue( "Petition", "PlayerID", buffy );
@@ -170,10 +170,8 @@ void plNetClientMgr::ISendCCRPetition(plCCRPetitionMsg* petMsg)
     std::string buf;
     buf.resize( size );
     ram.CopyToMem( (void*)buf.data() );
-    
-    wchar_t * wStr = StrDupToUnicode(buf.c_str());
-    NetCliAuthSendCCRPetition(wStr);
-    free(wStr);
+
+    NetCliAuthSendCCRPetition(buf.c_str());
 }
 
 //
@@ -255,7 +253,7 @@ int plNetClientMgr::ISendGameMessage(plMessage* msg)
 #ifdef HS_DEBUGGING
     if ( dstIDs )
     {
-        DebugMsg( "Preparing to send %s to specific players.", msg->ClassName() );
+        DebugMsg( "Preparing to send {} to specific players.", msg->ClassName() );
     }
 #endif
 
@@ -290,7 +288,7 @@ int plNetClientMgr::ISendGameMessage(plMessage* msg)
             uint32_t playerID = (*dstIDs)[i];
             if (playerID == NetCommGetPlayer()->playerInt)
                 continue;
-            hsLogEntry( DebugMsg( "\tAdding receiver: %lu" , playerID ) );
+            hsLogEntry( DebugMsg( "\tAdding receiver: {}" , playerID ) );
             ((plNetMsgGameMessageDirected*)netMsgWrap)->Receivers()->AddReceiverPlayerID( playerID );
         }
     }
@@ -336,7 +334,7 @@ int plNetClientMgr::ISendGameMessage(plMessage* msg)
             bCast = true;
     }
     if (!directCom && !bCast && !dstIDs)
-        WarningMsg("Msg %s has no rcvrs or bcast instructions?", msg->ClassName());
+        WarningMsg("Msg {} has no rcvrs or bcast instructions?", msg->ClassName());
 
     hsAssert(!(directCom && bCast), "msg has both rcvrs and bcast instructions, rcvrs ignored");
     if (directCom && !bCast)
@@ -393,10 +391,10 @@ int plNetClientMgr::ISendGameMessage(plMessage* msg)
     {
     #if 0
         hsLogEntry(plNetObjectDebugger::GetInstance()->LogMsg(
-            plString::Format("<SND> object:%s, rcvr %s %s",
-            msg->GetSender().GetKeyName().c_str(),
-            msg->GetNumReceivers() ? msg->GetReceiver(0)->GetName().c_str() : "?",
-            netMsgWrap->AsStdString().c_str()).c_str()));
+            ST::format("<SND> object:{}, rcvr {} {}",
+            msg->GetSender().GetKeyName(),
+            msg->GetNumReceivers() ? msg->GetReceiver(0)->GetName() : "?",
+            netMsgWrap->AsStdString()).c_str()));
     #endif
     }
 
@@ -424,7 +422,7 @@ int plNetClientMgr::SendMsg(plNetMessage* msg)
     msg->SetTimeSent(plUnifiedTime::GetCurrent());
     int channel = IPrepMsg(msg);
     
-//  hsLogEntry( DebugMsg( "<SND> %s %s", msg->ClassName(), msg->AsStdString().c_str()) );
+//  hsLogEntry( DebugMsg( "<SND> {} {}", msg->ClassName(), msg->AsStdString()) );
     
     int ret=fTransport.SendMsg(channel, msg);
 
@@ -434,39 +432,8 @@ int plNetClientMgr::SendMsg(plNetMessage* msg)
     if (plNetMsgGameMessage::ConvertNoRef(msg))
         SetFlagsBit(kSendingActions);
     
-    plCheckNetMgrResult_ValReturn(ret, plString::Format("Failed to send %s, NC ret=%d",
+    plCheckNetMgrResult_ValReturn(ret, ST::format("Failed to send {}, NC ret={}",
         msg->ClassName(), ret).c_str());
 
     return ret;
-}
-
-
-void plNetClientMgr::StoreSDLState(const plStateDataRecord* sdRec, const plUoid& uoid, 
-                                    uint32_t sendFlags, uint32_t writeOptions)
-{
-    // send to server
-    plNetMsgSDLState* msg = sdRec->PrepNetMsg(0, writeOptions);
-    msg->SetNetProtocol(kNetProtocolCli2Game);
-    msg->ObjectInfo()->SetUoid(uoid);
-
-    if (sendFlags & plSynchedObject::kNewState)
-        msg->SetBit(plNetMessage::kNewSDLState);
-
-    if (sendFlags & plSynchedObject::kUseRelevanceRegions)
-        msg->SetBit(plNetMessage::kUseRelevanceRegions);
-
-    if (sendFlags & plSynchedObject::kDontPersistOnServer)
-        msg->SetPersistOnServer(false);
-
-    if (sendFlags & plSynchedObject::kIsAvatarState)
-        msg->SetIsAvatarState(true);
-
-    bool broadcast = (sendFlags & plSynchedObject::kBCastToClients) != 0;
-    if (broadcast && plNetClientApp::GetInstance())
-    {
-        msg->SetPlayerID(plNetClientApp::GetInstance()->GetPlayerID());
-    }
-
-    SendMsg(msg);
-    delete msg;
 }

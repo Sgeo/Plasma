@@ -56,7 +56,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnMessage/plRefMsg.h"
 #include "pfMessage/pfGameGUIMsg.h"
 #include "plMessage/plAnimCmdMsg.h"
-#include "plAvatar/plAGModifier.h"
+#include "plAnimation/plAGModifier.h"
 #include "plgDispatch.h"
 #include "hsResMgr.h"
 
@@ -196,13 +196,13 @@ void    pfGUIButtonMod::Read( hsStream *s, hsResMgr *mgr )
     uint32_t i, count = s->ReadLE32();
     for( i = 0; i < count; i++ )
         fAnimationKeys.Append( mgr->ReadKey( s ) );
-    fAnimName = s->ReadSafeString_TEMP();
+    fAnimName = s->ReadSafeString();
 
     fMouseOverAnimKeys.Reset();
     count = s->ReadLE32();
     for( i = 0; i < count; i++ )
         fMouseOverAnimKeys.Append( mgr->ReadKey( s ) );
-    fMouseOverAnimName = s->ReadSafeString_TEMP();
+    fMouseOverAnimName = s->ReadSafeString();
 
     fNotifyType = s->ReadLE32();
     mgr->ReadKeyNotifyMe( s, new plGenRefMsg( GetKey(), plRefMsg::kOnCreate, -1, kRefDraggable ), plRefFlags::kActiveRef );
@@ -358,13 +358,13 @@ void    pfGUIButtonMod::SetInteresting( bool i )
 }
 
 
-void    pfGUIButtonMod::SetAnimationKeys( hsTArray<plKey> &keys, const plString &name )
+void    pfGUIButtonMod::SetAnimationKeys( hsTArray<plKey> &keys, const ST::string &name )
 {
     fAnimationKeys = keys;
     fAnimName = name;
 }
 
-void    pfGUIButtonMod::SetMouseOverAnimKeys( hsTArray<plKey> &keys, const plString &name )
+void    pfGUIButtonMod::SetMouseOverAnimKeys( hsTArray<plKey> &keys, const ST::string &name )
 {
     fMouseOverAnimKeys = keys;
     fMouseOverAnimName = name;

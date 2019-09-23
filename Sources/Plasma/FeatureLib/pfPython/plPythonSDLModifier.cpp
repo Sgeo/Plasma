@@ -81,7 +81,7 @@ plPythonSDLModifier::plPythonSDLModifier(plPythonFileMod* owner) : fOwner(owner)
         {
             plVarDescriptor* var = desc->GetVar(i);
 
-            plString name = var->GetName();
+            ST::string name = var->GetName();
             int count = var->GetCount();
 
             fMap[name] = SDLObj(nil, count, false);
@@ -99,13 +99,13 @@ plPythonSDLModifier::~plPythonSDLModifier()
     }
 }
 
-PyObject* plPythonSDLModifier::GetItem(const plString& key)
+PyObject* plPythonSDLModifier::GetItem(const ST::string& key)
 {
     SDLMap::iterator it = fMap.find(key);
 
     if (it == fMap.end())
     {
-        plString errmsg = plString::Format("SDL key %s not found", key.c_str());
+        ST::string errmsg = ST::format("SDL key {} not found", key);
         PyErr_SetString(PyExc_KeyError, errmsg.c_str());
         PYTHON_RETURN_ERROR;
     }
@@ -118,7 +118,7 @@ PyObject* plPythonSDLModifier::GetItem(const plString& key)
     return val;
 }
 
-void plPythonSDLModifier::ISetItem(const plString& key, PyObject* value)
+void plPythonSDLModifier::ISetItem(const ST::string& key, PyObject* value)
 {
     if (!value || !PyTuple_Check(value))
     {
@@ -148,43 +148,48 @@ void plPythonSDLModifier::ISetItem(const plString& key, PyObject* value)
     oldObj.obj = value;
 }
 
-void plPythonSDLModifier::SendToClients(const plString& key)
+void plPythonSDLModifier::SendToClients(const ST::string& key)
 {
     SDLMap::iterator it = fMap.find(key);
     if (it != fMap.end())
         it->second.sendToClients = true;
 }
 
-void plPythonSDLModifier::SetNotify(pyKey& selfkey, const plString& key, float tolerance)
+void plPythonSDLModifier::SetNotify(pyKey& selfkey, const ST::string& key, float tolerance)
 {
     AddNotifyForVar(selfkey.getKey(), key, tolerance);
 }
 
-void plPythonSDLModifier::SetItem(const plString& key, PyObject* value)
+void plPythonSDLModifier::SetItem(const ST::string& key, PyObject* value)
 {
     ISetItem(key, value);
     IDirtySynchState(key);
 }
 
-void plPythonSDLModifier::SetItemFromSDLVar(plSimpleStateVariable* var)
+template<>
+void plPythonSDLModifier::SetItem(const ST::string& key, int index, bool value)
 {
-    plString name = var->GetName();
-
-    // Get the SDL value in Python format
-    PyObject* pyVar = ISDLVarToPython(var);
-
-    ISetItem(name, pyVar);
-    Py_XDECREF(pyVar);
-    // let the sender do the dirty sync state stuff
+    SetItemIdx(key, index, PyBool_FromLong(value), true);
 }
 
+template<>
+void plPythonSDLModifier::SetItem(const ST::string& key, int index, float value)
+{
+    SetItemIdx(key, index, PyFloat_FromDouble(value), true);
+}
 
-void plPythonSDLModifier::SetDefault(const plString& key, PyObject* value)
+template<>
+void plPythonSDLModifier::SetItem(const ST::string& key, int index, int value)
+{
+    SetItemIdx(key, index, PyLong_FromLong(value), true);
+}
+
+void plPythonSDLModifier::SetDefault(const ST::string& key, PyObject* value)
 {
     ISetItem(key, value);
 }
 
-void plPythonSDLModifier::SetItemIdx(const plString& key, int idx, PyObject* value, bool sendImmediate)
+void plPythonSDLModifier::SetItemIdx(const ST::string& key, int idx, PyObject* value, bool sendImmediate)
 {
     if (!value)
     {
@@ -265,10 +270,12 @@ void plPythonSDLModifier::SetItemIdx(const plString& key, int idx, PyObject* val
 
 const char* plPythonSDLModifier::GetSDLName() const
 {
-    return fOwner->fPythonFile;
+    // NOTE:  Not changing GetSDLName since most implementations of this
+    //   virtual function just return a stored string literal.
+    return fOwner->fPythonFile.c_str();
 }
 
-void plPythonSDLModifier::SetFlags(const plString& name, bool sendImmediate, bool skipOwnershipCheck)
+void plPythonSDLModifier::SetFlags(const ST::string& name, bool sendImmediate, bool skipOwnershipCheck)
 {
     SDLMap::iterator it = fMap.find(name);
     if (it != fMap.end())
@@ -278,7 +285,7 @@ void plPythonSDLModifier::SetFlags(const plString& name, bool sendImmediate, boo
     }
 }
 
-void plPythonSDLModifier::SetTagString(const plString& name, const plString& tag)
+void plPythonSDLModifier::SetTagString(const ST::string& name, const ST::string& tag)
 {
     SDLMap::iterator it = fMap.find(name);
     if (it != fMap.end())
@@ -296,7 +303,7 @@ void plPythonSDLModifier::ISetCurrentStateFrom(const plStateDataRecord* srcState
     {
         plSimpleStateVariable* var = vars[i];
 
-        plString name = var->GetName();
+        ST::string name = var->GetName();
 
         // Get the SDL value in Python format
         PyObject* pyVar = ISDLVarToPython(var);
@@ -337,7 +344,7 @@ void plPythonSDLModifier::IPutCurrentStateIn(plStateDataRecord* dstState)
     }
 }
 
-void plPythonSDLModifier::IDirtySynchState(const plString& name, bool sendImmediate)
+void plPythonSDLModifier::IDirtySynchState(const ST::string& name, bool sendImmediate)
 {
     SDLMap::iterator it = fMap.find(name);
     if (it != fMap.end())
@@ -357,7 +364,7 @@ void plPythonSDLModifier::IDirtySynchState(const plString& name, bool sendImmedi
 }
 
 bool plPythonSDLModifier::IPythonVarIdxToSDL(plSimpleStateVariable* var, int varIdx, int type, PyObject* pyVar, 
-                                             const plString& hintstring)
+                                             const ST::string& hintstring)
 {
     switch (type)
     {
@@ -369,7 +376,7 @@ bool plPythonSDLModifier::IPythonVarIdxToSDL(plSimpleStateVariable* var, int var
         {
             int v = PyInt_AsLong(pyVar);
             var->Set(v, varIdx);
-            if (!hintstring.IsNull())
+            if (!hintstring.empty())
                 var->GetNotificationInfo().SetHintString(hintstring);
             return true;
         }
@@ -377,7 +384,7 @@ bool plPythonSDLModifier::IPythonVarIdxToSDL(plSimpleStateVariable* var, int var
         {
             int v = (int)PyLong_AsLong(pyVar);
             var->Set(v, varIdx);
-            if (!hintstring.IsNull())
+            if (!hintstring.empty())
                 var->GetNotificationInfo().SetHintString(hintstring);
             return true;
         }
@@ -386,7 +393,7 @@ bool plPythonSDLModifier::IPythonVarIdxToSDL(plSimpleStateVariable* var, int var
         {
             int v = (int)PyFloat_AsDouble(pyVar);
             var->Set(v, varIdx);
-            if (!hintstring.IsNull())
+            if (!hintstring.empty())
                 var->GetNotificationInfo().SetHintString(hintstring);
             return true;
         }
@@ -397,7 +404,7 @@ bool plPythonSDLModifier::IPythonVarIdxToSDL(plSimpleStateVariable* var, int var
         {
             float v = (float)PyFloat_AsDouble(pyVar);
             var->Set(v, varIdx);
-            if (!hintstring.IsNull())
+            if (!hintstring.empty())
                 var->GetNotificationInfo().SetHintString(hintstring);
             return true;
         }
@@ -406,7 +413,7 @@ bool plPythonSDLModifier::IPythonVarIdxToSDL(plSimpleStateVariable* var, int var
         {
             float v = (float)PyInt_AsLong(pyVar);
             var->Set(v, varIdx);
-            if (!hintstring.IsNull())
+            if (!hintstring.empty())
                 var->GetNotificationInfo().SetHintString(hintstring);
             return true;
         }
@@ -417,7 +424,7 @@ bool plPythonSDLModifier::IPythonVarIdxToSDL(plSimpleStateVariable* var, int var
         {
             char* v = PyString_AsString(pyVar);
             var->Set(v, varIdx);
-            if (!hintstring.IsNull())
+            if (!hintstring.empty())
                 var->GetNotificationInfo().SetHintString(hintstring);
         }
         break;
@@ -427,7 +434,7 @@ bool plPythonSDLModifier::IPythonVarIdxToSDL(plSimpleStateVariable* var, int var
             pyKey* key = PythonInterface::GetpyKeyFromPython(pyVar);
             if ( key )
                 var->Set(key->getKey(),varIdx);
-                if (!hintstring.IsNull())
+                if (!hintstring.empty())
                     var->GetNotificationInfo().SetHintString(hintstring);
         }
         break;
@@ -437,7 +444,7 @@ bool plPythonSDLModifier::IPythonVarIdxToSDL(plSimpleStateVariable* var, int var
         {
             double v = PyFloat_AsDouble(pyVar);
             var->Set(v, varIdx);
-            if (!hintstring.IsNull())
+            if (!hintstring.empty())
                 var->GetNotificationInfo().SetHintString(hintstring);
             return true;
         }
@@ -445,7 +452,7 @@ bool plPythonSDLModifier::IPythonVarIdxToSDL(plSimpleStateVariable* var, int var
         {
             double v = (double)PyInt_AsLong(pyVar);
             var->Set(v, varIdx);
-            if (!hintstring.IsNull())
+            if (!hintstring.empty())
                 var->GetNotificationInfo().SetHintString(hintstring);
             return true;
         }
@@ -461,7 +468,7 @@ bool plPythonSDLModifier::IPythonVarIdxToSDL(plSimpleStateVariable* var, int var
     return false;
 }
 
-void plPythonSDLModifier::IPythonVarToSDL(plStateDataRecord* state, const plString& name)
+void plPythonSDLModifier::IPythonVarToSDL(plStateDataRecord* state, const ST::string& name)
 {
     plSimpleStateVariable* var = state->FindVar(name);
     PyObject* pyVar = nil;
@@ -566,7 +573,7 @@ PyObject* plPythonSDLModifier::ISDLVarToPython(plSimpleStateVariable* var)
     return pyTuple;
 }
 
-bool plPythonSDLModifier::HasSDL(const char* pythonFile)
+bool plPythonSDLModifier::HasSDL(const ST::string& pythonFile)
 {
     return (plSDLMgr::GetInstance()->FindDescriptor(pythonFile, plSDL::kLatestVersion) != nil);
 }
@@ -576,17 +583,17 @@ const plSDLModifier *ExternFindAgeSDL()
     return plPythonSDLModifier::FindAgeSDL();
 }
 
-const plPythonSDLModifier *ExternFindAgePySDL()
+plPythonSDLModifier* ExternFindAgePySDL()
 {
     return plPythonSDLModifier::FindAgeSDL();
 }
 
-const plPythonSDLModifier* plPythonSDLModifier::FindAgeSDL()
+plPythonSDLModifier* plPythonSDLModifier::FindAgeSDL()
 {
-    const char* ageName = cyMisc::GetAgeName();
+    ST::string ageName = cyMisc::GetAgeName();
 
-    if (strcmp(ageName, "") == 0)
-        return nil; // don't have an age, probably because we're running in max?
+    if (ageName.empty())
+        return nullptr; // don't have an age, probably because we're running in max?
 
     // find the Age Global object
     plLocation loc = plKeyFinder::Instance().FindLocation(ageName,plAgeDescription::GetCommonPage(plAgeDescription::kGlobal));
@@ -605,28 +612,28 @@ const plPythonSDLModifier* plPythonSDLModifier::FindAgeSDL()
                     // we found it!
                     return sdlMod;
                 
-                plNetClientApp::StaticErrorMsg("pfmod %s has a nil python SDL modifier for age sdl %s", 
+                plNetClientApp::StaticErrorMsg("pfmod {} has a nil python SDL modifier for age sdl {}",
                     pfmod->GetKeyName().c_str("?"), ageName);
             }
             else
             {
                 if (!key)
-                    plNetClientApp::StaticErrorMsg("nil key %s for age sdl %s", ageName, oid.StringIze().c_str());
+                    plNetClientApp::StaticErrorMsg("nil key {} for age sdl {}", ageName, oid.StringIze());
                 else
                 if (!key->ObjectIsLoaded())
-                    plNetClientApp::StaticErrorMsg("key %s not loaded for age sdl %s", 
+                    plNetClientApp::StaticErrorMsg("key {} not loaded for age sdl {}",
                         key->GetName().c_str("?"), ageName);
                 else
                 if (!plPythonFileMod::ConvertNoRef(key->ObjectIsLoaded()))
-                    plNetClientApp::StaticErrorMsg("key %s is not a python file mod for age sdl %s", 
+                    plNetClientApp::StaticErrorMsg("key {} is not a python file mod for age sdl {}",
                         key->GetName().c_str("?"), ageName);
             }
         }
         else
-            plNetClientApp::StaticErrorMsg("Invalid plUoid for age sdl %s", ageName);
+            plNetClientApp::StaticErrorMsg("Invalid plUoid for age sdl {}", ageName);
     }
     else
-        plNetClientApp::StaticErrorMsg("Invalid plLocation for age sdl %s", ageName);
+        plNetClientApp::StaticErrorMsg("Invalid plLocation for age sdl {}", ageName);
 
     // couldn't find one (maybe because we didn't look)
     return nil;
@@ -673,8 +680,8 @@ pySDLModifier::pySDLModifier(plPythonSDLModifier* sdlMod)
 
 PyObject* pySDLModifier::GetAgeSDL()
 {
-    const char* ageName = cyMisc::GetAgeName();
-    if (strcmp(ageName, "") == 0)
+    ST::string ageName = cyMisc::GetAgeName();
+    if (ageName.empty())
         PYTHON_RETURN_NONE; // just return none if the age is blank (running in max?)
 
     const plPythonSDLModifier* ageSDL = plPythonSDLModifier::FindAgeSDL();
@@ -684,56 +691,55 @@ PyObject* pySDLModifier::GetAgeSDL()
     }
 
     // didn't find one, throw an exception for the python programmer to chew on
-    char errmsg[256];
-    sprintf(errmsg,"Age Global SDL for %s does not exist!",ageName);
-    plNetClientApp::StaticErrorMsg(errmsg);
-    PyErr_SetString(PyExc_KeyError, errmsg);
+    ST::string err = ST::format("Age Global SDL for {} does not exist!", ageName);
+    plNetClientApp::StaticErrorMsg(err);
+    PyErr_SetString(PyExc_KeyError, err.c_str());
     PYTHON_RETURN_ERROR;
 }
 
 
-void pySDLModifier::SetDefault(pySDLModifier& self, std::string key, PyObject* value)
+void pySDLModifier::SetDefault(pySDLModifier& self, const ST::string& key, PyObject* value)
 {
-    self.fRecord->SetDefault(key.c_str(), value);
+    self.fRecord->SetDefault(key, value);
 }
 
-void pySDLModifier::SendToClients(pySDLModifier& self, std::string key)
+void pySDLModifier::SendToClients(pySDLModifier& self, const ST::string& key)
 {
-    self.fRecord->SendToClients(key.c_str());
+    self.fRecord->SendToClients(key);
 }
 
-void pySDLModifier::SetNotify(pySDLModifier& self, pyKey& selfkey, std::string key, float tolerance)
+void pySDLModifier::SetNotify(pySDLModifier& self, pyKey& selfkey, const ST::string& key, float tolerance)
 {
-    self.fRecord->SetNotify(selfkey, key.c_str(), tolerance);
+    self.fRecord->SetNotify(selfkey, key, tolerance);
 }
 
-PyObject* pySDLModifier::GetItem(pySDLModifier& self, std::string key)
+PyObject* pySDLModifier::GetItem(pySDLModifier& self, const ST::string& key)
 {
-    return self.fRecord->GetItem(key.c_str());
+    return self.fRecord->GetItem(key);
 }
 
-void pySDLModifier::SetItem(pySDLModifier& self, std::string key, PyObject* value)
+void pySDLModifier::SetItem(pySDLModifier& self, const ST::string& key, PyObject* value)
 {
-    self.fRecord->SetItem(key.c_str(), value);
+    self.fRecord->SetItem(key, value);
 }
 
 
-void pySDLModifier::SetItemIdx(pySDLModifier& self, std::string key, int idx, PyObject* value)
+void pySDLModifier::SetItemIdx(pySDLModifier& self, const ST::string& key, int idx, PyObject* value)
 {
-    self.fRecord->SetItemIdx(key.c_str(), idx, value);
+    self.fRecord->SetItemIdx(key, idx, value);
 }
 
-void pySDLModifier::SetItemIdxImmediate(pySDLModifier& self, std::string key, int idx, PyObject* value)
+void pySDLModifier::SetItemIdxImmediate(pySDLModifier& self, const ST::string& key, int idx, PyObject* value)
 {
-    self.fRecord->SetItemIdx(key.c_str(), idx, value, true);
+    self.fRecord->SetItemIdx(key, idx, value, true);
 }
 
-void pySDLModifier::SetFlags(pySDLModifier& self, const char* name, bool sendImmediate, bool skipOwnershipCheck)
+void pySDLModifier::SetFlags(pySDLModifier& self, const ST::string& name, bool sendImmediate, bool skipOwnershipCheck)
 {
     self.fRecord->SetFlags(name,sendImmediate,skipOwnershipCheck);
 }
 
-void pySDLModifier::SetTagString(pySDLModifier& self, const char* name, const char* tag)
+void pySDLModifier::SetTagString(pySDLModifier& self, const ST::string& name, const ST::string& tag)
 {
     self.fRecord->SetTagString(name,tag);
 }

@@ -57,7 +57,8 @@ private:
    
    plLocation fId;
    uint8_t fFlags;
-   std::string  fDesc;      // description of room
+   ST::string fDesc;     // description of room
+
 public:
 
    plNetGroupId() : fFlags(0) {}
@@ -68,8 +69,8 @@ public:
    void SetConstant(bool constantGroup) { fFlags &= constantGroup ? kNetGroupConstant : 0; }
    
    plLocation& Room() { return fId; }
-   const char* GetDesc() const { return fDesc.c_str();   }
-   void SetDesc(const char* c) { fDesc = c; }
+   ST::string GetDesc() const { return fDesc; }
+   void SetDesc(const ST::string& c) { fDesc = c; }
    
    bool operator==(const plNetGroupId& netGroup) const { return fId == netGroup.fId; }
    bool operator!=(const plNetGroupId& netGroup) const { return fId != netGroup.fId; }

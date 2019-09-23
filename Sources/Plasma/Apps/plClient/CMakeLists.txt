@@ -11,41 +11,48 @@ include_directories("../../NucleusLib")
 include_directories("../../PubUtilLib/inc")
 include_directories("../../PubUtilLib")
 
-if(Bink_SDK_AVAILABLE)
-    include_directories(${Bink_INCLUDE_DIR})
-endif()
 
 include_directories(${OPENAL_INCLUDE_DIR})
 include_directories(${OPENSSL_INCLUDE_DIR})
 include_directories(${PYTHON_INCLUDE_DIR})
 include_directories(${CURL_INCLUDE_DIR})
 
+if(MOVIE_AVAILABLE)
+    include_directories(${VPX_INCLUDE_DIR})
+    include_directories(${Opus_INCLUDE_DIR})
+endif()
+
 # Test for Python Interpreter, which will be used for extra build scripts if available
 find_package(PythonInterp)
+set_package_properties(PythonInterp PROPERTIES
+    URL "http://www.python.org"
+    DESCRIPTION "Python Scripting language interpreter"
+    TYPE OPTIONAL
+    PURPOSE "Used to (re-)build some client resource files"
+)
+
 if(PYTHONINTERP_FOUND)
     include(FindPythonModule)
     # Test for Python modules needed to build resource.dat
     find_python_module(rsvg)
-    find_python_module(Image)
-    if((DEFINED PY_RSVG) AND (DEFINED PY_IMAGE))
+    find_python_module(PIL)
+    if((DEFINED PY_RSVG) AND (DEFINED PY_PIL))
         set(CAN_BUILD_RESOURCE_DAT ON)
-    endif((DEFINED PY_RSVG) AND (DEFINED PY_IMAGE))
+    endif((DEFINED PY_RSVG) AND (DEFINED PY_PIL))
 endif(PYTHONINTERP_FOUND)
 
 set(plClient_HEADERS
     plClient.h
     plClientCreatable.h
-    #plClientKey.h
+    plClientLoader.h
     plClientUpdateFormat.h
-    #plPluginClient.h
 )
 
 set(plClient_SOURCES
     pfAllCreatables.cpp
     plAllCreatables.cpp
     plClient.cpp
-    #plClientKey.cpp
-    #plPluginClient.cpp
+    plClientLoader.cpp
     pnAllCreatables.cpp
     winmain.cpp
 )
@@ -85,16 +92,17 @@ target_link_libraries(plClient pfConsole)
 target_link_libraries(plClient pfConsoleCore)
 target_link_libraries(plClient pfCrashHandler)
 target_link_libraries(plClient pfGameGUIMgr)
-target_link_libraries(plClient pfGameMgr)
 target_link_libraries(plClient pfGameScoreMgr)
 target_link_libraries(plClient pfJournalBook)
 target_link_libraries(plClient pfLocalizationMgr)
 target_link_libraries(plClient pfMessage)
+target_link_libraries(plClient pfMoviePlayer)
+target_link_libraries(plClient pfPasswordStore)
 target_link_libraries(plClient pfPython)
-target_link_libraries(plClient pfSecurePreloader)
 target_link_libraries(plClient pfSurface)
 target_link_libraries(plClient plAgeDescription)
 target_link_libraries(plClient plAgeLoader)
+target_link_libraries(plClient plAnimation)
 target_link_libraries(plClient plAudible)
 target_link_libraries(plClient plAudio)
 target_link_libraries(plClient plAudioCore)
@@ -142,7 +150,6 @@ target_link_libraries(plClient pnAsyncCoreExe)
 target_link_libraries(plClient pnDispatch)
 target_link_libraries(plClient pnEncryption)
 target_link_libraries(plClient pnFactory)
-target_link_libraries(plClient pnGameMgr)
 target_link_libraries(plClient pnInputCore)
 target_link_libraries(plClient pnKeyedObject)
 target_link_libraries(plClient pnMessage)
@@ -163,24 +170,35 @@ target_link_libraries(plClient ${OPENSSL_LIBRARIES})
 target_link_libraries(plClient ${EXPAT_LIBRARY})
 target_link_libraries(plClient ${JPEG_LIBRARY})
 target_link_libraries(plClient ${PNG_LIBRARY})
-target_link_libraries(plClient ${Speex_LIBRARY})
 target_link_libraries(plClient ${PHYSX_LIBRARIES})
 target_link_libraries(plClient ${Ogg_LIBRARIES})
 target_link_libraries(plClient ${Vorbis_LIBRARIES})
 target_link_libraries(plClient ${DirectX_LIBRARIES})
 target_link_libraries(plClient ${CURL_LIBRARY})
+target_link_libraries(plClient ${STRING_THEORY_LIBRARIES})
 
 if(USE_VLD)
     target_link_libraries(plClient ${VLD_LIBRARY})
 endif()
 
+if(PLASMA_USE_OPUS)
+    target_link_libraries(plClient ${Opus_LIBRARIES})
+endif()
+if(PLASMA_USE_SPEEX)
+    target_link_libraries(plClient ${Speex_LIBRARY})
+endif()
+if(PLASMA_USE_VPX)
+    target_link_libraries(plClient ${VPX_LIBRARY})
+endif()
+
 if (WIN32)
-    target_link_libraries(plClient Rpcrt4)
-    target_link_libraries(plClient Version)
-    target_link_libraries(plClient Vfw32)
-    target_link_libraries(plClient Ws2_32)
+    target_link_libraries(plClient rpcrt4)
+    target_link_libraries(plClient version)
+    target_link_libraries(plClient vfw32)
+    target_link_libraries(plClient ws2_32)
     target_link_libraries(plClient winmm)
     target_link_libraries(plClient strmiids)
+    target_link_libraries(plClient crypt32)
 endif(WIN32)
 
 if(LibOVR_FOUND)

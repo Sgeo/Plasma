@@ -3,10 +3,7 @@ include_directories("../../NucleusLib/inc")
 include_directories("../../NucleusLib")
 include_directories("../../PubUtilLib")
 
-find_package(JPEG REQUIRED)
 include_directories(${JPEG_INCLUDE_DIR})
-
-find_package(PNG REQUIRED)
 include_directories(${PNG_INCLUDE_DIR})
 
 set(plGImage_SOURCES
@@ -18,7 +15,6 @@ set(plGImage_SOURCES
     plBumpMapGen.cpp
     plCubicEnvironmap.cpp
     plDynamicTextMap.cpp
-    plDynSurfaceWriter.cpp
     plFont.cpp
     plFontCache.cpp
     plJPEG.cpp
@@ -26,10 +22,10 @@ set(plGImage_SOURCES
     plMipmap.cpp
     plPNG.cpp
     plTGAWriter.cpp
-    plWinFontCache.cpp
 )
 
 set(plGImage_HEADERS
+    hsCodec.h
     hsCodecManager.h
     hsDXTDirectXCodec.h
     hsDXTSoftwareCodec.h
@@ -38,7 +34,6 @@ set(plGImage_HEADERS
     plBumpMapGen.h
     plCubicEnvironmap.h
     plDynamicTextMap.h
-    plDynSurfaceWriter.h
     plFont.h
     plFontCache.h
     plGImageCreatable.h
@@ -47,7 +42,6 @@ set(plGImage_HEADERS
     plMipmap.h
     plPNG.h
     plTGAWriter.h
-    plWinFontCache.h
 )
 
 add_library(plGImage STATIC ${plGImage_SOURCES} ${plGImage_HEADERS})

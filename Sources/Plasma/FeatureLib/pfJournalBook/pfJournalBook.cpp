@@ -67,7 +67,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pfMessage/pfGUINotifyMsg.h"
 #include "plGImage/plMipmap.h"
 #include "plGImage/plDynamicTextMap.h"
-#include "plPipeline/hsGDeviceRef.h"
+#include "hsGDeviceRef.h"
 #include "plMessage/plAnimCmdMsg.h"
 #include "pnKeyedObject/plFixedKey.h"
 #include "pnMessage/plRefMsg.h"
@@ -78,7 +78,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plSurface/plLayer.h"
 #include "plSurface/hsGMaterial.h"
 #include "plAgeLoader/plAgeLoader.h"
-#include "pfSurface/plLayerBink.h"
+#include "pfSurface/plLayerAVI.h"
 
 // So we can do image searches in our local age
 #include "plNetClient/plNetClientMgr.h"
@@ -86,7 +86,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 // For notify sends
 #include "pnMessage/plNotifyMsg.h"
-#include "pnTimer/plTimerCallbackManager.h"
+#include "plTimerCallbackManager.h"
 #include "plMessage/plTimerCallbackMsg.h"
 
 // For custom cursors
@@ -444,7 +444,7 @@ public:
 
 //// Book data class /////////////////////////////////////////////////////////
 
-pfBookData::pfBookData(const plString &guiName /* = nil */)
+pfBookData::pfBookData(const ST::string &guiName /* = nil */)
 {
     fCurrBook = nil;
     fDialog = nil;
@@ -468,10 +468,10 @@ pfBookData::pfBookData(const plString &guiName /* = nil */)
     fEditable = false;
     fAdjustCursorTo = -1;
     
-    if (!guiName.IsEmpty())
+    if (!guiName.empty())
         fGUIName = guiName;
     else
-        fGUIName = "BkBook";
+        fGUIName = ST_LITERAL("BkBook");
 }
 
 pfBookData::~pfBookData()
@@ -866,7 +866,7 @@ void pfBookData::ITriggerPageFlip(bool flipBackwards, bool immediate)
     // in MAX, we just use a GUI check box to grab them for us, even though we never
     // actually use the functionality of the checkbox itself
     const hsTArray<plKey> &keys = fTurnPageButton->GetAnimationKeys();
-    plString animName = fTurnPageButton->GetAnimationName();
+    ST::string animName = fTurnPageButton->GetAnimationName();
 
     plAnimCmdMsg *msg = new plAnimCmdMsg();
     if (immediate)
@@ -1135,7 +1135,7 @@ void pfBookData::EnableEditGUI(bool enable/* =true */)
 //// Our Singleton Stuff /////////////////////////////////////////////////////
 
 //pfJournalBook *pfJournalBook::fInstance = nil;
-std::map<plString,pfBookData*> pfJournalBook::fBookGUIs;
+std::map<ST::string,pfBookData*> pfJournalBook::fBookGUIs;
 
 void    pfJournalBook::SingletonInit( void )
 {
@@ -1146,7 +1146,7 @@ void    pfJournalBook::SingletonInit( void )
 
 void    pfJournalBook::SingletonShutdown( void )
 {
-    std::map<plString,pfBookData*>::iterator i = fBookGUIs.begin();
+    std::map<ST::string,pfBookData*>::iterator i = fBookGUIs.begin();
     while (i != fBookGUIs.end())
     {
         pfBookData *bookData = i->second;
@@ -1157,7 +1157,7 @@ void    pfJournalBook::SingletonShutdown( void )
     fBookGUIs.clear();
 }
 
-void    pfJournalBook::LoadGUI( const plString &guiName )
+void    pfJournalBook::LoadGUI( const ST::string &guiName )
 {
     if (fBookGUIs.find(guiName) == fBookGUIs.end()) // is it already loaded?
     { // nope, load it
@@ -1167,11 +1167,11 @@ void    pfJournalBook::LoadGUI( const plString &guiName )
     }
 }
 
-void    pfJournalBook::UnloadGUI( const plString &guiName )
+void    pfJournalBook::UnloadGUI( const ST::string &guiName )
 {
-    if (guiName.Compare("BkBook")==0)
+    if (guiName.compare("BkBook")==0)
         return; // do not allow people to unload the default book gui
-    std::map<plString,pfBookData*>::iterator loc = fBookGUIs.find(guiName);
+    std::map<ST::string,pfBookData*>::iterator loc = fBookGUIs.find(guiName);
     if (loc != fBookGUIs.end()) // make sure it's loaded
     {
         fBookGUIs[guiName]->GetKey()->UnRefObject();
@@ -1182,11 +1182,11 @@ void    pfJournalBook::UnloadGUI( const plString &guiName )
 
 void    pfJournalBook::UnloadAllGUIs()
 {
-    std::map<plString,pfBookData*>::iterator i = fBookGUIs.begin();
-    std::vector<plString> names;
+    std::map<ST::string,pfBookData*>::iterator i = fBookGUIs.begin();
+    std::vector<ST::string> names;
     while (i != fBookGUIs.end())
     {
-        plString name = i->first;
+        ST::string name = i->first;
         names.push_back(name); // store a list of keys
         i++;
     }
@@ -1201,9 +1201,9 @@ void    pfJournalBook::UnloadAllGUIs()
 // key is the keyed object to send event messages to (see <img> tag).
 
 pfJournalBook::pfJournalBook( const char *esHTMLSource, plKey coverImageKey, plKey callbackKey /*= nil*/, 
-                                const plLocation &hintLoc /* = plLocation::kGlobalFixedLoc */, const plString &guiName /* = nil */ )
+                                const plLocation &hintLoc /* = plLocation::kGlobalFixedLoc */, const ST::string &guiName /* = nil */ )
 {
-    if (!guiName.IsEmpty())
+    if (!guiName.empty())
         fCurBookGUI = guiName;
     else
         fCurBookGUI = "BkBook";
@@ -1237,9 +1237,9 @@ pfJournalBook::pfJournalBook( const char *esHTMLSource, plKey coverImageKey, plK
 }
 
 pfJournalBook::pfJournalBook( const wchar_t *esHTMLSource, plKey coverImageKey, plKey callbackKey /*= nil*/, 
-                                const plLocation &hintLoc /* = plLocation::kGlobalFixedLoc */, const plString &guiName /* = nil */ )
+                                const plLocation &hintLoc /* = plLocation::kGlobalFixedLoc */, const ST::string &guiName /* = nil */ )
 {
-    if (!guiName.IsEmpty())
+    if (!guiName.empty())
         fCurBookGUI = guiName;
     else
         fCurBookGUI = "BkBook";
@@ -1286,9 +1286,9 @@ bool    pfJournalBook::MsgReceive( plMessage *pMsg )
     return hsKeyedObject::MsgReceive( pMsg );
 }
 
-void    pfJournalBook::SetGUI( const plString &guiName )
+void    pfJournalBook::SetGUI( const ST::string &guiName )
 {
-    if (!guiName.IsEmpty())
+    if (!guiName.empty())
         fCurBookGUI = guiName;
     if (fBookGUIs.find(fCurBookGUI) == fBookGUIs.end())
         fCurBookGUI = "BkBook"; // requested GUI isn't loaded, so use default GUI
@@ -1327,7 +1327,7 @@ void    pfJournalBook::Show( bool startOpened /*= false */)
                 else
                 {
                     // it's a cover movie, not a decal, so we make a layer, thinking it's at 0,0 and a left map (which gives us the results we want)
-                    plLayerBink *movieLayer = IMakeMovieLayer(fCoverDecals[i],0,0,mip,pfJournalDlgProc::kTagLeftDTMap,false);
+                    plLayerAVI *movieLayer = IMakeMovieLayer(fCoverDecals[i],0,0,mip,pfJournalDlgProc::kTagLeftDTMap,false);
                     loadedMovie *movie = new loadedMovie;
                     movie->movieLayer = movieLayer;
                     movie->movieChunk = fCoverDecals[i];
@@ -1397,7 +1397,7 @@ void    pfJournalBook::Hide( void )
             int i;
             for( i = 0; i < fLoadedMovies.GetCount(); i++ )
             {
-                plLayerBink *movie = fLoadedMovies[ i ]->movieLayer;
+                plLayerAVI *movie = fLoadedMovies[ i ]->movieLayer;
                 movie->GetKey()->UnRefObject();
                 delete fLoadedMovies[ i ];
             }
@@ -1473,7 +1473,7 @@ void    pfJournalBook::ITriggerCloseWithNotify( bool closeNotOpen, bool immediat
     fBookGUIs[fCurBookGUI]->CurrentlyOpen(!closeNotOpen);
 
     const hsTArray<plKey> &keys = fBookGUIs[fCurBookGUI]->CoverButton()->GetAnimationKeys();
-    plString animName = fBookGUIs[fCurBookGUI]->CoverButton()->GetAnimationName();
+    ST::string animName = fBookGUIs[fCurBookGUI]->CoverButton()->GetAnimationName();
 
     plAnimCmdMsg *msg = new plAnimCmdMsg();
     if( !immediate )
@@ -1809,68 +1809,50 @@ static uint32_t   IConvertHex( const wchar_t *str )
 //// ICompileSource //////////////////////////////////////////////////////////
 // Compiles the given string of esHTML source into our compiled chunk list
 
-bool    pfJournalBook::ICompileSource( const wchar_t *source, const plLocation &hintLoc )
+bool    pfJournalBook::ICompileSource(const wchar_t *source, const plLocation &hintLoc)
 {
     IFreeSource();
 
 
-    pfEsHTMLChunk *chunk, *lastParChunk = new pfEsHTMLChunk( nil );
-    const wchar_t   *c, *start;
-    wchar_t name[ 128 ], option[ 256 ];
-    float bookWidth=1.0, bookHeight=1.0;
+    pfEsHTMLChunk *chunk, *lastParChunk = new pfEsHTMLChunk(nullptr);
+    const wchar_t *c, *start;
+    wchar_t name[128], option[256];
+    float bookWidth=1.f, bookHeight=1.f;
     uint8_t movieIndex = 0; // the index of a movie in the source (used for id purposes)
 
     plKey anotherKey;
 
 
     // Parse our source!
-    for( start = c = source; *c != 0; )
-    {
+    for (start = c = source; *c != 0;) {
         // Are we on a tag?
         uint8_t type = IGetTagType( c );
-        if( type != pfEsHTMLChunk::kEmpty )
-        {
+        if (type != pfEsHTMLChunk::kEmpty) {
             // First, end the current paragraph chunk, which is a special case 'cause its 
             // text is defined outside the tag
-            if( start == c )
-            {
+            if (start == c ) {
                 // No actual text, just delete
                 delete lastParChunk;
-                lastParChunk = nil;
-            }
-            else if( lastParChunk != nil )
-            {
-                uint32_t count = ((uintptr_t)c - (uintptr_t)start)/2; // wchar_t is 2 bytes
-                
-                wchar_t *temp = new wchar_t[ count + 1 ];
-                wcsncpy( temp, start, count );
-                temp[count] = L'\0';
-                lastParChunk->fText = temp;
-                delete [] temp;
-
-                // Special case to remove any last trailing carriage return
-//              if( count > 1 && lastParChunk->fText[ count - 1 ] == '\n' )
-//                  lastParChunk->fText[ count - 1 ] = 0;
-
-                fHTMLSource.Append( lastParChunk );
+                lastParChunk = nullptr;
+            } else if (lastParChunk) {
+                size_t count = ((uintptr_t)c - (uintptr_t)start) / sizeof(wchar_t); // wchar_t is 2 bytes
+                lastParChunk->fText.assign(start, 0, count);
+                fHTMLSource.Append(lastParChunk);
             }
 
             // What chunk are we making now?
-            switch( type )
-            {
+            switch (type) {
                 case pfEsHTMLChunk::kParagraph:
                     c += 2;
-                    chunk = new pfEsHTMLChunk( nil );
+                    chunk = new pfEsHTMLChunk(nullptr);
                     chunk->fFlags = IFindLastAlignment();
-                    while( IGetNextOption( c, name, option ) )
-                    {
-                        if( wcsicmp( name, L"align" ) == 0 )
-                        {
-                            if( wcsicmp( option, L"left" ) == 0 )
+                    while (IGetNextOption(c, name, option)) {
+                        if (wcsicmp(name, L"align") == 0) {
+                            if (wcsicmp( option, L"left") == 0)
                                 chunk->fFlags = pfEsHTMLChunk::kLeft;
-                            else if( wcsicmp( option, L"center" ) == 0 )
+                            else if (wcsicmp(option, L"center") == 0)
                                 chunk->fFlags = pfEsHTMLChunk::kCenter;
-                            else if( wcsicmp( option, L"right" ) == 0 )
+                            else if (wcsicmp(option, L"right") == 0)
                                 chunk->fFlags = pfEsHTMLChunk::kRight;
                         }
                     }
@@ -1880,118 +1862,82 @@ bool    pfJournalBook::ICompileSource( const wchar_t *source, const plLocation &
 
                 case pfEsHTMLChunk::kImage:
                     c += 4;
-                    chunk = new pfEsHTMLChunk( nil, 0 );
-                    while( IGetNextOption( c, name, option ) )
-                    {
-                        if( wcsicmp( name, L"align" ) == 0 )
-                        {
+                    chunk = new pfEsHTMLChunk(nullptr , 0);
+                    while (IGetNextOption(c, name, option)) {
+                        if (wcsicmp(name, L"align") == 0) {
                             chunk->fFlags &= ~pfEsHTMLChunk::kAlignMask;
-                            if( wcsicmp( option, L"left" ) == 0 )
+                            if (wcsicmp(option, L"left" ) == 0)
                                 chunk->fFlags |= pfEsHTMLChunk::kLeft;
-                            else if( wcsicmp( option, L"center" ) == 0 )
+                            else if (wcsicmp(option, L"center") == 0)
                                 chunk->fFlags |= pfEsHTMLChunk::kCenter;
-                            else if( wcsicmp( option, L"right" ) == 0 )
+                            else if (wcsicmp(option, L"right") == 0)
                                 chunk->fFlags |= pfEsHTMLChunk::kRight;
-                        }
-                        else if( wcsicmp( name, L"src" ) == 0 )
-                        {
+                        } else if (wcsicmp(name, L"src") == 0) {
                             // Name of mipmap source
                             chunk->fImageKey = IGetMipmapKey( option, hintLoc );
-                        }
-                        else if( wcsicmp( name, L"link" ) == 0 )
-                        {
-                            chunk->fEventID = wcstol(option, NULL, 0);
+                        } else if (wcsicmp(name, L"link") == 0) {
+                            chunk->fEventID = wcstoul(option, nullptr, 0);
                             chunk->fFlags |= pfEsHTMLChunk::kCanLink;
-                        }
-                        else if( wcsicmp( name, L"blend" ) == 0 )
-                        {
-                            if( wcsicmp( option, L"alpha" ) == 0 )
+                        } else if (wcsicmp(name, L"blend") == 0) {
+                            if (wcsicmp(option, L"alpha") == 0)
                                 chunk->fFlags |= pfEsHTMLChunk::kBlendAlpha;
-                        }
-                        else if( wcsicmp( name, L"pos" ) == 0 )
-                        {
+                        } else if (wcsicmp( name, L"pos") == 0) {
                             chunk->fFlags |= pfEsHTMLChunk::kFloating;
 
-                            wchar_t *comma = wcschr( option, L',' );
-                            if( comma != nil )
-                            {
-
-                                chunk->fAbsoluteY = wcstol(comma + 1, NULL, 0);
-                                *comma = 0;
-                            }
-                            chunk->fAbsoluteX = wcstol(option, NULL, 0);
-                        }
-                        else if( wcsicmp( name, L"glow" ) == 0 )
-                        {
+                            wchar_t* comma = wcschr(option, L',');
+                            if (comma)
+                                chunk->fAbsoluteY = (uint16_t)wcstoul(comma + 1, nullptr, 0);
+                            chunk->fAbsoluteX = (uint16_t)wcstoul(option, nullptr, 0);
+                        } else if (wcsicmp(name, L"glow") == 0) {
                             chunk->fFlags |= pfEsHTMLChunk::kGlowing;
                             chunk->fFlags &= ~pfEsHTMLChunk::kActAsCB;
 
-                            char *cOption = hsWStringToString(option);
-                            char *comma = strchr( cOption, ',' );
-                            if( comma != nil )
-                            {
-                                char *comma2 = strchr( comma + 1, ',' );
-                                if( comma2 != nil )
-                                {
-                                    chunk->fMaxOpacity = (float)atof( comma2 + 1 );
-                                    *comma2 = 0;
-                                }
-                                chunk->fMinOpacity = (float)atof( comma + 1 );
-                                *comma = 0;
+                            wchar_t* comma = wcschr(option, L',');
+                            if (comma) {
+                                wchar_t* comma2 = wcschr(comma + 1, L',');
+                                if (comma2)
+                                    chunk->fMaxOpacity = wcstof(comma2 + 1, nullptr);
+                                chunk->fMinOpacity = wcstof(comma + 1, nullptr);
                             }
-                            chunk->fSFXTime = (float)atof( cOption );
-                            delete [] cOption;
-                        }
-                        else if( wcsicmp( name, L"opacity" ) == 0 )
-                        {
+                            chunk->fSFXTime = wcstof(option, nullptr);
+                        } else if (wcsicmp( name, L"opacity") == 0) {
                             chunk->fFlags |= pfEsHTMLChunk::kTranslucent;
-                            char *cOption = hsWStringToString(option);
-                            chunk->fCurrOpacity = (float)atof( cOption );
-                            delete [] cOption;
-                        }
-                        else if( wcsicmp( name, L"check" ) == 0 )
-                        {
+                            chunk->fCurrOpacity = wcstof(option, nullptr);
+                        } else if (wcsicmp( name, L"check" ) == 0) {
                             chunk->fFlags |= pfEsHTMLChunk::kActAsCB;
                             chunk->fFlags &= ~pfEsHTMLChunk::kGlowing;
 
-                            wchar_t *comma = wcschr( option, L',' );
-                            if( comma != nil )
-                            {
-                                wchar_t *comma2 = wcschr( comma + 1, L',' );
-                                if( comma2 != nil )
-                                {
-                                    if( wcstol(comma2 + 1, NULL, 0) != 0 )
+                            wchar_t *comma = wcschr(option, L',');
+                            if (comma) {
+                                wchar_t *comma2 = wcschr(comma + 1, L',');
+                                if (comma2) {
+                                    if (wcstol(comma2 + 1, nullptr, 0))
                                         chunk->fFlags |= pfEsHTMLChunk::kChecked;
-                                    *comma2 = 0;
                                 }
-                                uint32_t c = IConvertHex( comma + 1 );
-                                if( wcslen( comma + 1 ) <= 6 )
+                                uint32_t c = IConvertHex(comma + 1);
+                                if (wcslen( comma + 1 ) <= 6)
                                     c |= 0xff000000;    // Add in full alpha if none specified
-                                chunk->fOffColor.FromARGB32( c );
-                                *comma = 0;
+                                chunk->fOffColor.FromARGB32(c);
                             }
-                            uint32_t c = IConvertHex( option );
-                            if( wcslen( option ) <= 6 )
+                            uint32_t c = IConvertHex(option);
+                            if (wcslen( option ) <= 6)
                                 c |= 0xff000000;    // Add in full alpha if none specified
-                            chunk->fOnColor.FromARGB32( c );
+                            chunk->fOnColor.FromARGB32(c);
 
-                            if( chunk->fFlags & pfEsHTMLChunk::kChecked )
+                            if (chunk->fFlags & pfEsHTMLChunk::kChecked)
                                 chunk->fCurrColor = chunk->fOnColor;
                             else
                                 chunk->fCurrColor = chunk->fOffColor;
-                        }
-                        else if (wcsicmp(name,L"resize")==0)
-                        {
-                            if (wcsicmp(option,L"no")==0)
-                                chunk->fNoResizeImg = true;
+                        } else if (wcsicmp(name,L"resize") == 0) {
+                            chunk->fNoResizeImg = (wcsicmp(option, L"no") == 0);
                         }
                     }
-                    if( chunk->fImageKey != nil )
-                        fHTMLSource.Append( chunk );
+                    if (chunk->fImageKey)
+                        fHTMLSource.Append(chunk);
                     else
                         delete chunk;
                     // Start new paragraph chunk after this one
-                    lastParChunk = new pfEsHTMLChunk( nil );
+                    lastParChunk = new pfEsHTMLChunk(nullptr);
                     lastParChunk->fFlags = IFindLastAlignment();
                     break;
 
@@ -1999,307 +1945,228 @@ bool    pfJournalBook::ICompileSource( const wchar_t *source, const plLocation &
                     // Don't create an actual chunk for this one, just use the "src" and 
                     // grab the mipmap key for our cover
                     c += 6;
-                    while( IGetNextOption( c, name, option ) )
-                    {
-                        if( wcsicmp( name, L"src" ) == 0 )
-                        {
+                    while (IGetNextOption(c, name, option)) {
+                        if (wcsicmp(name, L"src") == 0) {
                             // Name of mipmap source
                             anotherKey = IGetMipmapKey( option, hintLoc );
-                            if( anotherKey != nil )
-                            {
+                            if (anotherKey) {
                                 fCoverMipKey = anotherKey;
                                 fCoverFromHTML = true;
                             }
-                        }
-                        if( wcsicmp( name, L"tint" ) == 0 )
-                        {
+                        } else if (wcsicmp(name, L"tint") == 0) {
                             fTintCover = true;
-                            fCoverTint.FromARGB32( wcstol( option, nil, 16 ) | 0xff000000 );
-                        }
-                        if( wcsicmp( name, L"tintfirst" ) == 0 )
-                        {
-                            if (wcsicmp(option,L"no")==0)
-                                fTintFirst = false;
+                            fCoverTint.FromARGB32(wcstol( option, nullptr, 16 ) | 0xff000000);
+                        } else if (wcsicmp(name, L"tintfirst") == 0) {
+                            fTintFirst = (wcsicmp(option, L"no") != 0);
                         }
                     }
                     // Still gotta create a new par chunk
-                    lastParChunk = new pfEsHTMLChunk( nil );
+                    lastParChunk = new pfEsHTMLChunk(nullptr);
                     lastParChunk->fFlags = IFindLastAlignment();
                     break;
 
                 case pfEsHTMLChunk::kPageBreak:
                     c += 3;
                     chunk = new pfEsHTMLChunk();
-                    while( IGetNextOption( c, name, option ) )
-                    {
+                    while (IGetNextOption(c, name, option)) {
                     }
-                    fHTMLSource.Append( chunk );
+                    fHTMLSource.Append(chunk);
                     // Start new paragraph chunk after this one
-                    lastParChunk = new pfEsHTMLChunk( nil );
+                    lastParChunk = new pfEsHTMLChunk(nullptr);
                     lastParChunk->fFlags = IFindLastAlignment();
                     break;
 
                 case pfEsHTMLChunk::kFontChange:
                     c += 5;
-                    chunk = new pfEsHTMLChunk( nil, 0, 0 );
-                    while( IGetNextOption( c, name, option ) )
-                    {
-                        if( wcsicmp( name, L"style" ) == 0 )
-                        {
+                    chunk = new pfEsHTMLChunk(nullptr, 0, 0);
+                    while (IGetNextOption(c, name, option)) {
+                        if (wcsicmp(name, L"style") == 0) {
                             uint8_t guiFlags = 0;
-                            if( wcsicmp( option, L"b" ) == 0 )
-                            {
+                            if (wcsicmp(option, L"b") == 0) {
                                 chunk->fFlags = pfEsHTMLChunk::kFontBold;
                                 guiFlags = plDynamicTextMap::kFontBold;
-                            }
-                            else if( wcsicmp( option, L"i" ) == 0 )
-                            {
+                            } else if (wcsicmp(option, L"i") == 0) {
                                 chunk->fFlags = pfEsHTMLChunk::kFontItalic;
                                 guiFlags = plDynamicTextMap::kFontItalic;
-                            }
-                            else if( wcsicmp( option, L"bi" ) == 0 )
-                            {
+                            } else if (wcsicmp(option, L"bi") == 0) {
                                 chunk->fFlags = pfEsHTMLChunk::kFontBold | pfEsHTMLChunk::kFontItalic;
                                 guiFlags = plDynamicTextMap::kFontBold | plDynamicTextMap::kFontItalic;
-                            }
-                            else
+                            } else {
                                 chunk->fFlags = pfEsHTMLChunk::kFontRegular;
-                            if (fBookGUIs[fCurBookGUI]->IsEditable())
-                            {
+                            }
+
+                            if (fBookGUIs[fCurBookGUI]->IsEditable()) {
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagRightEditCtrl)->SetFontStyle(guiFlags);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagLeftEditCtrl)->SetFontStyle(guiFlags);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagTurnFrontEditCtrl)->SetFontStyle(guiFlags);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagTurnBackEditCtrl)->SetFontStyle(guiFlags);
                             }
-                        }
-                        else if( wcsicmp( name, L"face" ) == 0 )
-                        {
+                        } else if (wcsicmp(name, L"face") == 0) {
                             // Name of mipmap source
                             chunk->fText = option;
-                            if (fBookGUIs[fCurBookGUI]->IsEditable())
-                            {
-                                char *fontFace = hsWStringToString(option);
+                            if (fBookGUIs[fCurBookGUI]->IsEditable()) {
+                                ST::string fontFace = ST::string::from_wchar(option);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagRightEditCtrl)->SetFontFace(fontFace);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagLeftEditCtrl)->SetFontFace(fontFace);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagTurnFrontEditCtrl)->SetFontFace(fontFace);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagTurnBackEditCtrl)->SetFontFace(fontFace);
-                                delete [] fontFace;
                             }
-                        }
-                        else if( wcsicmp( name, L"size" ) == 0 )
-                        {
-                            chunk->fFontSize = wcstol(option, NULL, 0);
-                            if (fBookGUIs[fCurBookGUI]->IsEditable())
-                            {
+                        } else if (wcsicmp(name, L"size") == 0) {
+                            chunk->fFontSize = (uint8_t)wcstoul(option, nullptr, 0);
+                            if (fBookGUIs[fCurBookGUI]->IsEditable()) {
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagRightEditCtrl)->SetFontSize(chunk->fFontSize);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagLeftEditCtrl)->SetFontSize(chunk->fFontSize);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagTurnFrontEditCtrl)->SetFontSize(chunk->fFontSize);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagTurnBackEditCtrl)->SetFontSize(chunk->fFontSize);
                             }
-                        }
-                        else if( wcsicmp( name, L"color" ) == 0 )
-                        {
-                            chunk->fColor.FromARGB32( wcstol( option, nil, 16 ) | 0xff000000 );
+                        } else if(wcsicmp(name, L"color") == 0) {
+                            chunk->fColor.FromARGB32(wcstoul(option, nullptr, 16) | 0xff000000);
                             chunk->fFlags |= pfEsHTMLChunk::kFontColor;
-                            if (fBookGUIs[fCurBookGUI]->IsEditable())
-                            {
+                            if (fBookGUIs[fCurBookGUI]->IsEditable()) {
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagRightEditCtrl)->SetFontColor(chunk->fColor);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagLeftEditCtrl)->SetFontColor(chunk->fColor);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagTurnFrontEditCtrl)->SetFontColor(chunk->fColor);
                                 fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagTurnBackEditCtrl)->SetFontColor(chunk->fColor);
                             }
-                        }
-                        else if( wcsicmp( name, L"spacing" ) == 0 )
-                        {
-                            chunk->fLineSpacing = wcstol(option, NULL, 0);
+                        } else if(wcsicmp(name, L"spacing") == 0) {
+                            chunk->fLineSpacing = (int16_t)wcstol(option, nullptr, 0);
                             chunk->fFlags |= pfEsHTMLChunk::kFontSpacing;
                         }
                     }
-                    fHTMLSource.Append( chunk );
+                    fHTMLSource.Append(chunk);
                     // Start new paragraph chunk after this one
-                    lastParChunk = new pfEsHTMLChunk( nil );
+                    lastParChunk = new pfEsHTMLChunk(nullptr);
                     lastParChunk->fFlags = IFindLastAlignment();
                     break;
 
                 case pfEsHTMLChunk::kMargin:
                     c += 7;
-                    while(IGetNextOption(c,name,option))
-                    {
+                    while(IGetNextOption(c,name,option)) {
                         if (wcsicmp(name,L"top") == 0)
-                            fPageTMargin = wcstol(option, NULL, 0);
+                            fPageTMargin = wcstoul(option, nullptr, 0);
                         else if (wcsicmp(name,L"left") == 0)
-                            fPageLMargin = wcstol(option, NULL, 0);
+                            fPageLMargin = wcstoul(option, nullptr, 0);
                         else if (wcsicmp(name,L"bottom") == 0)
-                            fPageBMargin = wcstol(option, NULL, 0);
+                            fPageBMargin = wcstoul(option, nullptr, 0);
                         else if (wcsicmp(name,L"right") == 0)
-                            fPageRMargin = wcstol(option, NULL, 0);
+                            fPageRMargin = wcstoul(option, nullptr, 0);
                     }
                     // set the edit controls to the margins we just set
-                    if (fBookGUIs[fCurBookGUI]->IsEditable())
-                    {
+                    if (fBookGUIs[fCurBookGUI]->IsEditable()) {
                         fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagRightEditCtrl)->SetMargins(fPageTMargin,fPageLMargin,fPageBMargin,fPageRMargin);
                         fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagLeftEditCtrl)->SetMargins(fPageTMargin,fPageLMargin,fPageBMargin,fPageRMargin);
                         fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagTurnFrontEditCtrl)->SetMargins(fPageTMargin,fPageLMargin,fPageBMargin,fPageRMargin);
                         fBookGUIs[fCurBookGUI]->GetEditCtrl(pfJournalDlgProc::kTagTurnBackEditCtrl)->SetMargins(fPageTMargin,fPageLMargin,fPageBMargin,fPageRMargin);
                     }
                     // Start a new paragraph chunk after this one
-                    lastParChunk = new pfEsHTMLChunk(nil);
+                    lastParChunk = new pfEsHTMLChunk(nullptr);
                     lastParChunk->fFlags = IFindLastAlignment();
                     break;
 
                 case pfEsHTMLChunk::kBook:
                     c += 5;
                     // don't actually create a chunk, just set the book size
-                    while (IGetNextOption(c,name,option))
-                    {
-                        if (wcsicmp(name,L"height") == 0)
-                        {
-                            char *temp = hsWStringToString(option);
-                            bookHeight = (float)atof(temp);
-                            delete [] temp;
-                        }
-                        else if (wcsicmp(name,L"width") == 0)
-                        {
-                            char *temp = hsWStringToString(option);
-                            bookWidth = (float)atof(temp);
-                            delete [] temp;
-                        }
+                    while (IGetNextOption(c,name,option)) {
+                        if (wcsicmp(name, L"height") == 0)
+                            bookHeight = wcstof(option, nullptr);
+                        else if (wcsicmp(name, L"width") == 0)
+                            bookWidth = wcstof(option, nullptr);
                     }
                     fHeightScale = 1.f - bookHeight;
                     fWidthScale = 1.f - bookWidth;
-                    
+
                     // Still gotta create a new par chunk
-                    lastParChunk = new pfEsHTMLChunk( nil );
+                    lastParChunk = new pfEsHTMLChunk(nullptr);
                     lastParChunk->fFlags = IFindLastAlignment();
                     break;
 
                 case pfEsHTMLChunk::kDecal:
                     c += 6;
-                    chunk = new pfEsHTMLChunk( nil, 0 );
+                    chunk = new pfEsHTMLChunk(nullptr, 0);
                     chunk->fType = pfEsHTMLChunk::kDecal;
-                    while( IGetNextOption( c, name, option ) )
-                    {
-                        if( wcsicmp( name, L"align" ) == 0 )
-                        {
+                    while (IGetNextOption(c, name, option)) {
+                        if (wcsicmp(name, L"align") == 0) {
                             chunk->fFlags &= ~pfEsHTMLChunk::kAlignMask;
-                            if( wcsicmp( option, L"left" ) == 0 )
+                            if (wcsicmp( option, L"left" ) == 0)
                                 chunk->fFlags |= pfEsHTMLChunk::kLeft;
-                            else if( wcsicmp( option, L"center" ) == 0 )
+                            else if (wcsicmp( option, L"center" ) == 0)
                                 chunk->fFlags |= pfEsHTMLChunk::kCenter;
-                            else if( wcsicmp( option, L"right" ) == 0 )
+                            else if (wcsicmp( option, L"right" ) == 0)
                                 chunk->fFlags |= pfEsHTMLChunk::kRight;
-                        }
-                        else if( wcsicmp( name, L"src" ) == 0 )
-                        {
+                        } else if (wcsicmp(name, L"src") == 0) {
                             // Name of mipmap source
-                            chunk->fImageKey = IGetMipmapKey( option, hintLoc );
-                        }
-                        else if( wcsicmp( name, L"pos" ) == 0 )
-                        {
+                            chunk->fImageKey = IGetMipmapKey(option, hintLoc);
+                        } else if (wcsicmp(name, L"pos") == 0) {
                             chunk->fFlags |= pfEsHTMLChunk::kFloating;
 
-                            wchar_t *comma = wcschr( option, L',' );
-                            if( comma != nil )
-                            {
-
-                                chunk->fAbsoluteY = wcstol(comma + 1, NULL, 0);
-                                *comma = 0;
-                            }
-                            chunk->fAbsoluteX = wcstol(option, NULL, 0);
-                        }
-                        else if (wcsicmp(name,L"resize")==0)
-                        {
-                            if (wcsicmp(option,L"no")==0)
-                                chunk->fNoResizeImg = true;
-                        }
-                        else if (wcsicmp(name,L"tint")==0)
-                        {
-                            if (wcsicmp(option,L"yes")==0)
-                                chunk->fTintDecal = true;
+                            wchar_t* comma = wcschr(option, L',');
+                            if (comma)
+                                chunk->fAbsoluteY = (uint16_t)wcstoul(comma + 1, nullptr, 0);
+                            chunk->fAbsoluteX = (uint16_t)wcstoul(option, nullptr, 0);
+                        } else if (wcsicmp(name, L"resize") == 0) {
+                            chunk->fNoResizeImg = (wcsicmp(option, L"no") == 0);
+                        } else if (wcsicmp(name, L"tint") == 0) {
+                            chunk->fTintDecal = (wcsicmp(option, L"yes") == 0);
                         }
                     }
                     // add it to our cover decals list (this is tag is essentially thrown away as far as the parser cares)
-                    if( chunk->fImageKey != nil )
-                        fCoverDecals.Append( chunk );
+                    if (chunk->fImageKey)
+                        fCoverDecals.Append(chunk);
                     else
                         delete chunk;
                     // Start new paragraph chunk after this one
-                    lastParChunk = new pfEsHTMLChunk( nil );
+                    lastParChunk = new pfEsHTMLChunk(nullptr);
                     lastParChunk->fFlags = IFindLastAlignment();
                     break;
 
                 case pfEsHTMLChunk::kMovie:
                     c += 6;
-                    chunk = new pfEsHTMLChunk( nil, 0 );
+                    chunk = new pfEsHTMLChunk(nullptr, 0);
                     chunk->fType = pfEsHTMLChunk::kMovie;
-                    while( IGetNextOption( c, name, option ) )
-                    {
-                        if( wcsicmp( name, L"align" ) == 0 )
-                        {
+                    while (IGetNextOption(c, name, option)) {
+                        if (wcsicmp( name, L"align" ) == 0) {
                             chunk->fFlags &= ~pfEsHTMLChunk::kAlignMask;
-                            if( wcsicmp( option, L"left" ) == 0 )
+                            if (wcsicmp(option, L"left") == 0)
                                 chunk->fFlags |= pfEsHTMLChunk::kLeft;
-                            else if( wcsicmp( option, L"center" ) == 0 )
+                            else if (wcsicmp( option, L"center") == 0)
                                 chunk->fFlags |= pfEsHTMLChunk::kCenter;
-                            else if( wcsicmp( option, L"right" ) == 0 )
+                            else if (wcsicmp( option, L"right") == 0)
                                 chunk->fFlags |= pfEsHTMLChunk::kRight;
-                        }
-                        else if( wcsicmp( name, L"src" ) == 0 )
-                        {
+                        } else if(wcsicmp(name, L"src") == 0) {
                             chunk->fText = option;
-                        }
-                        else if( wcsicmp( name, L"link" ) == 0 )
-                        {
-                            chunk->fEventID = wcstol(option, NULL, 0);
+                        } else if(wcsicmp(name, L"link") == 0) {
+                            chunk->fEventID = wcstoul(option, nullptr, 0);
                             chunk->fFlags |= pfEsHTMLChunk::kCanLink;
-                        }
-                        else if( wcsicmp( name, L"pos" ) == 0 )
-                        {
+                        } else if(wcsicmp(name, L"pos") == 0) {
                             chunk->fFlags |= pfEsHTMLChunk::kFloating;
 
-                            wchar_t *comma = wcschr( option, L',' );
-                            if( comma != nil )
-                            {
-
-                                chunk->fAbsoluteY = wcstol(comma + 1, NULL, 0);
-                                *comma = 0;
-                            }
-                            chunk->fAbsoluteX = wcstol(option, NULL, 0);
-                        }
-                        else if (wcsicmp(name,L"resize")==0)
-                        {
-                            if (wcsicmp(option,L"no")==0)
-                                chunk->fNoResizeImg = true;
-                        }
-                        else if (wcsicmp(name,L"oncover")==0)
-                        {
-                            if (wcsicmp(option,L"yes")==0)
-                                chunk->fOnCover = true;
-                        }
-                        else if (wcsicmp(name,L"loop")==0)
-                        {
-                            if (wcsicmp(option,L"no")==0)
-                                chunk->fLoopMovie = false;
+                            wchar_t* comma = wcschr(option, L',');
+                            if (comma)
+                                chunk->fAbsoluteY = (uint16_t)wcstoul(comma + 1, nullptr, 0);
+                            chunk->fAbsoluteX = (uint16_t)wcstoul(option, nullptr, 0);
+                        } else if (wcsicmp(name, L"resize") == 0) {
+                            chunk->fNoResizeImg = (wcsicmp(option, L"no") == 0);
+                        } else if (wcsicmp(name, L"oncover") == 0) {
+                            chunk->fOnCover = (wcsicmp(option, L"yes") == 0);
+                        } else if (wcsicmp(name, L"loop") == 0) {
+                            chunk->fLoopMovie = wcsicmp(option, L"no") != 0;
                         }
                     }
                     chunk->fMovieIndex = movieIndex;
                     movieIndex++;
-                    if (chunk->fOnCover)
-                    {
-                        if( chunk->fText != L"" )
-                            fCoverDecals.Append( chunk );
+                    if (chunk->fOnCover) {
+                        if (chunk->fText != L"")
+                            fCoverDecals.Append(chunk);
                         else
                             delete chunk;
-                    }
-                    else
-                    {
-                        if( chunk->fText != L"" )
-                            fHTMLSource.Append( chunk );
+                    } else {
+                        if (chunk->fText != L"")
+                            fHTMLSource.Append(chunk);
                         else
                             delete chunk;
                     }
                     // Start new paragraph chunk after this one
-                    lastParChunk = new pfEsHTMLChunk( nil );
+                    lastParChunk = new pfEsHTMLChunk(nullptr);
                     lastParChunk->fFlags = IFindLastAlignment();
                     break;
                     
@@ -2307,56 +2174,42 @@ bool    pfJournalBook::ICompileSource( const wchar_t *source, const plLocation &
                     c += 9;
                     SetEditable(true);
                     chunk = new pfEsHTMLChunk();
-                    while( IGetNextOption( c, name, option ) )
-                    {
+                    while (IGetNextOption(c, name, option)) {
                     }
-                    fHTMLSource.Append( chunk );
+                    fHTMLSource.Append(chunk);
                     // Start new paragraph chunk after this one
-                    lastParChunk = new pfEsHTMLChunk( nil );
+                    lastParChunk = new pfEsHTMLChunk(nullptr);
                     lastParChunk->fFlags = IFindLastAlignment();
                     break;
             }
 
             start = c;
-        }
-        else
-        {
+        } else {
             // Keep looking
             c++;
         }
     }
 
     // Final bit goes into the last paragraph chunk we had
-    if( start == c )
-    {
+    if (start == c) {
         // No actual text, just delete
         delete lastParChunk;
-        lastParChunk = nil;
-    }
-    else if( lastParChunk != nil )
-    {
-        uint32_t count = (uintptr_t)c - (uintptr_t)start;
-        
-        wchar_t *temp = new wchar_t[ count + 1 ];
-        wcsncpy( temp, start, count + 1 );
-        lastParChunk->fText = temp;
-        delete [] temp;
-        
-        // Special case to remove any last trailing carriage return
-//      if( count > 1 && lastParChunk->fText[ count - 1 ] == '\n' )
-//          lastParChunk->fText[ count - 1 ] = 0;
+        lastParChunk = nullptr;
+    } else if (lastParChunk) {
+        size_t count = (uintptr_t)c - (uintptr_t)start;
+        lastParChunk->fText.assign(start, 0, count);
 
-        fHTMLSource.Append( lastParChunk );
+        fHTMLSource.Append(lastParChunk);
     }
 
     // Reset a few
     fPageStarts.Reset();
-    fPageStarts.Append( 0 );
+    fPageStarts.Append(0);
     if (fAreEditing)
         fLastPage = 0;
     else
         fLastPage = -1;
-    
+
     return true;
 }
 
@@ -2477,7 +2330,7 @@ void    pfJournalBook::IFreeSource( void )
 
     for( i = 0; i < fLoadedMovies.GetCount(); i++ )
     {
-        plLayerBink *movie = fLoadedMovies[ i ]->movieLayer;
+        plLayerAVI *movie = fLoadedMovies[ i ]->movieLayer;
         movie->GetKey()->UnRefObject();
         delete fLoadedMovies[ i ];
     }
@@ -2497,14 +2350,14 @@ void    pfJournalBook::IFreeSource( void )
 
 plKey   pfJournalBook::IGetMipmapKey( const wchar_t *name, const plLocation &loc )
 {
-    plString cName = plString::FromWchar(name);
+    ST::string cName = ST::string::from_wchar(name);
 #ifndef PLASMA_EXTERNAL_RELEASE
-    if( cName.Find( '/' ) >= 0 || cName.Find( '\\' ) >= 0 )
+    if( cName.contains( '/' ) || cName.contains( '\\' ) )
     {
         // For internal use only--allow local path names of PNG and JPEG images, to
         // facilitate fast prototyping
         plMipmap *mip;
-        if( cName.Find( ".png" ) >= 0 )
+        if( cName.contains( ".png" ) )
             mip = plPNG::Instance().ReadFromFile( cName.c_str() );
         else
             mip = plJPEG::Instance().ReadFromFile( cName.c_str() );
@@ -2535,8 +2388,8 @@ plKey   pfJournalBook::IGetMipmapKey( const wchar_t *name, const plLocation &loc
     // Do a search through our current age with just the name given
     if( plNetClientMgr::GetInstance() != nil )
     {
-        plString thisAge = plAgeLoader::GetInstance()->GetCurrAgeDesc().GetAgeName();
-        if (!thisAge.IsNull())
+        ST::string thisAge = plAgeLoader::GetInstance()->GetCurrAgeDesc().GetAgeName();
+        if (!thisAge.empty())
         {
             key = plKeyFinder::Instance().StupidSearch( thisAge, "", plMipmap::Index(), cName, true );
             if( key != nil )
@@ -2589,11 +2442,11 @@ void    pfJournalBook::IRenderPage( uint32_t page, uint32_t whichDTMap, bool sup
     {
         // clear any exiting layers (movies) from the material
         int i;
-        for( i = 0; i < material->GetNumLayers(); i++ ) // remove all plLayerBink layers
+        for( i = 0; i < material->GetNumLayers(); i++ ) // remove all plLayerMovie layers
         {
             plLayerInterface *matLayer = material->GetLayer(i);
-            plLayerBink *bink = plLayerBink::ConvertNoRef(matLayer);
-            if (bink) // if it was a bink layer
+            plLayerAVI *movie = plLayerAVI::ConvertNoRef(matLayer);
+            if (movie) // if it was a movie layer
             {
                 plMatRefMsg* refMsg = new plMatRefMsg(material->GetKey(), plRefMsg::kOnRemove, i, plMatRefMsg::kLayer); // remove it
                 hsgResMgr::ResMgr()->SendRef(material->GetLayer(i)->GetKey(), refMsg, plRefFlags::kActiveRef);
@@ -2608,10 +2461,10 @@ void    pfJournalBook::IRenderPage( uint32_t page, uint32_t whichDTMap, bool sup
         uint32_t idx;
         uint16_t width, height, y, x, ascent, lastX, lastY;
         
-        uint8_t       fontFlags, fontSize;
-        const wchar_t *fontFace;
+        uint8_t     fontFlags, fontSize;
+        ST::string  fontFace;
         hsColorRGBA fontColor;
-        int16_t       fontSpacing;
+        int16_t     fontSpacing;
         bool        needSFX = false;
 
         // Find and set initial font properties
@@ -2788,7 +2641,7 @@ void    pfJournalBook::IRenderPage( uint32_t page, uint32_t whichDTMap, bool sup
 
                 case pfEsHTMLChunk::kMovie:
                     movieAlreadyLoaded = (IMovieAlreadyLoaded(chunk) != nil); // have we already cached it?
-                    plLayerBink *movieLayer = IMakeMovieLayer(chunk, x, y, (plMipmap*)dtMap, whichDTMap, suppressRendering);
+                    plLayerAVI *movieLayer = IMakeMovieLayer(chunk, x, y, (plMipmap*)dtMap, whichDTMap, suppressRendering);
                     if (movieLayer)
                     {
                         // adjust the starting height of the movie if we are keeping it inline with the text
@@ -2853,28 +2706,28 @@ void    pfJournalBook::IRenderPage( uint32_t page, uint32_t whichDTMap, bool sup
 
 void    pfJournalBook::IMoveMovies( hsGMaterial *source, hsGMaterial *dest )
 {
-    hsTArray<plLayerBink*> moviesOnPage;
+    hsTArray<plLayerAVI*> moviesOnPage;
     if (source && dest)
     {
         // clear any exiting layers (movies) from the material and save them to our local array
         int i;
-        for( i = 0; i < source->GetNumLayers(); i++ ) // remove all plLayerBink layers
+        for( i = 0; i < source->GetNumLayers(); i++ ) // remove all plLayerMovie layers
         {
             plLayerInterface *matLayer = source->GetLayer(i);
-            plLayerBink *bink = plLayerBink::ConvertNoRef(matLayer);
-            if (bink) // if it was a bink layer
+            plLayerAVI *movie = plLayerAVI::ConvertNoRef(matLayer);
+            if (movie) // if it was a movie layer
             {
                 plMatRefMsg* refMsg = new plMatRefMsg(source->GetKey(), plRefMsg::kOnRemove, i, plMatRefMsg::kLayer); // remove it
                 hsgResMgr::ResMgr()->SendRef(source->GetLayer(i)->GetKey(), refMsg, plRefFlags::kActiveRef);
-                moviesOnPage.Append(bink);
+                moviesOnPage.Append(movie);
             }
         }
         // clear the destination's movies (if it has any)
-        for( i = 0; i < dest->GetNumLayers(); i++ ) // remove all plLayerBink layers
+        for( i = 0; i < dest->GetNumLayers(); i++ ) // remove all plLayerMovie layers
         {
             plLayerInterface *matLayer = dest->GetLayer(i);
-            plLayerBink *bink = plLayerBink::ConvertNoRef(matLayer);
-            if (bink) // if it was a bink layer
+            plLayerAVI *movie = plLayerAVI::ConvertNoRef(matLayer);
+            if (movie) // if it was a movie layer
             {
                 plMatRefMsg* refMsg = new plMatRefMsg(dest->GetKey(), plRefMsg::kOnRemove, i, plMatRefMsg::kLayer); // remove it
                 hsgResMgr::ResMgr()->SendRef(dest->GetLayer(i)->GetKey(), refMsg, plRefFlags::kActiveRef);
@@ -3014,12 +2867,12 @@ pfJournalBook::loadedMovie *pfJournalBook::IGetMovieByIndex(uint8_t index)
     return nil;
 }
 
-plLayerBink *pfJournalBook::IMakeMovieLayer(pfEsHTMLChunk *chunk, uint16_t x, uint16_t y, plMipmap *baseMipmap, uint32_t whichDTMap, bool dontRender)
+plLayerAVI *pfJournalBook::IMakeMovieLayer(pfEsHTMLChunk *chunk, uint16_t x, uint16_t y, plMipmap *baseMipmap, uint32_t whichDTMap, bool dontRender)
 {
     // see if it's already loaded
     loadedMovie *movie = IMovieAlreadyLoaded(chunk);
     plLayer* layer = nil;
-    plLayerBink* movieLayer = nil;
+    plLayerAVI* movieLayer = nil;
     uint16_t movieWidth=0,movieHeight=0;
     if (movie)
     {
@@ -3034,14 +2887,14 @@ plLayerBink *pfJournalBook::IMakeMovieLayer(pfEsHTMLChunk *chunk, uint16_t x, ui
 
         // We'll need a unique name. This is a hack, but an effective hack.
         static int uniqueSuffix = 0;
-        plString buff;
+        ST::string buff;
 
-        buff = plString::Format("%s_%d_ml", GetKey()->GetName().c_str(), uniqueSuffix);
+        buff = ST::format("{}_{}_ml", GetKey()->GetName(), uniqueSuffix);
         layer = new plLayer;
         hsgResMgr::ResMgr()->NewKey(buff, layer, GetKey()->GetUoid().GetLocation());
 
-        buff = plString::Format("%s_%d_m", GetKey()->GetName().c_str(), uniqueSuffix++);
-        movieLayer = new plLayerBink;
+        buff = ST::format("{}_{}_m", GetKey()->GetName(), uniqueSuffix++);
+        movieLayer = new plLayerAVI;
         hsgResMgr::ResMgr()->NewKey(buff, movieLayer, GetKey()->GetUoid().GetLocation());
         movieLayer->GetKey()->RefObject(); // we want to own a ref so we can nuke it at will
 
@@ -3183,7 +3036,7 @@ plLayerInterface *pfJournalBook::IMakeBaseLayer(plMipmap *image)
 
     // We'll need a unique name. This is a hack, but an effective hack.
     static int uniqueSuffix = 0;
-    plString buff = plString::Format("%s_%d", GetKey()->GetName().c_str(), uniqueSuffix++);
+    ST::string buff = ST::format("{}_{}", GetKey()->GetName(), uniqueSuffix++);
 
     plLayer* layer = new plLayer;
     hsgResMgr::ResMgr()->NewKey(buff, layer, GetKey()->GetUoid().GetLocation());
@@ -3237,7 +3090,7 @@ plLayerInterface *pfJournalBook::IMakeDecalLayer(pfEsHTMLChunk *decalChunk, plMi
 
     // We'll need a unique name. This is a hack, but an effective hack.
     static int uniqueSuffix = 0;
-    plString buff = plString::Format("%s_%d_d", GetKey()->GetName().c_str(), uniqueSuffix++);
+    ST::string buff = ST::format("{}_{}_d", GetKey()->GetName(), uniqueSuffix++);
 
     plLayer* layer = new plLayer;
     hsgResMgr::ResMgr()->NewKey(buff, layer, GetKey()->GetUoid().GetLocation());
@@ -3339,7 +3192,7 @@ void pfJournalBook::ISetDecalLayers(hsGMaterial *material,hsTArray<plLayerInterf
 // Starting at the given chunk, works backwards to determine the full set of current
 // font properties at that point, or assigns defaults if none were specified
 
-void    pfJournalBook::IFindFontProps( uint32_t chunkIdx, const wchar_t *&face, uint8_t &size, uint8_t &flags, hsColorRGBA &color, int16_t &spacing )
+void    pfJournalBook::IFindFontProps( uint32_t chunkIdx, ST::string &face, uint8_t &size, uint8_t &flags, hsColorRGBA &color, int16_t &spacing )
 {
     enum Which
     {
@@ -3369,7 +3222,7 @@ void    pfJournalBook::IFindFontProps( uint32_t chunkIdx, const wchar_t *&face, 
             // What do we (still) need?
             if( !( found & kFace ) && chunk->fText != L"" )
             {
-                face = chunk->fText.c_str();
+                face = ST::string::from_wchar(chunk->fText.c_str());
                 found |= kFace;
             }
             if( !( found & kSize ) && chunk->fFontSize > 0 )
@@ -3403,7 +3256,7 @@ void    pfJournalBook::IFindFontProps( uint32_t chunkIdx, const wchar_t *&face, 
 
     // Set any un-found defaults
     if( !( found & kFace ) )
-        face = L"Arial";
+        face = "Arial";
     if( !( found & kSize ) )
         size = 24;
     if( !( found & kFlags ) )

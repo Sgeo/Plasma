@@ -54,12 +54,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 struct RelVaultNode;
 
-
 class pyVaultChronicleNode : public pyVaultNode
 {
-    char *  ansiName;
-    char *  ansiValue;
-    
 protected:
     // should only be created from C++ side
     pyVaultChronicleNode(RelVaultNode* nfsNode);
@@ -68,8 +64,8 @@ protected:
     pyVaultChronicleNode(int n=0);
 
 public:
-    ~pyVaultChronicleNode ();
-    
+    ~pyVaultChronicleNode() { }
+
     // required functions for PyObject interoperability
     PYTHON_CLASS_NEW_FRIEND(ptVaultChronicleNode);
     static PyObject *New(RelVaultNode* nfsNode);
@@ -83,9 +79,9 @@ public:
 // class RelVaultNode : public plVaultNode
 //
     void Chronicle_SetName( const char * text );
-    const char * Chronicle_GetName( void );
+    ST::string Chronicle_GetName() const;
     void Chronicle_SetValue( const char * text );
-    const char * Chronicle_GetValue( void );
+    ST::string Chronicle_GetValue() const;
     void Chronicle_SetType( uint32_t type );
     uint32_t Chronicle_GetType( void );
 };

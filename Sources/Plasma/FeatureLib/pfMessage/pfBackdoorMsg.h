@@ -55,24 +55,17 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 class pfBackdoorMsg : public plMessage
 {
     protected:
-        char    *fTarget;
-        char    *fString;
+        ST::string  fTarget;
+        ST::string  fString;
 
     public:
-        pfBackdoorMsg() : plMessage( nil, nil, nil ),fTarget(nil),fString(nil) {}
-        pfBackdoorMsg( const char* target, const char* string) : plMessage( nil, nil, nil )
+        pfBackdoorMsg() : plMessage(nil, nil, nil) {}
+        pfBackdoorMsg(const ST::string& target, const ST::string& string)
+            : plMessage(nil, nil, nil), fTarget(target), fString(string)
         {
             // across the net and just to those listening
             SetBCastFlag( plMessage::kNetPropagate );
             SetBCastFlag( plMessage::kBCastByExactType );
-            fTarget = hsStrcpy( target );
-            fString = hsStrcpy( string );
-        }
-
-        ~pfBackdoorMsg()
-        {
-            delete [] fTarget;
-            delete [] fString;
         }
 
         CLASSNAME_REGISTER( pfBackdoorMsg );
@@ -88,12 +81,12 @@ class pfBackdoorMsg : public plMessage
         virtual void Write(hsStream* s, hsResMgr* mgr) 
         { 
             plMessage::IMsgWrite( s, mgr ); 
-            s->WriteSafeString( fTarget );
-            s->WriteSafeString( fString );
+            s->WriteSafeString(fTarget);
+            s->WriteSafeString(fString);
         }
 
-        const char  *GetTarget( void ) { return fTarget; }
-        const char  *GetString( void ) { return fString; }
+        ST::string  GetTarget() const { return fTarget; }
+        ST::string  GetString() const { return fString; }
 
 };
 

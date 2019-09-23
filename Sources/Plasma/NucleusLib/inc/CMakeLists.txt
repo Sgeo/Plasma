@@ -3,6 +3,7 @@ include_directories("../../NucleusLib")
 include_directories("../../NucleusLib/inc")
 
 set(pnNucleusInc_HEADERS
+    hsGDeviceRef.h
     hsGMatState.h
     hsGMatState.inl
     hsResMgr.h
@@ -14,14 +15,18 @@ set(pnNucleusInc_HEADERS
     plCreatableStrings.h
     plDrawable.h
     plgDispatch.h
+    plLoggable.h
     plPhysical.h
+    plPipeDebugFlags.h
     plPipeline.h
     plPipeResReq.h
     plProfile.h
     plProfileManager.h
     plRefFlags.h
+    plTimerCallbackManager.h
     pnAllCreatables.h
     pnNucleusCreatables.h
+    pnTimerCreatable.h
 )
 
 set(pnNucleusInc_SOURCES
@@ -30,7 +35,7 @@ set(pnNucleusInc_SOURCES
 )
 
 add_library(pnNucleusInc STATIC ${pnNucleusInc_HEADERS} ${pnNucleusInc_SOURCES})
-target_link_libraries(pnNucleusInc CoreLib pnTimer)
+target_link_libraries(pnNucleusInc CoreLib)
 
 source_group("Header Files" FILES ${pnNucleusInc_HEADERS})
 source_group("Source Files" FILES ${pnNucleusInc_SOURCES})

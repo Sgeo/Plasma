@@ -283,7 +283,7 @@ bool plDSoundBuffer::SetupStreamingSource(plAudioFileReader *stream)
     
     
     alSourcef(source, AL_ROLLOFF_FACTOR, 0.3048);
-    alGetError();
+    error = alGetError();
     if( error != AL_NO_ERROR )
     {
         return false;
@@ -348,7 +348,7 @@ bool plDSoundBuffer::SetupStreamingSource(void *data, unsigned bytes)
     SetScalarVolume(0);
     
     alSourcef(source, AL_ROLLOFF_FACTOR, 0.3048);
-    alGetError();
+    error = alGetError();
     if( error != AL_NO_ERROR )
     {
         return false;
@@ -478,8 +478,7 @@ bool plDSoundBuffer::GetAvailableBufferId(unsigned *bufferId)
 
 bool plDSoundBuffer::SetupVoiceSource()
 {
-    ALenum error;
-    alGetError();
+    ALenum error = alGetError();
 
      // Generate AL Buffers
     alGenBuffers( STREAMING_BUFFERS, streamingBuffers );
@@ -507,13 +506,13 @@ bool plDSoundBuffer::SetupVoiceSource()
     SetScalarVolume(0);
     
     alSourcef(source, AL_ROLLOFF_FACTOR, 0.3048);
-    alGetError();
+    error = alGetError();
     if( error != AL_NO_ERROR )
     {
         return false;
     }
     alSourcei(source, AL_BUFFER, 0);
-    alGetError();
+    error = alGetError();
     //alSourcei(source, AL_PITCH, 0);
 
     // dont queue any buffers here
@@ -542,7 +541,7 @@ void plDSoundBuffer::UnQueueVoiceBuffers()
 }
 
 //============================================================================ 
-bool plDSoundBuffer::VoiceFillBuffer(void *data, unsigned bytes, unsigned bufferId)
+bool plDSoundBuffer::VoiceFillBuffer(const void *data, size_t bytes, unsigned bufferId)
 {
     if(!source)
         return false;
@@ -551,7 +550,7 @@ bool plDSoundBuffer::VoiceFillBuffer(void *data, unsigned bytes, unsigned buffer
     unsigned int size = bytes < STREAM_BUFFER_SIZE ? bytes : STREAM_BUFFER_SIZE;
 
     ALenum format = IGetALFormat(fBufferDesc->fBitsPerSample, fBufferDesc->fNumChannels);
-    alBufferData( bufferId, format, data, size, fBufferDesc->fNumSamplesPerSec );
+    alBufferData(bufferId, format, data, size, fBufferDesc->fNumSamplesPerSec);
     if( (error = alGetError()) != AL_NO_ERROR )
     {
         plStatusLog::AddLineS("audio.log", "Failed to copy data to sound buffer %d", error);
@@ -617,6 +616,16 @@ void    plDSoundBuffer::Play( void )
     
     plProfile_Inc( SoundPlaying );
 
+}
+
+//// Pause ///////////////////////////////////////////////////////////////////
+
+void plDSoundBuffer::Pause()
+{
+    if (!source)
+        return;
+    alSourcePause(source);
+    alGetError();
 }
 
 //// Stop ////////////////////////////////////////////////////////////////////

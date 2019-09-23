@@ -123,16 +123,17 @@ class pfGUIMultiLineEditCtrl : public pfGUIControlMod
         pfMLScrollProc  *fScrollProc;
         int32_t           fScrollPos;
         int32_t           fBufferLimit;
+        bool              fCanUpdate;
 
         pfGUIMultiLineEditCtrl *fNextCtrl; // used for linking multiple controls together to share a buffer
         pfGUIMultiLineEditCtrl *fPrevCtrl;
 
         pfGUIMultiLineEditProc *fEventProc; // where we send events to
 
-        std::string fFontFace;
+        ST::string  fFontFace;
         hsColorRGBA fFontColor;
-        uint8_t       fFontSize;
-        uint8_t       fFontStyle;
+        uint8_t     fFontSize;
+        uint8_t     fFontStyle;
         enum flagsSet
         {
             kFontFaceSet = 1,
@@ -211,6 +212,8 @@ class pfGUIMultiLineEditCtrl : public pfGUIControlMod
 
         virtual void    PurgeDynaTextMapImage();
 
+        virtual void    UpdateColorScheme() { fFontFlagsSet = 0; pfGUIControlMod::UpdateColorScheme(); }
+
         // Extended event types
         enum ExtendedEvents
         {
@@ -271,7 +274,7 @@ class pfGUIMultiLineEditCtrl : public pfGUIControlMod
 
         uint8_t   GetFontSize() {return fFontSize;} // because we're too cool to use the color scheme crap
 
-        void    SetFontFace(std::string fontFace);
+        void    SetFontFace(const ST::string &fontFace);
         void    SetFontColor(hsColorRGBA fontColor) {fFontColor = fontColor; fFontFlagsSet |= kFontColorSet;}
         void    SetFontSize(uint8_t fontSize);
         void    SetFontStyle(uint8_t fontStyle) {fFontStyle = fontStyle; fFontFlagsSet |= kFontStyleSet;}
@@ -280,6 +283,17 @@ class pfGUIMultiLineEditCtrl : public pfGUIControlMod
         bool    ShowingEndOfBuffer();
 
         void    DeleteLinesFromTop(int numLines); // cursor and scroll position might be off after this call, not valid on connected controls
+
+        /** Signifies that the control will be updated heavily starting now, so suppress all redraws. */
+        void BeginUpdate() { fCanUpdate = false; }
+
+        /** Signifies that the massive updates are over. We can now redraw. */
+        void EndUpdate(bool redraw=true)
+        {
+            fCanUpdate = true;
+            if (redraw)
+                IUpdate();
+        }
 };
 
 #endif // _pfGUIMultiLineEditCtrl_h

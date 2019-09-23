@@ -56,7 +56,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnMessage/plRefMsg.h"
 #include "pfMessage/pfGameGUIMsg.h"
 #include "plMessage/plAnimCmdMsg.h"
-#include "plAvatar/plAGModifier.h"
+#include "plAnimation/plAGModifier.h"
 #include "plgDispatch.h"
 #include "hsResMgr.h"
 
@@ -96,7 +96,7 @@ void    pfGUICheckBoxCtrl::Read( hsStream *s, hsResMgr *mgr )
     for( i = 0; i < count; i++ )
         fAnimationKeys.Append( mgr->ReadKey( s ) );
 
-    fAnimName = s->ReadSafeString_TEMP();
+    fAnimName = s->ReadSafeString();
     fChecked = s->ReadBool();
 }
 
@@ -191,7 +191,7 @@ void    pfGUICheckBoxCtrl::SetChecked( bool checked, bool immediate /*= false*/ 
     }
 }
 
-void    pfGUICheckBoxCtrl::SetAnimationKeys( hsTArray<plKey> &keys, const plString &name )
+void    pfGUICheckBoxCtrl::SetAnimationKeys( hsTArray<plKey> &keys, const ST::string &name )
 {
     fAnimationKeys = keys;
     fAnimName = name;

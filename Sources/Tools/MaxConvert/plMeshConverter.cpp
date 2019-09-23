@@ -78,7 +78,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "MaxPlasmaMtls/Materials/plPassMtl.h"
 #include "MaxPlasmaMtls/Materials/plCompositeMtlPB.h"
 #include "MaxPlasmaMtls/Materials/plPassMtlBasicPB.h"
-#include "plPipeline/plGBufferGroup.h"
+#include "plDrawable/plGBufferGroup.h"
 #include "plParticleSystem/plConvexVolume.h"
 #include "plDrawable/plGeoSpanDice.h"
 
@@ -494,7 +494,7 @@ bool plMeshConverter::IValidateUVs(plMaxNode* node)
 
     if (uvsAreBad)
     {
-        plFileName logfile = plString::Format("UV_%s.log", GetCOREInterface()->GetCurFileName().data());
+        plFileName logfile = ST::format("UV_{}.log", GetCOREInterface()->GetCurFileName().data());
         plStatusLog::AddLineS(logfile, "%s has suspicious UVs", node->GetName());
 
         if (fWarnSuspiciousUVs)

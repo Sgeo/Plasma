@@ -46,13 +46,12 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plStatusLog/plStatusLog.h"
 #include "pnMessage/plMessage.h"
 #include "pnKeyedObject/plKey.h"
-#include "plString.h"
 
-static bool DumpSpecificMsgInfo(plMessage* msg, plString& info);
+static bool DumpSpecificMsgInfo(plMessage* msg, ST::string& info);
 
 plDispatchLog::plDispatchLog() :
     fLog(nil),
-    fStartTicks(hsTimer::GetFullTickCount())
+    fStartTicks(hsTimer::GetTicks())
 {
     fLog = plStatusLogMgr::GetInstance().CreateStatusLog(20, "Dispatch.log", plStatusLog::kAlignToTop | plStatusLog::kFilledBackground | plStatusLog::kRawTimeStamp);
     fIncludeTypes.SetSize(plFactory::GetNumClasses());
@@ -101,7 +100,7 @@ void plDispatchLog::LogStatusBarChange(const char* name, const char* action)
 
 void plDispatchLog::LogLongReceive(const char* keyname, const char* className, uint32_t clonePlayerID, plMessage* msg, float ms)
 {
-    plString info;
+    ST::string info;
     if (DumpSpecificMsgInfo(msg, info))
         fLog->AddLineF("%-30s[%7u](%-20s) took %6.1f ms to receive %s[%s]\n", keyname, clonePlayerID, className, ms, msg->ClassName(), info.c_str());
     else
@@ -130,10 +129,10 @@ void plDispatchLog::DumpMsg(plMessage* msg, int numReceivers, int sendTimeMs, in
         fLog->AddLine("\n");
     }
 
-    float sendTime = hsTimer::FullTicksToMs(hsTimer::GetFullTickCount() - fStartTicks);
+    float sendTime = hsTimer::GetMilliSeconds<float>(hsTimer::GetTicks() - fStartTicks);
 
     char indentStr[50];
-    indent = hsMinimum(indent, sizeof(indentStr)-1);
+    indent = std::min(indent, static_cast<int32_t>(sizeof(indentStr)-1));
     memset(indentStr, ' ', indent);
     indentStr[indent] = '\0';
 
@@ -195,7 +194,7 @@ void plDispatchLog::RemoveFilterExactType(uint16_t type)
 #include "plResMgr/plKeyFinder.h"
 #include "plResMgr/plPageInfo.h"
 
-static bool DumpSpecificMsgInfo(plMessage* msg, plString& info)
+static bool DumpSpecificMsgInfo(plMessage* msg, ST::string& info)
 {
 #ifndef PLASMA_EXTERNAL_RELEASE // Don't bloat up the external release with all these strings
     pfKIMsg* kiMsg = pfKIMsg::ConvertNoRef(msg);
@@ -257,10 +256,10 @@ static bool DumpSpecificMsgInfo(plMessage* msg, plString& info)
         PrintKIType(kGZFlashUpdate);                // flash an update without saving (for animation of GZFill in)
         PrintKIType(kNoCommand);
 
-        info = plString::Format("Type: %s Str: %s User: %s(%d) Delay: %f Int: %d",
+        info = ST::format("Type: {} Str: {} User: {}({}) Delay: {} Int: {}",
             typeName,
-            kiMsg->GetString() != "" ? kiMsg->GetString().c_str() : "(nil)",
-            kiMsg->GetUser() ? kiMsg->GetUser() : "(nil)",
+            kiMsg->GetString(),
+            kiMsg->GetUser(),
             kiMsg->GetPlayerID(),
             kiMsg->GetDelay(),
             kiMsg->GetIntValue());
@@ -298,14 +297,14 @@ static bool DumpSpecificMsgInfo(plMessage* msg, plString& info)
                     const plPageInfo* pageInfo = plKeyFinder::Instance().GetLocationInfo(loc);
 
                     if (pageInfo)
-                        info += plString::Format("%s-%s ", pageInfo->GetAge().c_str(), pageInfo->GetPage().c_str());
+                        info += ST::format("{}-{} ", pageInfo->GetAge(), pageInfo->GetPage());
                 }
             }
             break;
 
         case plClientMsg::kLoadAgeKeys:
         case plClientMsg::kReleaseAgeKeys:
-            info += plString::Format(" - Age: %s", clientMsg->GetAgeName().c_str());
+            info += ST::format(" - Age: {}", clientMsg->GetAgeName());
             break;
         }
         return true;
@@ -321,7 +320,7 @@ static bool DumpSpecificMsgInfo(plMessage* msg, plString& info)
         GetType(kOnRequest);
         GetType(kOnRemove);
         GetType(kOnReplace);
-        info = plString::Format("Obj: %s RefType: %s", refMsg->GetRef()->GetKeyName().c_str(), typeName);
+        info = ST::format("Obj: {} RefType: {}", refMsg->GetRef()->GetKeyName(), typeName);
 
         return true;
     }

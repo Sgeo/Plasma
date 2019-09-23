@@ -43,40 +43,30 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "HeadSpin.h"
 #include "hsWindows.h"
 
-#include <direct.h>     // windows directory handling fxns (for chdir)
 #include <process.h>
 #include <shellapi.h>   // ShellExecuteA
 #include <algorithm>
-
-//#define DETACH_EXE  // Microsoft trick to force loading of exe to memory 
-#ifdef DETACH_EXE
-    #include <dmdfm.h>      // Windows Load EXE into memory suff
-#endif
+#include <regex>
 
 #include <curl/curl.h>
 
 #include "hsStream.h"
-
+#include "plCmdParser.h"
 #include "plClient.h"
-#include "plClientResMgr/plClientResMgr.h"
+#include "plClientLoader.h"
 #include "pfCrashHandler/plCrashCli.h"
 #include "plNetClient/plNetClientMgr.h"
-#include "plNetClient/plNetLinkingMgr.h"
 #include "plInputCore/plInputDevice.h"
 #include "plInputCore/plInputManager.h"
-#include "plUnifiedTime/plUnifiedTime.h"
 #include "plPipeline.h"
 #include "plResMgr/plResManager.h"
 #include "plResMgr/plLocalization.h"
 #include "plFile/plEncryptedStream.h"
-
+#include "pfPasswordStore/pfPasswordStore.h"
 #include "pnEncryption/plChallengeHash.h"
-
 #include "plStatusLog/plStatusLog.h"
 #include "plProduct.h"
 #include "plNetGameLib/plNetGameLib.h"
-
-#include "plPhysX/plSimulationMgr.h"
 
 #include "res/resource.h"
 
@@ -94,7 +84,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //
 // Globals
 //
-bool gHasMouse = false;
 ITaskbarList3* gTaskbarList = nil; // NT 6.1+ taskbar stuff
 
 extern bool gDataServerLocal;
@@ -105,14 +94,18 @@ enum
     kArgSkipLoginDialog,
     kArgServerIni,
     kArgLocalData,
-    kArgSkipPreload
+    kArgSkipPreload,
+    kArgPlayerId,
+    kArgStartUpAgeName,
 };
 
-static const CmdArgDef s_cmdLineArgs[] = {
-    { kCmdArgFlagged  | kCmdTypeBool,       L"SkipLoginDialog", kArgSkipLoginDialog },
-    { kCmdArgFlagged  | kCmdTypeString,     L"ServerIni",       kArgServerIni },
-    { kCmdArgFlagged  | kCmdTypeBool,       L"LocalData",       kArgLocalData   },
-    { kCmdArgFlagged  | kCmdTypeBool,       L"SkipPreload",     kArgSkipPreload },
+static const plCmdArgDef s_cmdLineArgs[] = {
+    { kCmdArgFlagged  | kCmdTypeBool,       "SkipLoginDialog", kArgSkipLoginDialog },
+    { kCmdArgFlagged  | kCmdTypeString,     "ServerIni",       kArgServerIni },
+    { kCmdArgFlagged  | kCmdTypeBool,       "LocalData",       kArgLocalData   },
+    { kCmdArgFlagged  | kCmdTypeBool,       "SkipPreload",     kArgSkipPreload },
+    { kCmdArgFlagged  | kCmdTypeInt,        "PlayerId",        kArgPlayerId },
+    { kCmdArgFlagged  | kCmdTypeString,     "Age",             kArgStartUpAgeName },
 };
 
 /// Made globals now, so we can set them to zero if we take the border and 
@@ -121,8 +114,7 @@ int gWinBorderDX    = GetSystemMetrics( SM_CXSIZEFRAME );
 int gWinBorderDY    = GetSystemMetrics( SM_CYSIZEFRAME );
 int gWinMenuDY      = GetSystemMetrics( SM_CYCAPTION );
 
-//#include "global.h"
-plClient        *gClient;
+plClientLoader  gClient;
 bool            gPendingActivate = false;
 bool            gPendingActivateFlag = false;
 
@@ -130,9 +122,9 @@ bool            gPendingActivateFlag = false;
 static plCrashCli s_crash;
 #endif
 
-static bool     s_loginDlgRunning = false;
-static hsSemaphore      s_statusEvent(0);   // Start non-signalled
-static UINT     s_WmTaskbarList = RegisterWindowMessage("TaskbarButtonCreated");
+static std::atomic<bool>  s_loginDlgRunning(false);
+static std::thread      s_statusThread;
+static UINT             s_WmTaskbarList = RegisterWindowMessage("TaskbarButtonCreated");
 
 FILE *errFP = nil;
 HINSTANCE               gHInst = NULL;      // Instance of this app
@@ -152,11 +144,6 @@ static wchar_t s_patcherExeName[] = L"UruLauncher.exe";
 #endif // PLASMA_EXTERNAL_RELEASE
 
 //============================================================================
-// PhysX installer
-//============================================================================
-static wchar_t s_physXSetupExeName[] = L"PhysX_Setup.exe";
-
-//============================================================================
 // LoginDialogParam
 //============================================================================
 struct LoginDialogParam {
@@ -168,7 +155,6 @@ struct LoginDialogParam {
 };
 
 static bool AuthenticateNetClientComm(ENetError* result, HWND parentWnd);
-static void GetCryptKey(uint32_t* cryptKey, unsigned size);
 static void SaveUserPass (LoginDialogParam *pLoginParam, char *password);
 static void LoadUserPass (LoginDialogParam *pLoginParam);
 static void AuthFailedStrings (ENetError authError,
@@ -246,12 +232,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     gClient->GetInputManager()->HandleWin32ControlEvent(message, wParam, lParam, hWnd);
             }
             break;
-
-#if 0
-        case WM_KILLFOCUS:
-            SetForegroundWindow(hWnd);
-            break;
-#endif
 
         case WM_SYSKEYUP:
         case WM_SYSKEYDOWN:
@@ -370,15 +350,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             break;
         
         case WM_CLOSE:
-            gClient->SetDone(TRUE);
-            if (plNetClientMgr * mgr = plNetClientMgr::GetInstance())
-                mgr->QueueDisableNet(false, nil);
+            gClient.ShutdownStart();
             DestroyWindow(gClient->GetWindowHandle());
             break;
         case WM_DESTROY:
-            gClient->SetDone(TRUE);
-            if (plNetClientMgr * mgr = plNetClientMgr::GetInstance())
-                mgr->QueueDisableNet(false, nil);
+            gClient.ShutdownStart();
             PostQuitMessage(0);
             break;
     }
@@ -471,172 +447,6 @@ void DeInitNetClientComm()
     NetCommShutdown();
 }
 
-BOOL CALLBACK WaitingForPhysXDialogProc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam )
-{
-    switch( uMsg )
-    {
-    case WM_INITDIALOG:
-        ::SetDlgItemText( hwndDlg, IDC_STARTING_TEXT, "Waiting for PhysX install...");
-        return true; 
-
-    }
-    return 0;
-}
-
-bool InitPhysX()
-{
-    bool physXInstalled = false;
-    while (!physXInstalled)
-    {
-        plSimulationMgr::Init();
-        if (!plSimulationMgr::GetInstance())
-        {
-            int ret = hsMessageBox("PhysX is not installed, or an older version is installed.\nInstall new version? (Game will exit if you click \"No\")",
-                "Missing PhysX", hsMessageBoxYesNo);
-            if (ret == hsMBoxNo) // exit if no
-                return false;
-
-            // launch the PhysX installer
-            STARTUPINFOW startupInfo;
-            PROCESS_INFORMATION processInfo; 
-            memset(&startupInfo, 0, sizeof(startupInfo));
-            memset(&processInfo, 0, sizeof(processInfo));
-            startupInfo.cb = sizeof(startupInfo);
-            if(!CreateProcessW(NULL, s_physXSetupExeName, NULL, NULL, FALSE, 0, NULL, NULL, &startupInfo, &processInfo))
-            {
-                hsMessageBox("Failed to launch PhysX installer.\nPlease re-run URU to ensure you have the latest version.", "Error", hsMessageBoxNormal);
-                return false;
-            }
-
-            // let the user know what's going on
-            HWND waitingDialog = ::CreateDialog(gHInst, MAKEINTRESOURCE(IDD_LOADING), NULL, WaitingForPhysXDialogProc);
-
-            // run a loop to wait for it to quit, pumping the windows message queue intermittently
-            DWORD waitRet = WaitForSingleObject(processInfo.hProcess, 100);
-            MSG msg;
-            while (waitRet == WAIT_TIMEOUT)
-            {
-                if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-                {
-                    TranslateMessage(&msg);
-                    DispatchMessage(&msg);
-                }
-                waitRet = WaitForSingleObject(processInfo.hProcess, 100);
-            }
-
-            // cleanup
-            CloseHandle(processInfo.hThread);
-            CloseHandle(processInfo.hProcess);
-            ::DestroyWindow(waitingDialog);
-        }
-        else
-        {
-            plSimulationMgr::GetInstance()->Suspend();
-            physXInstalled = true;
-        }
-    }
-    return true;
-}
-
-bool    InitClient( HWND hWnd )
-{
-    plResManager *resMgr = new plResManager;
-    resMgr->SetDataPath("dat");
-    hsgResMgr::Init(resMgr);
-
-    if (!plFileInfo("resource.dat").Exists())
-    {
-        hsMessageBox("Required file 'resource.dat' not found.", "Error", hsMessageBoxNormal);
-        return false;
-    }
-    plClientResMgr::Instance().ILoadResources("resource.dat");
-
-    gClient = new plClient;
-    if( gClient == nil )
-        return false;
-
-    if (!InitPhysX())
-        return false;
-
-    gClient->SetWindowHandle( hWnd );
-
-#ifdef DETACH_EXE
-    hInstance = ((LPCREATESTRUCT) lParam)->hInstance;
-
-    // This Function loads the EXE into Virtual memory...supposedly
-    HRESULT hr = DetachFromMedium(hInstance, DMDFM_ALWAYS | DMDFM_ALLPAGES);
-#endif
-
-    if( gClient->InitPipeline() )
-        gClient->SetDone(true);
-    else
-    {
-        gClient->ResizeDisplayDevice(gClient->GetPipeline()->Width(), gClient->GetPipeline()->Height(), !gClient->GetPipeline()->IsFullScreen());
-    }
-    
-    if( gPendingActivate )
-    {
-        // We need this because the window gets a WM_ACTIVATE before we get to this function, so 
-        // the above flag lets us know that we need to fake a late activate msg to the client
-        gClient->WindowActivate( gPendingActivateFlag );
-    }
-
-    gClient->SetMessagePumpProc( PumpMessageQueueProc );
-
-    return true;
-}
-
-// Initializes all that windows junk, creates class then shows main window
-BOOL WinInit(HINSTANCE hInst, int nCmdShow)
-{
-    // Fill out WNDCLASS info
-    WNDCLASS wndClass;
-    wndClass.style              = CS_DBLCLKS;   // CS_HREDRAW | CS_VREDRAW;
-    wndClass.lpfnWndProc        = WndProc;
-    wndClass.cbClsExtra         = 0;
-    wndClass.cbWndExtra         = 0;
-    wndClass.hInstance          = hInst;
-    wndClass.hIcon              = LoadIcon(hInst, MAKEINTRESOURCE(IDI_ICON_DIRT));
-
-    wndClass.hCursor            = LoadCursor(NULL, IDC_ARROW);
-    wndClass.hbrBackground      = (struct HBRUSH__*) (GetStockObject(BLACK_BRUSH));
-    wndClass.lpszMenuName       = CLASSNAME;
-    wndClass.lpszClassName      = CLASSNAME;
-    
-    // can only run one at a time anyway, so just quit if another is running
-    if (!RegisterClass(&wndClass)) 
-        return FALSE;
-
-    /// 8.11.2000 - Test for OpenGL fullscreen, and if so use no border, no caption;
-    /// else, use our normal styles
-
-    // Create a window
-    HWND hWnd = CreateWindow(
-        CLASSNAME, plProduct::LongName().c_str(),
-        WS_OVERLAPPEDWINDOW,
-        0, 0,
-        800 + gWinBorderDX * 2,
-        600 + gWinBorderDY * 2 + gWinMenuDY,
-         NULL, NULL, hInst, NULL
-    );
-//  gClient->SetWindowHandle((hsWindowHndl)
-
-    if( !InitClient( hWnd ) )
-        return FALSE;
-
-    // Return false if window creation failed
-    if (!gClient->GetWindowHandle())
-    {
-        OutputDebugString("Create window failed\n");
-        return FALSE;
-    }
-    else
-    {
-        OutputDebugString("Create window OK\n");
-    }
-    return TRUE;
-}
-
 //
 // For error logging
 //
@@ -686,12 +496,7 @@ static void AuthFailedStrings (ENetError authError,
 
     switch (plLocalization::GetLanguage())
     {
-        case plLocalization::kFrench:
-        case plLocalization::kGerman:
-        case plLocalization::kJapanese:
-            *ppStr1 = "Authentication Failed. Please try again.";
-            break;
-
+        case plLocalization::kEnglish:
         default:
             *ppStr1 = "Authentication Failed. Please try again.";
 
@@ -778,12 +583,12 @@ BOOL CALLBACK UruTOSDialogProc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM l
             if (stream.Open("TOS.txt", "rt"))
             {
                 uint32_t dataLen = stream.GetSizeLeft();
-                plStringBuffer<char> eula;
-                char* eulaData = eula.CreateWritableBuffer(dataLen);
-                memset(eulaData, 0, dataLen + 1);
-                stream.Read(dataLen, eulaData);
+                ST::char_buffer eula;
+                eula.allocate(dataLen);
+                stream.Read(dataLen, eula.data());
 
-                SetDlgItemTextW(hwndDlg, IDC_URULOGIN_EULATEXT, plString(eula).ToWchar());
+                SetDlgItemTextW(hwndDlg, IDC_URULOGIN_EULATEXT,
+                                ST::string(eula, ST::substitute_invalid).to_wchar().data());
             }
             else // no TOS found, go ahead
                 EndDialog(hwndDlg, true);
@@ -806,115 +611,92 @@ BOOL CALLBACK UruTOSDialogProc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM l
     return FALSE;
 }
 
-static void SaveUserPass (LoginDialogParam *pLoginParam, char *password)
+static void StoreHash(const ST::string& username, const ST::string& password, LoginDialogParam *pLoginParam)
 {
-    uint32_t cryptKey[4];
-    memset(cryptKey, 0, sizeof(cryptKey));
-    GetCryptKey(cryptKey, arrsize(cryptKey));
+    //  Hash username and password before sending over the 'net.
+    //  -- Legacy compatibility: @gametap (and other usernames with domains in them) need
+    //     to be hashed differently.
+    static const std::regex re_domain("[^@]+@([^.]+\\.)*([^.]+)\\.[^.]+");
+    std::cmatch match;
+    std::regex_search(username.c_str(), match, re_domain);
+    if (match.empty() || ST::string(match[2].str()).compare_i("gametap") == 0) {
+        //  Plain Usernames...
+        plSHA1Checksum shasum(password.size(), reinterpret_cast<const uint8_t*>(password.c_str()));
+        uint32_t* dest = reinterpret_cast<uint32_t*>(pLoginParam->namePassHash);
+        const uint32_t* from = reinterpret_cast<const uint32_t*>(shasum.GetValue());
 
-    plString theUser = pLoginParam->username;
-    plString thePass = plString(password).Left(kMaxPasswordLength);
-
-    // if the password field is the fake string then we've already
-    // loaded the namePassHash from the file
-    if (thePass.Compare(FAKE_PASS_STRING) != 0)
-    {
-        // Regex search for primary email domain
-        std::vector<plString> match = theUser.RESearch("[^@]+@([^.]+\\.)*([^.]+)\\.[^.]+");
-
-        if (match.empty() || match[2].CompareI("gametap") == 0) {
-            plSHA1Checksum shasum(StrLen(password) * sizeof(password[0]), (uint8_t*)password);
-            uint32_t* dest = reinterpret_cast<uint32_t*>(pLoginParam->namePassHash);
-            const uint32_t* from = reinterpret_cast<const uint32_t*>(shasum.GetValue());
-
-            // I blame eap for this ass shit
-            dest[0] = hsToBE32(from[0]);
-            dest[1] = hsToBE32(from[1]);
-            dest[2] = hsToBE32(from[2]);
-            dest[3] = hsToBE32(from[3]);
-            dest[4] = hsToBE32(from[4]);
-        }
-        else
-        {
-            CryptHashPassword(theUser, thePass, pLoginParam->namePassHash);
-        }
+        dest[0] = hsToBE32(from[0]);
+        dest[1] = hsToBE32(from[1]);
+        dest[2] = hsToBE32(from[2]);
+        dest[3] = hsToBE32(from[3]);
+        dest[4] = hsToBE32(from[4]);
     }
-
-    NetCommSetAccountUsernamePassword(theUser.ToWchar(), pLoginParam->namePassHash);
-
-    // FIXME: Real OS detection
-    NetCommSetAuthTokenAndOS(nil, L"win");
-
-    plFileName loginDat = plFileName::Join(plFileSystem::GetInitPath(), "login.dat");
-#ifndef PLASMA_EXTERNAL_RELEASE
-    // internal builds can use the local init directory
-    plFileName local("init\\login.dat");
-    if (plFileInfo(local).Exists())
-        loginDat = local;
-#endif
-    hsStream* stream = plEncryptedStream::OpenEncryptedFileWrite(loginDat, cryptKey);
-    if (stream)
-    {
-        stream->Write(sizeof(cryptKey), cryptKey);
-        stream->WriteSafeString(pLoginParam->username);
-        stream->WriteBool(pLoginParam->remember);
-        if (pLoginParam->remember)
-            stream->Write(sizeof(pLoginParam->namePassHash), pLoginParam->namePassHash);
-        stream->Close();
-        delete stream;
+    else {
+        //  Domain-based Usernames...
+        CryptHashPassword(username, password, pLoginParam->namePassHash);
     }
 }
 
-
-static void LoadUserPass (LoginDialogParam *pLoginParam)
+static void SaveUserPass(LoginDialogParam *pLoginParam, char *password)
 {
-    uint32_t cryptKey[4];
-    ZeroMemory(cryptKey, sizeof(cryptKey));
-    GetCryptKey(cryptKey, arrsize(cryptKey));
+    ST::string theUser = pLoginParam->username;
+    ST::string thePass = password;
 
-    char* temp;
+    HKEY hKey;
+    RegCreateKeyEx(HKEY_CURRENT_USER, ST::format("Software\\Cyan, Inc.\\{}\\{}", plProduct::LongName(), GetServerDisplayName()).c_str(), 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+    RegSetValueEx(hKey, "LastAccountName", NULL, REG_SZ, (LPBYTE) pLoginParam->username, kMaxAccountNameLength);
+    RegSetValueEx(hKey, "RememberPassword", NULL, REG_DWORD, (LPBYTE) &(pLoginParam->remember), sizeof(LPBYTE));
+    RegCloseKey(hKey);
+
+    // If the password field is the fake string
+    // then we've already loaded the hash.
+    if (thePass.compare(FAKE_PASS_STRING) != 0)
+    {
+        StoreHash(theUser, thePass, pLoginParam);
+
+        pfPasswordStore* store = pfPasswordStore::Instance();
+        if (pLoginParam->remember)
+            store->SetPassword(pLoginParam->username, thePass);
+        else
+            store->SetPassword(pLoginParam->username, ST::null);
+    }
+
+    NetCommSetAccountUsernamePassword(theUser, pLoginParam->namePassHash);
+
+    // FIXME: Real OS detection
+    NetCommSetAuthTokenAndOS(nil, L"win");
+}
+
+static void LoadUserPass(LoginDialogParam *pLoginParam)
+{
+    HKEY hKey;
+    char accountName[kMaxAccountNameLength];
+    memset(accountName, 0, kMaxAccountNameLength);
+    uint32_t rememberAccount = 0;
+    DWORD acctLen = kMaxAccountNameLength, remLen = sizeof(rememberAccount);
+    RegOpenKeyEx(HKEY_CURRENT_USER, ST::format("Software\\Cyan, Inc.\\{}\\{}", plProduct::LongName(), GetServerDisplayName()).c_str(), 0, KEY_QUERY_VALUE, &hKey);
+    RegQueryValueEx(hKey, "LastAccountName", 0, NULL, (LPBYTE) &accountName, &acctLen);
+    RegQueryValueEx(hKey, "RememberPassword", 0, NULL, (LPBYTE) &rememberAccount, &remLen);
+    RegCloseKey(hKey);
+
     pLoginParam->remember = false;
     pLoginParam->username[0] = '\0';
 
-    plFileName loginDat = plFileName::Join(plFileSystem::GetInitPath(), "login.dat");
-#ifndef PLASMA_EXTERNAL_RELEASE
-    // internal builds can use the local init directory
-    plFileName local("init\\login.dat");
-    if (plFileInfo(local).Exists())
-        loginDat = local;
-#endif
-    hsStream* stream = plEncryptedStream::OpenEncryptedFile(loginDat, cryptKey);
-    if (stream && !stream->AtEnd())
+    if (acctLen > 0)
+        strncpy(pLoginParam->username, accountName, kMaxAccountNameLength);
+    pLoginParam->remember = (rememberAccount != 0);
+    if (pLoginParam->remember && pLoginParam->username[0] != '\0')
     {
-        uint32_t savedKey[4];
-        stream->Read(sizeof(savedKey), savedKey);
-
-        if (memcmp(cryptKey, savedKey, sizeof(savedKey)) == 0)
-        {
-            temp = stream->ReadSafeString();
-
-            if (temp)
-            {
-                StrCopy(pLoginParam->username, temp, kMaxAccountNameLength);
-                delete temp;
-            }
-
-            pLoginParam->remember = stream->ReadBool();
-
-            if (pLoginParam->remember)
-            {
-                stream->Read(sizeof(pLoginParam->namePassHash), pLoginParam->namePassHash);
-                pLoginParam->focus = IDOK;
-            }
-            else
-            {
-                pLoginParam->focus = IDC_URULOGIN_PASSWORD;
-            }
-        }
-
-        stream->Close();
-        delete stream;
+        pfPasswordStore* store = pfPasswordStore::Instance();
+        ST::string password = store->GetPassword(pLoginParam->username);
+        if (!password.empty())
+            StoreHash(pLoginParam->username, password, pLoginParam);
+        pLoginParam->focus = IDOK;
     }
+    else if (pLoginParam->username[0] == '\0')
+        pLoginParam->focus = IDC_URULOGIN_USERNAME;
+    else
+        pLoginParam->focus = IDC_URULOGIN_PASSWORD;
 }
 
 static size_t CurlCallback(void *buffer, size_t size, size_t nmemb, void *param)
@@ -929,42 +711,6 @@ static size_t CurlCallback(void *buffer, size_t size, size_t nmemb, void *param)
     return size * nmemb;
 }
 
-void StatusCallback(void *param)
-{
-#ifdef USE_VLD
-    VLDEnable();
-#endif
-
-    HWND hwnd = (HWND)param;
-
-    const char *statusUrl = GetServerStatusUrl();
-    CURL *hCurl = curl_easy_init();
-
-    // For reporting errors
-    char curlError[CURL_ERROR_SIZE];
-    curl_easy_setopt(hCurl, CURLOPT_ERRORBUFFER, curlError);
-
-    while(s_loginDlgRunning)
-    {
-        curl_easy_setopt(hCurl, CURLOPT_URL, statusUrl);
-        curl_easy_setopt(hCurl, CURLOPT_USERAGENT, "UruClient/1.0");
-        curl_easy_setopt(hCurl, CURLOPT_WRITEFUNCTION, &CurlCallback);
-        curl_easy_setopt(hCurl, CURLOPT_WRITEDATA, param);
-
-        if (statusUrl[0] && curl_easy_perform(hCurl) != 0) // only perform request if there's actually a URL set
-            PostMessage(hwnd, WM_USER_SETSTATUSMSG, 0, (LPARAM) curlError);
-        
-        for(unsigned i = 0; i < UPDATE_STATUSMSG_SECONDS && s_loginDlgRunning; ++i)
-        {
-            Sleep(1000);
-        }
-    }
-
-    curl_easy_cleanup(hCurl);
-
-    s_statusEvent.Signal(); // Signal the semaphore
-}
-
 BOOL CALLBACK UruLoginDialogProc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam )
 {
     static LoginDialogParam* pLoginParam;
@@ -975,7 +721,35 @@ BOOL CALLBACK UruLoginDialogProc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM
         case WM_INITDIALOG:
         {
             s_loginDlgRunning = true;
-            _beginthread(StatusCallback, 0, hwndDlg);
+            s_statusThread = std::thread([hwndDlg]() {
+#ifdef USE_VLD
+                VLDEnable();
+#endif
+                ST::string statusUrl = GetServerStatusUrl();
+                CURL* hCurl = curl_easy_init();
+
+                // For reporting errors
+                char curlError[CURL_ERROR_SIZE];
+                curl_easy_setopt(hCurl, CURLOPT_ERRORBUFFER, curlError);
+
+                while (s_loginDlgRunning) {
+                    curl_easy_setopt(hCurl, CURLOPT_URL, statusUrl.c_str());
+                    curl_easy_setopt(hCurl, CURLOPT_USERAGENT, "UruClient/1.0");
+                    curl_easy_setopt(hCurl, CURLOPT_WRITEFUNCTION, &CurlCallback);
+                    curl_easy_setopt(hCurl, CURLOPT_WRITEDATA, hwndDlg);
+
+                    if (!statusUrl.empty() && curl_easy_perform(hCurl) != 0) {
+                        // only perform request if there's actually a URL set
+                        PostMessage(hwndDlg, WM_USER_SETSTATUSMSG, 0,
+                                    reinterpret_cast<LPARAM>(curlError));
+                    }
+
+                    for (unsigned i = 0; i < UPDATE_STATUSMSG_SECONDS && s_loginDlgRunning; ++i)
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+                }
+
+                curl_easy_cleanup(hCurl);
+            });
             pLoginParam = (LoginDialogParam*)lParam;
 
             SetWindowText(hwndDlg, "Login");
@@ -1015,7 +789,7 @@ BOOL CALLBACK UruLoginDialogProc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM
         case WM_DESTROY:
         {
             s_loginDlgRunning = false;
-            s_statusEvent.Wait();
+            s_statusThread.join();
             KillTimer(hwndDlg, AUTH_LOGIN_TIMER);
             return TRUE;
         }
@@ -1059,7 +833,7 @@ BOOL CALLBACK UruLoginDialogProc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM
                     // When general.ini gets expanded, this will need to find a proper home somewhere.
                     {
                         plFileName gipath = plFileName::Join(plFileSystem::GetInitPath(), "general.ini");
-                        plString ini_str = plString::Format("App.SetLanguage %s\n", plLocalization::GetLanguageName(new_language));
+                        ST::string ini_str = ST::format("App.SetLanguage {}\n", plLocalization::GetLanguageName(new_language));
                         hsStream* gini = plEncryptedStream::OpenEncryptedFileWrite(gipath);
                         gini->WriteString(ini_str);
                         gini->Close();
@@ -1097,10 +871,10 @@ BOOL CALLBACK UruLoginDialogProc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM
 
                 return TRUE;
             }
-            else if (HIWORD(wParam) == BN_CLICKED && LOWORD(wParam) == IDC_URULOGIN_GAMETAPLINK)
+            else if (HIWORD(wParam) == BN_CLICKED && LOWORD(wParam) == IDC_URULOGIN_NEWACCTLINK)
             {
-                const char* signupurl = GetServerSignupUrl();
-                ShellExecuteA(NULL, "open", signupurl, NULL, NULL, SW_SHOWNORMAL);
+                ST::string signupurl = GetServerSignupUrl();
+                ShellExecuteW(NULL, L"open", signupurl.to_wchar().data(), NULL, NULL, SW_SHOWNORMAL);
 
                 return TRUE;
             }
@@ -1126,34 +900,34 @@ BOOL CALLBACK UruLoginDialogProc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM
     return FALSE;
 }
 
-BOOL CALLBACK SplashDialogProc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam )
+BOOL CALLBACK SplashDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    switch( uMsg )
+    switch (uMsg)
     {
-        case WM_INITDIALOG:
-            switch (plLocalization::GetLanguage())
-            {
-                case plLocalization::kFrench:
-                    ::SetDlgItemText( hwndDlg, IDC_STARTING_TEXT, "Démarrage d'URU. Veuillez patienter...");
-                    break;
-                case plLocalization::kGerman:
-                    ::SetDlgItemText( hwndDlg, IDC_STARTING_TEXT, "Starte URU, bitte warten ...");
-                    break;
-/*              case plLocalization::kSpanish:
-                    ::SetDlgItemText( hwndDlg, IDC_STARTING_TEXT, "Iniciando URU, por favor espera...");
-                    break;
-                case plLocalization::kItalian:
-                    ::SetDlgItemText( hwndDlg, IDC_STARTING_TEXT, "Avvio di URU, attendere...");
-                    break;
-*/              // default is English
-                case plLocalization::kJapanese:
-                    ::SetDlgItemText( hwndDlg, IDC_STARTING_TEXT, "...");
-                    break;
-                default:
-                    ::SetDlgItemText( hwndDlg, IDC_STARTING_TEXT, "Starting URU. Please wait...");
-                    break;
-            }
-            return true; 
+    case WM_INITDIALOG:
+        switch (plLocalization::GetLanguage())
+        {
+        case plLocalization::kFrench:
+            ::SetDlgItemText(hwndDlg, IDC_STARTING_TEXT, "Démarrage d'URU. Veuillez patienter...");
+            break;
+        case plLocalization::kGerman:
+            ::SetDlgItemText(hwndDlg, IDC_STARTING_TEXT, "Starte URU, bitte warten ...");
+            break;
+        case plLocalization::kSpanish:
+            ::SetDlgItemText(hwndDlg, IDC_STARTING_TEXT, "Iniciando URU, por favor espera...");
+            break;
+        case plLocalization::kItalian:
+            ::SetDlgItemText(hwndDlg, IDC_STARTING_TEXT, "Avvio di URU, attendere...");
+            break;
+            // default is English
+        case plLocalization::kJapanese:
+            ::SetDlgItemText(hwndDlg, IDC_STARTING_TEXT, "...");
+            break;
+        default:
+            ::SetDlgItemText(hwndDlg, IDC_STARTING_TEXT, "Starting URU. Please wait...");
+            break;
+        }
+        return true;
 
     }
     return 0;
@@ -1171,24 +945,61 @@ BOOL CALLBACK ExceptionDialogProc( HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARA
     return 0;
 }
 
-#ifndef HS_DEBUGGING
 LONG WINAPI plCustomUnhandledExceptionFilter( struct _EXCEPTION_POINTERS *ExceptionInfo )
 {
+#ifndef HS_DEBUGGING
     // Before we do __ANYTHING__, pass the exception to plCrashHandler
     s_crash.ReportCrash(ExceptionInfo);
 
     // Now, try to create a nice exception dialog after plCrashHandler is done.
     s_crash.WaitForHandle();
-    HWND parentHwnd = (gClient == nil) ? GetActiveWindow() : gClient->GetWindowHandle();
+    HWND parentHwnd = gClient ? gClient->GetWindowHandle() : GetActiveWindow();
     DialogBoxParam(gHInst, MAKEINTRESOURCE(IDD_EXCEPTION), parentHwnd, ExceptionDialogProc, NULL);
 
-    // Trickle up the handlers
+    // Means that we have handled this.
     return EXCEPTION_EXECUTE_HANDLER;
+#else
+    // This allows the CRT level __except statement to handle the crash, allowing the debugger to be attached.
+    return EXCEPTION_CONTINUE_SEARCH;
+#endif // HS_DEBUGGING
 }
-#endif
 
 #include "pfConsoleCore/pfConsoleEngine.h"
 PF_CONSOLE_LINK_ALL()
+
+bool WinInit(HINSTANCE hInst)
+{
+    // Fill out WNDCLASS info
+    WNDCLASS wndClass;
+    wndClass.style = CS_DBLCLKS;   // CS_HREDRAW | CS_VREDRAW;
+    wndClass.lpfnWndProc = WndProc;
+    wndClass.cbClsExtra = 0;
+    wndClass.cbWndExtra = 0;
+    wndClass.hInstance = hInst;
+    wndClass.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_ICON_DIRT));
+
+    wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wndClass.hbrBackground = (struct HBRUSH__*) (GetStockObject(BLACK_BRUSH));
+    wndClass.lpszMenuName = CLASSNAME;
+    wndClass.lpszClassName = CLASSNAME;
+
+    // can only run one at a time anyway, so just quit if another is running
+    if (!RegisterClass(&wndClass))
+        return false;
+
+    // Create a window
+    HWND hWnd = CreateWindow(
+        CLASSNAME, plProduct::LongName().c_str(),
+        WS_OVERLAPPEDWINDOW,
+        0, 0,
+        800 + gWinBorderDX * 2,
+        600 + gWinBorderDY * 2 + gWinMenuDY,
+        NULL, NULL, hInst, NULL
+        );
+    gClient.SetClientWindow(hWnd);
+    gClient.Init();
+    return true;
+}
 
 #include "plResMgr/plVersion.h"
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nCmdShow)
@@ -1198,8 +1009,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nC
     // Set global handle
     gHInst = hInst;
 
-    CCmdParser cmdParser(s_cmdLineArgs, arrsize(s_cmdLineArgs));
-    cmdParser.Parse();
+    std::vector<ST::string> args;
+    args.reserve(__argc);
+    for (size_t i = 0; i < __argc; i++) {
+        args.push_back(ST::string::from_utf8(__argv[i]));
+    }
+
+    plCmdParser cmdParser(s_cmdLineArgs, arrsize(s_cmdLineArgs));
+    cmdParser.Parse(args);
 
     bool doIntroDialogs = true;
 #ifndef PLASMA_EXTERNAL_RELEASE
@@ -1212,11 +1029,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nC
     }
     if (cmdParser.IsSpecified(kArgSkipPreload))
         gSkipPreload = true;
+    if (cmdParser.IsSpecified(kArgPlayerId))
+        NetCommSetIniPlayerId(cmdParser.GetInt(kArgPlayerId));
+    if (cmdParser.IsSpecified(kArgStartUpAgeName))
+        NetCommSetIniStartUpAge(cmdParser.GetString(kArgStartUpAgeName));
 #endif
 
     plFileName serverIni = "server.ini";
     if (cmdParser.IsSpecified(kArgServerIni))
-        serverIni = plString::FromWchar(cmdParser.GetString(kArgServerIni));
+        serverIni = cmdParser.GetString(kArgServerIni);
 
     // check to see if we were launched from the patcher
     bool eventExists = false;
@@ -1241,25 +1062,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nC
     memset(&pi, 0, sizeof(pi));
     si.cb = sizeof(si);
 
-    const char** addrs;
-    
     if (!eventExists) // if it is missing, assume patcher wasn't launched
     {
-        plStringStream cmdLine;
-
-        GetAuthSrvHostnames(&addrs);
-        if (strlen(addrs[0]))
-            cmdLine << " /AuthSrv=" << addrs[0];
-
-        GetFileSrvHostnames(&addrs);
-        if (strlen(addrs[0]))
-            cmdLine << " /FileSrv=" << addrs[0];
-
-        GetGateKeeperSrvHostnames(&addrs);
-        if (strlen(addrs[0]))
-            cmdLine << " /GateKeeperSrv=" << addrs[0];
-
-        if(!CreateProcessW(s_patcherExeName, (LPWSTR)cmdLine.GetString().ToUtf16().GetData(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
+        if(!CreateProcessW(s_patcherExeName, NULL, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
         {
             hsMessageBox("Failed to launch patcher", "Error", hsMessageBoxNormal);
         }
@@ -1308,6 +1113,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nC
     }
 #endif
 
+    // Set up to log errors by using hsDebugMessage
+    DebugInit();
+    DebugMsgF("Plasma 2.0.%i.%i - %s", PLASMA2_MAJOR_VERSION, PLASMA2_MINOR_VERSION, plProduct::ProductString().c_str());
+
     FILE *serverIniFile = plFileSystem::Open(serverIni, "rb");
     if (serverIniFile)
     {
@@ -1321,9 +1130,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nC
         return PARABLE_NORMAL_EXIT;
     }
 
-    NetCliAuthAutoReconnectEnable(false);
+    // Begin initializing the client in the background
+    if (!WinInit(hInst)) {
+        hsMessageBox("Failed to initialize plClient", "Error", hsMessageBoxNormal);
+        return PARABLE_NORMAL_EXIT;
+    }
 
-    NetCommSetReadIniAccountInfo(!doIntroDialogs);
+    NetCliAuthAutoReconnectEnable(false);
     InitNetClientComm();
 
     curl_global_init(CURL_GLOBAL_ALL);
@@ -1336,9 +1149,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nC
     if (!doIntroDialogs && loginParam.remember) {
         ENetError auth;
 
-        wchar_t wusername[kMaxAccountNameLength];
-        StrToUnicode(wusername, loginParam.username, arrsize(wusername));
-        NetCommSetAccountUsernamePassword(wusername, loginParam.namePassHash);
+        NetCommSetAccountUsernamePassword(loginParam.username, loginParam.namePassHash);
         bool cancelled = AuthenticateNetClientComm(&auth, NULL);
 
         if (IS_NET_ERROR(auth) || cancelled) {
@@ -1370,148 +1181,57 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nC
     curl_global_cleanup();
 
     if (needExit) {
+        gClient.ShutdownStart();
+        gClient.ShutdownEnd();
         DeInitNetClientComm();
         return PARABLE_NORMAL_EXIT;
     }
 
     NetCliAuthAutoReconnectEnable(true);
 
-    // VERY VERY FIRST--throw up our splash screen
-    HWND splashDialog = ::CreateDialog( hInst, MAKEINTRESOURCE( IDD_LOADING ), NULL, SplashDialogProc );
+    // Install our unhandled exception filter for trapping all those nasty crashes
+    SetUnhandledExceptionFilter(plCustomUnhandledExceptionFilter);
 
-    // Install our unhandled exception filter for trapping all those nasty crashes in release build
-#ifndef HS_DEBUGGING
-    LPTOP_LEVEL_EXCEPTION_FILTER oldFilter;
-    oldFilter = SetUnhandledExceptionFilter( plCustomUnhandledExceptionFilter );
-#endif
+    // We should quite frankly be done initing the client by now. But, if not, spawn the good old
+    // "Starting URU, please wait..." dialog (not so yay)
+    if (!gClient.IsInited()) {
+        HWND splashDialog = ::CreateDialog(hInst, MAKEINTRESOURCE(IDD_LOADING), NULL, SplashDialogProc);
+        gClient.Wait();
+        ::DestroyWindow(splashDialog);
+    }
 
-    //
-    // Set up to log errors by using hsDebugMessage
-    //
-    DebugInit();
-    DebugMsgF("Plasma 2.0.%i.%i - %s", PLASMA2_MAJOR_VERSION, PLASMA2_MINOR_VERSION, plProduct::ProductString().c_str());
+    // Main loop
+    if (gClient && !gClient->GetDone()) {
+        if (gPendingActivate)
+            gClient->WindowActivate(gPendingActivateFlag);
+        gClient->SetMessagePumpProc(PumpMessageQueueProc);
+        gClient.Start();
 
-    for (;;) {
-        // Create Window
-        if (!WinInit(hInst, nCmdShow) || gClient->GetDone())
-            break;
+        // PhysX installs its own exception handler somewhere in PhysXCore.dll. Unfortunately, this code appears to suck
+        // the big one. It actually makes us unable to attach with the Visual Studio debugger! We're going to override that
+        // donkey snot. This can be removed when PhysX is replaced.
+        SetUnhandledExceptionFilter(plCustomUnhandledExceptionFilter);
 
-        // We don't have multiplayer localized assets for Italian or Spanish, so force them to English in that case.
-    /*  if (!plNetClientMgr::GetInstance()->InOfflineMode() &&
-            (plLocalization::GetLanguage() == plLocalization::kItalian || 
-            plLocalization::GetLanguage() == plLocalization::kSpanish))
-        {
-            plLocalization::SetLanguage(plLocalization::kEnglish);
-        }
-    */
-
-        // Done with our splash now
-        ::DestroyWindow( splashDialog );
-
-        if (!gClient)
-            break;
-
-        // Show the main window
-        ShowWindow(gClient->GetWindowHandle(), SW_SHOW);
-
-        gHasMouse = GetSystemMetrics(SM_MOUSEPRESENT);
-            
-        // Be really REALLY forceful about being in the front
-        BringWindowToTop( gClient->GetWindowHandle() );
-
-        // Update the window
-        UpdateWindow(gClient->GetWindowHandle());
-
-        // 
-        // Init Application here
-        //
-        if( !gClient->StartInit() )
-            break;
-        
-        // I want it on top! I mean it!
-        BringWindowToTop( gClient->GetWindowHandle() );
-
-        // initialize dinput here:
-        if (gClient && gClient->GetInputManager())
-            gClient->GetInputManager()->InitDInput(hInst, (HWND)gClient->GetWindowHandle());
-        
-        // Seriously!
-        BringWindowToTop( gClient->GetWindowHandle() );
-        
-        //
-        // Main loop
-        //
         MSG msg;
-        do
-        {   
+        do {
             gClient->MainLoop();
-
-            if( gClient->GetDone() )
+            if (gClient->GetDone())
                 break;
 
             // Look for a message
-            while (PeekMessage( &msg, NULL, 0, 0, PM_REMOVE ))
-            {
+            while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
                 // Handle the message
-                TranslateMessage( &msg );
-                DispatchMessage( &msg );
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
             }
         } while (WM_QUIT != msg.message);
-
-        break;
     }
 
-    //
-    // Cleanup
-    //
-    if (gClient)
-    {
-        gClient->Shutdown(); // shuts down PhysX for us
-        gClient = nil;
-    }
-    hsAssert(hsgResMgr::ResMgr()->RefCnt()==1, "resMgr has too many refs, expect mem leaks");
-    hsgResMgr::Shutdown();  // deletes fResMgr
+    gClient.ShutdownEnd();
     DeInitNetClientComm();
 
-    // Uninstall our unhandled exception filter, if we installed one
-#ifndef HS_DEBUGGING
-    SetUnhandledExceptionFilter( oldFilter );
-#endif
-
     // Exit WinMain and terminate the app....
-//    return msg.wParam;
     return PARABLE_NORMAL_EXIT;
-}
-
-static void GetCryptKey(uint32_t* cryptKey, unsigned numElements)
-{
-    char volName[] = "C:\\";
-    int index = 0;
-    DWORD logicalDrives = GetLogicalDrives();
-
-    for (int i = 0; i < 32; ++i)
-    {
-        if (logicalDrives & (1 << i))
-        {
-            volName[0] = ('C' + i);
-
-            DWORD volSerialNum = 0;
-            BOOL result = GetVolumeInformation(
-                volName,        //LPCTSTR lpRootPathName,
-                NULL,           //LPTSTR lpVolumeNameBuffer,
-                0,              //DWORD nVolumeNameSize,
-                &volSerialNum,  //LPDWORD lpVolumeSerialNumber,
-                NULL,           //LPDWORD lpMaximumComponentLength,
-                NULL,           //LPDWORD lpFileSystemFlags,
-                NULL,           //LPTSTR lpFileSystemNameBuffer,
-                0               //DWORD nFileSystemNameSize
-            );
-
-            cryptKey[index] = (cryptKey[index] ^ volSerialNum);
-
-            index = (++index) % numElements;
-        }
-    }
 }
 
 /* Enable themes in Windows XP and later */

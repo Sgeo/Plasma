@@ -53,18 +53,12 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnMessage/plNodeRefMsg.h"
 #include "plMessage/plLoadCloneMsg.h"
 
-plCloneSpawnModifier::plCloneSpawnModifier() : fTemplateName(nil), fExportTime(false)
+plCloneSpawnModifier::plCloneSpawnModifier() : fExportTime(false)
 {
-}
-
-plCloneSpawnModifier::~plCloneSpawnModifier()
-{
-    delete [] fTemplateName;
 }
 
 void plCloneSpawnModifier::Read(hsStream *s, hsResMgr *mgr)
 {
-    delete [] fTemplateName;
     fTemplateName = s->ReadSafeString();
     plSingleModifier::Read(s, mgr);
 }
@@ -75,12 +69,6 @@ void plCloneSpawnModifier::Write(hsStream *s, hsResMgr *mgr)
     plSingleModifier::Write(s, mgr);
 }
 
-void plCloneSpawnModifier::SetTemplateName(const char *templateName)
-{
-    delete [] fTemplateName;
-    fTemplateName = hsStrcpy(templateName);
-}
-
 void plCloneSpawnModifier::SetTarget(plSceneObject* so)
 {
     fTarget = so;
@@ -89,7 +77,7 @@ void plCloneSpawnModifier::SetTarget(plSceneObject* so)
     {
         // Assume the clone template is in the same age we are
         const plLocation& loc = GetKey()->GetUoid().GetLocation();
-        plString ageName;
+        ST::string ageName;
         ((plResManager*)hsgResMgr::ResMgr())->GetLocationStrings(loc, &ageName, nil);
 
         // Spawn the clone
@@ -98,7 +86,7 @@ void plCloneSpawnModifier::SetTarget(plSceneObject* so)
 }
 
 
-plKey plCloneSpawnModifier::SpawnClone(const plString& cloneName, const plString& cloneAge, const hsMatrix44& pos, plKey requestor)
+plKey plCloneSpawnModifier::SpawnClone(const ST::string& cloneName, const ST::string& cloneAge, const hsMatrix44& pos, plKey requestor)
 {
     plResManager* resMgr = (plResManager*)hsgResMgr::ResMgr();
 

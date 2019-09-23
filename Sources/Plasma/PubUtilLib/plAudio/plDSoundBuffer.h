@@ -73,8 +73,9 @@ public:
 
     void        Play( void );
     void        Stop( void );
-    void        Rewind() ;
-    
+    void        Rewind();
+    void        Pause();
+
     uint32_t      GetLengthInBytes( void ) const;
     void        SetScalarVolume( float volume ); // Sets the volume, but on a range from 0 to 1
 
@@ -104,7 +105,7 @@ public:
     bool        StreamingFillBuffer(plAudioFileReader *stream);
 
     bool        SetupVoiceSource();
-    bool        VoiceFillBuffer(void *data, unsigned bytes, unsigned buferId);
+    bool        VoiceFillBuffer(const void *data, size_t bytes, unsigned buferId);
     void        UnQueueVoiceBuffers();
 
     

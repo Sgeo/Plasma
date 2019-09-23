@@ -42,12 +42,13 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #ifndef NO_AV_MSGS
 #ifndef SERVER
 
-#include "hsStream.h"
-#include "plLoadAvatarMsg.h"
 #include "hsResMgr.h"
-#include "pnNetCommon/plNetApp.h"
-#include "pnNetCommon/plSynchedObject.h"
+#include "hsStream.h"
 
+#include "pnNetCommon/plNetApp.h"
+#pragma hdrstop
+
+#include "plLoadAvatarMsg.h"
 #include "plAvatar/plAvatarTasks.h"
 
 
@@ -58,44 +59,30 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 // CTOR (default)
 plLoadAvatarMsg::plLoadAvatarMsg()
 : fIsPlayer(false),
-  fSpawnPoint(nil),
-  fInitialTask(nil),
-  fUserStr(nil)
+  fSpawnPoint(nullptr),
+  fInitialTask(nullptr)
 {
 }
 
 // CTOR uoidToClone, requestorKey, userData, isPlayer, spawnPOint, initialTask
 plLoadAvatarMsg::plLoadAvatarMsg(const plUoid &uoidToClone, const plKey &requestorKey, uint32_t userData,
-                                 bool isPlayer, const plKey &spawnPoint, plAvTask *initialTask, const char* userStr /*= nil*/)
+                                 bool isPlayer, const plKey &spawnPoint, plAvTask *initialTask, const ST::string &userStr)
 : plLoadCloneMsg(uoidToClone, requestorKey, userData),
   fIsPlayer(isPlayer),
   fSpawnPoint(spawnPoint),
   fInitialTask(initialTask),
-  fUserStr(nil) // setting to nil so SetUserStr doesn't try to nuke garbage
+  fUserStr(userStr)
 {
-    SetUserStr(userStr);
 }
 
 plLoadAvatarMsg::plLoadAvatarMsg(const plKey &existing, const plKey &requestor, uint32_t userData,
-                                bool isPlayer, bool isLoading, const char* userStr /*= nil*/)
-:   plLoadCloneMsg(existing, requestor, userData, isLoading),
-    fIsPlayer(isPlayer),
-    fSpawnPoint(nil),
-    fInitialTask(nil),
-    fUserStr(nil) // setting to nil so SetUserStr doesn't try to nuke garbage
+                                 bool isPlayer, bool isLoading, const ST::string &userStr)
+: plLoadCloneMsg(existing, requestor, userData, isLoading),
+  fIsPlayer(isPlayer),
+  fSpawnPoint(nullptr),
+  fInitialTask(nullptr),
+  fUserStr(userStr)
 {
-    SetUserStr(userStr);
-}
-
-
-// DTOR
-plLoadAvatarMsg::~plLoadAvatarMsg()
-{
-    if (fUserStr)
-    {
-        delete [] fUserStr;
-        fUserStr = nil;
-    }
 }
 
 void plLoadAvatarMsg::Read(hsStream* stream, hsResMgr* mgr)
@@ -106,11 +93,6 @@ void plLoadAvatarMsg::Read(hsStream* stream, hsResMgr* mgr)
     if(stream->ReadBool())
     {
         fInitialTask = plAvTask::ConvertNoRef(mgr->ReadCreatable(stream));
-    }
-    if (fUserStr)
-    {
-        delete [] fUserStr;
-        fUserStr = nil;
     }
     fUserStr = stream->ReadSafeString();
 }
@@ -150,11 +132,6 @@ void plLoadAvatarMsg::ReadVersion(hsStream* stream, hsResMgr* mgr)
     if (contentFlags.IsBitSet(kLoadAvatarMsgSpawnPoint))
         fSpawnPoint = mgr->ReadKey(stream);
 
-    if (fUserStr)
-    {
-        delete [] fUserStr;
-        fUserStr = nil;
-    }
     if (contentFlags.IsBitSet(kLoadAvatarMsgUserStr))
         fUserStr = stream->ReadSafeString();
 }
@@ -177,64 +154,6 @@ void plLoadAvatarMsg::WriteVersion(hsStream* stream, hsResMgr* mgr)
 
     // kLoadAvatarMsgUserStr
     stream->WriteSafeString(fUserStr);
-}
-
-// SETISPLAYER
-void plLoadAvatarMsg::SetIsPlayer(bool is)
-{
-    fIsPlayer = is;
-}
-
-// GETISPLAYER
-bool plLoadAvatarMsg::GetIsPlayer()
-{
-    return fIsPlayer;
-}
-
-// SETSPAWNPOINT
-void plLoadAvatarMsg::SetSpawnPoint(const plKey &spawnPoint)
-{
-    fSpawnPoint = spawnPoint;
-}
-
-// GETSPAWNPOINT
-plKey plLoadAvatarMsg::GetSpawnPoint()
-{
-    return fSpawnPoint;
-}
-
-// SETINITIALTASK
-void plLoadAvatarMsg::SetInitialTask(plAvTask *initialTask)
-{
-    fInitialTask = initialTask;
-}
-
-// GETINITIALTASK
-plAvTask * plLoadAvatarMsg::GetInitialTask()
-{
-    return fInitialTask;
-}
-
-// SETUSERSTR
-void plLoadAvatarMsg::SetUserStr(const char *userStr)
-{
-    if (fUserStr)
-        delete [] fUserStr;
-    if (!userStr)
-    {
-        fUserStr = nil;
-        return;
-    }
-
-    fUserStr = new char[strlen(userStr) + 1];
-    strcpy(fUserStr, userStr);
-    fUserStr[strlen(userStr)] = '\0';
-}
-
-// GETUSERSTR
-const char* plLoadAvatarMsg::GetUserStr()
-{
-    return fUserStr;
 }
 
 #endif // ndef SERVER

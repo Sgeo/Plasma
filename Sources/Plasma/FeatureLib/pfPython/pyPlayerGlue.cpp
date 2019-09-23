@@ -68,7 +68,7 @@ PYTHON_INIT_DEFINITION(ptPlayer, args, keywords)
     }
 
     plKey key;
-    plString name;
+    ST::string name;
     uint32_t pid = -1;
     float distSeq = -1;
 
@@ -137,7 +137,12 @@ PYTHON_RICH_COMPARE_DEFINITION(ptPlayer, obj1, obj2, compareType)
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptPlayer, getPlayerName)
 {
-    return PyString_FromString(self->fThis->GetPlayerName());
+    return PyString_FromSTString(self->fThis->GetPlayerName());
+}
+
+PYTHON_METHOD_DEFINITION_NOARGS(ptPlayer, getPlayerNameW)
+{
+    return PyUnicode_FromSTString(self->fThis->GetPlayerName());
 }
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptPlayer, getPlayerID)
@@ -162,6 +167,7 @@ PYTHON_METHOD_DEFINITION_NOARGS(ptPlayer, isServer)
 
 PYTHON_START_METHODS_TABLE(ptPlayer)
     PYTHON_METHOD_NOARGS(ptPlayer, getPlayerName, "Returns the name of the player"),
+    PYTHON_METHOD_NOARGS(ptPlayer, getPlayerNameW, "Returns the name of the player as Unicode"),
     PYTHON_METHOD_NOARGS(ptPlayer, getPlayerID, "Returns the unique player ID"),
     PYTHON_METHOD_NOARGS(ptPlayer, getDistanceSq, "Returns the distance to remote player from local player"),
     PYTHON_METHOD_NOARGS(ptPlayer, isCCR, "Is this player a CCR?"),
@@ -180,21 +186,21 @@ PYTHON_END_METHODS_TABLE;
 PLASMA_CUSTOM_TYPE(ptPlayer, "Params: avkey,name,playerID,distanceSq\nAnd optionally __init__(name,playerID)");
 
 // required functions for PyObject interoperability
-PyObject *pyPlayer::New(pyKey& avKey, const char* pname, uint32_t pid, float distsq)
+PyObject *pyPlayer::New(pyKey& avKey, const ST::string& pname, uint32_t pid, float distsq)
 {
     ptPlayer *newObj = (ptPlayer*)ptPlayer_type.tp_new(&ptPlayer_type, NULL, NULL);
     newObj->fThis->Init(avKey.getKey(), pname, pid, distsq);
     return (PyObject*)newObj;
 }
 
-PyObject *pyPlayer::New(plKey avKey, const char* pname, uint32_t pid, float distsq)
+PyObject *pyPlayer::New(plKey avKey, const ST::string& pname, uint32_t pid, float distsq)
 {
     ptPlayer *newObj = (ptPlayer*)ptPlayer_type.tp_new(&ptPlayer_type, NULL, NULL);
     newObj->fThis->Init(avKey, pname, pid, distsq);
     return (PyObject*)newObj;
 }
 
-PyObject *pyPlayer::New(const char* pname, uint32_t pid)
+PyObject *pyPlayer::New(const ST::string& pname, uint32_t pid)
 {
     ptPlayer *newObj = (ptPlayer*)ptPlayer_type.tp_new(&ptPlayer_type, NULL, NULL);
     newObj->fThis->Init(nil, pname, pid, -1);

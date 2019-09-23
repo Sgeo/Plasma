@@ -45,6 +45,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include <ctime>
 #include <wchar.h>
+#include <algorithm>
 
 static const uint32_t kDefaultKey[4] = { 0x6c0a5452, 0x3827d0f, 0x3a170b92, 0x16db7fc2 };
 static const int kEncryptChunkSize = 8;
@@ -87,7 +88,7 @@ plEncryptedStream::~plEncryptedStream()
 //
 void plEncryptedStream::IEncipher(uint32_t* const v)
 {
-    register uint32_t y=v[0], z=v[1], sum=0, delta=0x9E3779B9, n=32;
+    uint32_t y=v[0], z=v[1], sum=0, delta=0x9E3779B9, n=32;
 
     while (n-- > 0)
     {
@@ -101,7 +102,7 @@ void plEncryptedStream::IEncipher(uint32_t* const v)
 
 void plEncryptedStream::IDecipher(uint32_t* const v)
 {
-    register uint32_t y=v[0], z=v[1], sum=0xC6EF3720, delta=0x9E3779B9, n=32;
+    uint32_t y=v[0], z=v[1], sum=0xC6EF3720, delta=0x9E3779B9, n=32;
 
     // sum = delta<<5, in general sum = delta * n
 
@@ -184,7 +185,7 @@ bool plEncryptedStream::Close()
         fRAMStream = nil;
     }
 
-    fWriteFileName = plString::Null;
+    fWriteFileName = ST::null;
     fActualFileSize = 0;
     fBufferedStream = false;
     fOpenMode = kOpenFail;
@@ -301,7 +302,7 @@ uint32_t plEncryptedStream::Read(uint32_t bytes, void* buffer)
     // Offset into the first buffer (0 if we are aligned on a chunk, which means no extra block read)
     uint32_t startChunkPos = startPos % kEncryptChunkSize;
     // Amount of data in the partial first chunk (0 if we're aligned)
-    uint32_t startAmt = (startChunkPos != 0) ? hsMinimum(kEncryptChunkSize - startChunkPos, bytes) : 0;
+    uint32_t startAmt = (startChunkPos != 0) ? std::min(kEncryptChunkSize - startChunkPos, bytes) : 0;
 
     uint32_t totalNumRead = IRead(bytes, buffer);
 

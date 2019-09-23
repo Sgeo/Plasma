@@ -42,7 +42,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #ifndef PLAVBRAIN_INC
 #define PLAVBRAIN_INC
 
-#include "plAGModifier.h"
+#include "plAnimation/plAGModifier.h"
 #include "HeadSpin.h"
 #include "hsTemplates.h"
 #include "hsBitVector.h"
@@ -81,7 +81,7 @@ public:
     virtual bool LeaveAge();
     virtual bool IsRunningTask() const;
     virtual void QueueTask(plAvTask *task);
-    virtual void DumpToDebugDisplay(int &x, int &y, int lineHeight, char *strBuf, plDebugText &debugTxt) {}
+    virtual void DumpToDebugDisplay(int &x, int &y, int lineHeight, plDebugText &debugTxt) {}
     
     virtual void Write(hsStream *stream, hsResMgr *mgr);
     virtual void Read(hsStream *stream, hsResMgr *mgr);

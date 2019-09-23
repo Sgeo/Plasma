@@ -60,7 +60,7 @@ class plSimpleStateVariable;
 class plLayerAnimationBase : public plLayerInterface
 {
 protected:
-    plString        fSegmentID;
+    ST::string      fSegmentID;
     double          fEvalTime;
     float           fCurrentTime;
     float           fLength;
@@ -92,8 +92,8 @@ public:
 
     // Specialized
     float GetLength() const { return fLength; }
-    plString GetSegmentID() const { return fSegmentID; }
-    void SetSegmentID(const plString &ID) { fSegmentID = ID; }
+    ST::string GetSegmentID() const { return fSegmentID; }
+    void SetSegmentID(const ST::string &ID) { fSegmentID = ID; }
 
     // Export construction functions follow
     void SetPreshadeColorCtl(plController* colCtl);
@@ -173,7 +173,7 @@ public:
     // NEVER!
     // If you think it should... talk to Bob. He will explain why it can't be, and beat you up.
     // If he can't remember, beat him up until he does (or ask Moose).
-    virtual bool DirtySynchState(const char* sdlName, uint32_t sendFlags) { return false; } // don't send link state
+    virtual bool DirtySynchState(const ST::string& sdlName, uint32_t sendFlags) { return false; } // don't send link state
 
     virtual void Read(hsStream* s, hsResMgr* mgr);
     virtual void Write(hsStream* s, hsResMgr* mgr);
@@ -189,11 +189,10 @@ class plLayerSDLAnimation : public plLayerAnimationBase
 {
 protected:
     plSimpleStateVariable *fVar;
-    char *fVarName;
+    ST::string fVarName;
 
 public:
     plLayerSDLAnimation();
-    virtual ~plLayerSDLAnimation();
 
     CLASSNAME_REGISTER( plLayerSDLAnimation );
     GETINTERFACE_ANY( plLayerSDLAnimation, plLayerAnimationBase );
@@ -205,8 +204,8 @@ public:
     virtual void                        Read(hsStream* s, hsResMgr* mgr);
     virtual void                        Write(hsStream* s, hsResMgr* mgr);
 
-    char *GetVarName() { return fVarName; }
-    void SetVarName(char *name);
+    ST::string GetVarName() const { return fVarName; }
+    void SetVarName(const ST::string &name) { fVarName = name; }
 };
 
 #endif // plLayerAnimation_inc

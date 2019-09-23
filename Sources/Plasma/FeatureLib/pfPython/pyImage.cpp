@@ -189,10 +189,9 @@ void pyImage::SaveAsJPEG(const plFileName& fileName, uint8_t quality)
     plJPEG::Instance().WriteToFile(fileName, this->GetImage());
 }
 
-void pyImage::SaveAsPNG(const plFileName& fileName)
+void pyImage::SaveAsPNG(const plFileName& fileName, const std::multimap<ST::string, ST::string>& textFields)
 {
-
-    plPNG::Instance().WriteToFile(fileName, this->GetImage());
+    plPNG::Instance().WriteToFile(fileName, this->GetImage(), textFields);
 }
 
 PyObject* pyImage::LoadJPEGFromDisk(const plFileName& filename, uint16_t width, uint16_t height)
@@ -210,7 +209,7 @@ PyObject* pyImage::LoadJPEGFromDisk(const plFileName& filename, uint16_t width, 
         }
 
         // let's create a nice name for this thing based on the filename
-        plString name = plString::Format("PtImageFromDisk_%s", filename.AsString().c_str());
+        ST::string name = ST::format("PtImageFromDisk_{}", filename);
 
         hsgResMgr::ResMgr()->NewKey(name, theMipmap, plLocation::kGlobalFixedLoc);
         
@@ -235,7 +234,7 @@ PyObject* pyImage::LoadPNGFromDisk(const plFileName& filename, uint16_t width, u
         }
 
         // let's create a nice name for this thing based on the filename
-        plString name = plString::Format("PtImageFromDisk_%s", filename.AsString().c_str());
+        ST::string name = ST::format("PtImageFromDisk_{}", filename);
 
         hsgResMgr::ResMgr()->NewKey(name, theMipmap, plLocation::kGlobalFixedLoc);
 

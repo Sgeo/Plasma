@@ -76,11 +76,10 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plAvatar/plAvatarMgr.h"
 #include "plAvatar/plSeekPointMod.h"
 #include "plAvatar/plOneShotMod.h"
-#include "plAvatar/plAGAnim.h"
-#include "plAvatar/plAvBrainUser.h"
+#include "plAnimation/plAGAnim.h"
 #include "plAvatar/plAvBrainHuman.h"
 #include "plAvatar/plNPCSpawnMod.h"
-#include "plAvatar/plAGAnimInstance.h"
+#include "plAnimation/plAGAnimInstance.h"
 #include "plAvatar/plArmatureEffects.h"
 #include "plAvatar/plAvTaskSeek.h"
 
@@ -112,11 +111,10 @@ PF_CONSOLE_FILE_DUMMY(Avatar)
 //
 /////////////////////////////////////////////////////////////////
 
-plKey FindSceneObjectByName(const plString& name, const plString& ageName, char* statusStr, bool subString=false);
-plKey FindObjectByName(const plString& name, int type, const plString& ageName, char* statusStr, bool subString=false);
-plKey FindObjectByNameAndType(const plString& name, const char* typeName, const plString& ageName,
-                               char* statusStr, bool subString=false);
-void PrintStringF(void pfun(const char *),const char * fmt, ...);
+plKey FindSceneObjectByName(const ST::string& name, const ST::string& ageName, const char** statusStr, bool subString=false);
+plKey FindObjectByName(const ST::string& name, int type, const ST::string& ageName, const char** statusStr, bool subString=false);
+plKey FindObjectByNameAndType(const ST::string& name, const char* typeName, const ST::string& ageName,
+                              const char** statusStr, bool subString=false);
 
 PF_CONSOLE_GROUP( Avatar )
 
@@ -173,7 +171,7 @@ PF_CONSOLE_CMD( Avatar_Spawn, Show, "", "Print a list of spawn points.")
         const plSpawnModifier * spawn = mgr->GetSpawnPoint(i);
         if(spawn)
         {
-            plString soName = "(none)";
+            ST::string soName = ST_LITERAL("(none)");
 
             if (spawn->GetNumTargets() > 0) 
             {
@@ -181,7 +179,7 @@ PF_CONSOLE_CMD( Avatar_Spawn, Show, "", "Print a list of spawn points.")
                 if (so)
                     soName = so->GetKeyName();
             }
-            PrintStringF(PrintString, "%d. %s -> %s", i, soName.c_str(), spawn->GetKeyName().c_str());
+            pfConsolePrintF(PrintString, "{}. {} -> {}", i, soName, spawn->GetKeyName());
         }
     }
 }
@@ -215,7 +213,7 @@ PF_CONSOLE_CMD( Avatar_Spawn, next, "", "Go to the next spawn point in sequence.
     plArmatureMod *avatar = plAvatarMgr::GetInstance()->GetLocalAvatar();
     if(avatar)
     {
-        PrintStringF(PrintString, "Spawning at point %d", whichSpawn);
+        pfConsolePrintF(PrintString, "Spawning at point {}", whichSpawn);
         double fakeTime = 0.0f;
         avatar->SpawnAt(whichSpawn, fakeTime);
     }
@@ -231,7 +229,7 @@ PF_CONSOLE_CMD( Avatar_Spawn, prev, "", "Go to the prev spawn point in sequence.
     plArmatureMod *avatar = plAvatarMgr::GetInstance()->GetLocalAvatar();
     if(avatar)
     {
-        PrintStringF(PrintString, "Spawning at point %d", whichSpawn);
+        pfConsolePrintF(PrintString, "Spawning at point {}", whichSpawn);
         double fakeTime = 0.0f;
         avatar->SpawnAt(whichSpawn, fakeTime);
     }
@@ -250,7 +248,7 @@ PF_CONSOLE_CMD( Avatar_Spawn, Respawn,"", "Moves the avatar back to the start po
 PF_CONSOLE_CMD( Avatar_Spawn, SetSpawnOverride, "string spawnPointName", "Overrides the normal spawn point choice to be the object specified.")
 {
     plArmatureMod::SetSpawnPointOverride( (const char *)params[ 0 ] );
-    PrintStringF(PrintString, "Spawn point override set to object %s", (const char *)params[ 0 ]);
+    pfConsolePrintF(PrintString, "Spawn point override set to object {}", (const char *)params[0]);
 }
 
 PF_CONSOLE_CMD( Avatar_Spawn, DontPanic,"", "Toggles the Don't panic link flag.")
@@ -260,7 +258,7 @@ PF_CONSOLE_CMD( Avatar_Spawn, DontPanic,"", "Toggles the Don't panic link flag."
     if (avatar)
     {
         bool state = avatar->ToggleDontPanicLinkFlag();
-        PrintStringF(PrintString, "DontPanic set to %s", state ? "true" : "false");
+        pfConsolePrintF(PrintString, "DontPanic set to {}", state);
     }
 }
 
@@ -277,7 +275,7 @@ PF_CONSOLE_CMD( Avatar_Turn, GetMaxTurn, "int walk", "Show the maximum turn spee
 
     float maxTurn = brain->GetMaxTurnSpeed((int)params[0] != 0);
 
-    PrintStringF(PrintString, "Avatar max turn speed is %f radians per second.", maxTurn);
+    pfConsolePrintF(PrintString, "Avatar max turn speed is {f} radians per second.", maxTurn);
 }
 
 PF_CONSOLE_CMD( Avatar_Turn, SetMaxTurn, "float maxTurn, int walk", "Set the maximum turn speed in radians per second.")
@@ -288,7 +286,7 @@ PF_CONSOLE_CMD( Avatar_Turn, SetMaxTurn, "float maxTurn, int walk", "Set the max
 
     brain->SetMaxTurnSpeed(newMaxTurn, (int)params[1] != 0);
 
-    PrintStringF(PrintString, "Set the avatar max turn speed to %f radians per second.", newMaxTurn);
+    pfConsolePrintF(PrintString, "Set the avatar max turn speed to {f} radians per second.", newMaxTurn);
 }
 
 // TURN TIME
@@ -299,7 +297,7 @@ PF_CONSOLE_CMD( Avatar_Turn, GetTurnTime, "int walk", "Show the amount of time r
 
     float turnTime = brain->GetTimeToMaxTurn((int)params[0] != 0);
 
-    PrintStringF(PrintString, "The amount of time required to reach max avatar turn speed is %f seconds.", turnTime);
+    pfConsolePrintF(PrintString, "The amount of time required to reach max avatar turn speed is {f} seconds.", turnTime);
 }
 
 PF_CONSOLE_CMD( Avatar_Turn, SetTurnTime, "float turnTime, int walk", "Set the amount of time required to reach max turn speed.")
@@ -310,7 +308,7 @@ PF_CONSOLE_CMD( Avatar_Turn, SetTurnTime, "float turnTime, int walk", "Set the a
 
     brain->SetTimeToMaxTurn(newTurnTime, (int)params[1] != 0);
 
-    PrintStringF(PrintString, "Set the amount of time required to reach max avatar turn speed to %f seconds.", newTurnTime);
+    pfConsolePrintF(PrintString, "Set the amount of time required to reach max avatar turn speed to {f} seconds.", newTurnTime);
 }
 
 // TURN TYPE
@@ -321,7 +319,7 @@ PF_CONSOLE_CMD( Avatar_Turn, GetTurnType, "int walk", "Show the amount of time r
     
     int turnType = brain->GetTurnCurve((int)params[0] != 0);
     
-    PrintStringF(PrintString, "The avatar turn curve type is  %d.", turnType);
+    pfConsolePrintF(PrintString, "The avatar turn curve type is  {}.", turnType);
 }
 
 PF_CONSOLE_CMD( Avatar_Turn, SetTurnType, "int turnType, int walk", "Set the turn acceleration curve type [0..2].")
@@ -332,7 +330,7 @@ PF_CONSOLE_CMD( Avatar_Turn, SetTurnType, "int turnType, int walk", "Set the tur
     
     brain->SetTurnCurve(plAvBrainHuman::TurnCurve(newCurveType), (int)params[1] != 0);
     
-    PrintStringF(PrintString, "Set turn curve to %d.", newCurveType);
+    pfConsolePrintF(PrintString, "Set turn curve to {}.", newCurveType);
 }
 
 
@@ -340,7 +338,7 @@ PF_CONSOLE_CMD( Avatar_Turn, SetMouseTurnSensitivity, "float sensitivity", "Set 
 {
     plArmatureMod::SetMouseTurnSensitivity(params[0]);
     
-    PrintStringF(PrintString, "Set mouse sensitivity to %f", (float)params[0]);
+    pfConsolePrintF(PrintString, "Set mouse sensitivity to {f}", (float)params[0]);
 }
 
 
@@ -355,9 +353,9 @@ PF_CONSOLE_CMD( Avatar_Turn, SetMouseTurnSensitivity, "float sensitivity", "Set 
 // MULTISTAGE.TRIGGER
 PF_CONSOLE_CMD( Avatar_Multistage, Trigger, "string multiComp", "Triggers the named Multistage Animation component")
 {
-    char str[256];
-    plKey key = FindObjectByNameAndType(plString::FromUtf8(params[0]), "plMultistageBehMod", "", str, true);
-    PrintString(str);
+    const char *status = "";
+    plKey key = FindObjectByNameAndType(ST::string::from_utf8(params[0]), "plMultistageBehMod", "", &status, true);
+    PrintString(status);
 
     if (key)
     {
@@ -368,11 +366,11 @@ PF_CONSOLE_CMD( Avatar_Multistage, Trigger, "string multiComp", "Triggers the na
         
         // Setup the event data in case this is a OneShot responder that needs it
         plKey playerKey = plAvatarMgr::GetInstance()->GetLocalAvatar()->GetKey();
-        proPickedEventData *ed = new proPickedEventData;
-        ed->fPicker = playerKey;
-        ed->fPicked = key; // ???
-        msg->AddEvent(ed);
-        
+        proPickedEventData ed;
+        ed.fPicker = playerKey;
+        ed.fPicked = key; // ???
+        msg->AddEvent(&ed);
+
         // Send it to the responder modifier
         msg->AddReceiver(key);
         plgDispatch::MsgSend(msg);
@@ -467,8 +465,8 @@ PF_CONSOLE_CMD( Avatar,
                "Mark whether avatars in regionA want updates on those on regionB" )
 {
     plRelevanceMgr *mgr = plRelevanceMgr::Instance();
-    plString regA = plString::FromUtf8(params[0]);
-    plString regB = plString::FromUtf8(params[1]);
+    ST::string regA = ST::string::from_utf8(params[0]);
+    ST::string regB = ST::string::from_utf8(params[1]);
     mgr->MarkRegion(mgr->GetIndex(regA), mgr->GetIndex(regB), params[2]);
 }
 
@@ -480,19 +478,18 @@ PF_CONSOLE_CMD( Avatar,
     plRelevanceMgr *mgr = plRelevanceMgr::Instance();
     mgr->SetEnabled(!mgr->GetEnabled());
 
-    PrintStringF(PrintString, "All relevance regions are now %s", (mgr->GetEnabled() ? "ENABLED" : "DISABLED"));
+    pfConsolePrintF(PrintString, "All relevance regions are now {}", (mgr->GetEnabled() ? "ENABLED" : "DISABLED"));
 }
 
 PF_CONSOLE_CMD( Avatar, SeekPoint, "string seekpoint", "Move to the given seekpoint.")
 {
-    plString spName = plString::FromUtf8(params[0]);
+    ST::string spName = ST::string::from_utf8(params[0]);
     
     plArmatureMod *avatar = plAvatarMgr::GetInstance()->GetLocalAvatar();
     
     if(avatar)
     {
-        char buff[256];
-        plKey seekKey = FindSceneObjectByName(spName, "", buff);
+        plKey seekKey = FindSceneObjectByName(spName, "", nullptr);
         plSeekPointMod *mod = plAvatarMgr::GetInstance()->FindSeekPoint(spName);
         
         if(mod)
@@ -575,7 +572,7 @@ PF_CONSOLE_CMD( Avatar, SetMouseTurnSensitivity, "float sensitivity", "Set how s
 {
     plArmatureMod::SetMouseTurnSensitivity(params[0]);
     
-    PrintStringF(PrintString, "Set mouse sensitivity to %f", (float)params[0]);
+    pfConsolePrintF(PrintString, "Set mouse sensitivity to {f}", (float)params[0]);
 }
 
 
@@ -587,9 +584,8 @@ PF_CONSOLE_CMD( Avatar, ClickToTurn, "bool b", "Set click-to-turn functionality.
 
 PF_CONSOLE_CMD( Avatar, FakeLinkToObj, "string objName", "Pseudo-Link the avatar to the specified object's location")
 {
-    plString spName = plString::FromUtf8(params[0]);
-    char buff[256];
-    plKey seekKey = FindSceneObjectByName(spName, "", buff);
+    ST::string spName = ST::string::from_utf8(params[0]);
+    plKey seekKey = FindSceneObjectByName(spName, "", nullptr);
     if (!seekKey)
     {
         PrintString("Can't find object with that name, fake link failed.");
@@ -633,11 +629,11 @@ PF_CONSOLE_CMD( Avatar_Physics, TogglePhysical, "", "Disable/enable physics on t
 
 PF_CONSOLE_CMD( Avatar_Anim, BlendAnim, "string Animation, float blendFactor", "Blend the given animation with the current animation.")
 {
-    plString animationName = plString::FromUtf8(params[0]);
+    ST::string animationName = ST::string::from_utf8(params[0]);
     float blendFactor = params[1];
     plArmatureMod *avatar = plAvatarMgr::GetInstance()->GetLocalAvatar();
 
-    if (avatar && !animationName.IsNull())
+    if (avatar && !animationName.empty())
     {
         plAGAnim * anim = plAGAnim::FindAnim(animationName);
         if(anim)
@@ -651,12 +647,12 @@ PF_CONSOLE_CMD( Avatar_Anim, BlendAnim, "string Animation, float blendFactor", "
 
 PF_CONSOLE_CMD( Avatar_Anim, BlendAnimPri, "string Animation, float blendFactor, int priority", "Blend animation using priority.")
 {
-    plString animationName = plString::FromUtf8(params[0]);
+    ST::string animationName = ST::string::from_utf8(params[0]);
     float blendFactor = params[1];
     int priority = params[2];
     plArmatureMod *avatar = plAvatarMgr::GetInstance()->GetLocalAvatar();
 
-    if (avatar && !animationName.IsNull())
+    if (avatar && !animationName.empty())
     {
         plAGAnim * anim = plAGAnim::FindAnim(animationName);
         if(anim)
@@ -672,15 +668,15 @@ PF_CONSOLE_CMD( Avatar_Anim, PlaySimpleAnim, "string AvatarName, string Animatio
 {
     plArmatureMod *avatar = plAvatarMgr::GetInstance()->FindAvatarByModelName((const char*)params[0]);
     if (avatar)
-        avatar->PlaySimpleAnim(plString::FromUtf8(params[1]));
+        avatar->PlaySimpleAnim(ST::string::from_utf8(params[1]));
 }
 
 PF_CONSOLE_CMD( Avatar_Anim, DetachAnim, "string Animation", "Remove the given animation from the avatar.")
 {
-    plString animationName = plString::FromUtf8(params[0]);
+    ST::string animationName = ST::string::from_utf8(params[0]);
     plArmatureMod *avatar = plAvatarMgr::GetInstance()->GetLocalAvatar();
 
-    if (avatar && !animationName.IsNull())
+    if (avatar && !animationName.empty())
     {
         plAGAnimInstance * instance = avatar->FindAnimInstance(animationName);
         if(instance)
@@ -692,11 +688,11 @@ PF_CONSOLE_CMD( Avatar_Anim, DetachAnim, "string Animation", "Remove the given a
 
 PF_CONSOLE_CMD( Avatar_Anim, SetBlend, "string Animation, float blend", "Set the blend of the given animation.")
 {
-    plString animationName = plString::FromUtf8(params[0]);
+    ST::string animationName = ST::string::from_utf8(params[0]);
     float blend = params[1];
     plArmatureMod *avatar = plAvatarMgr::GetInstance()->GetLocalAvatar();
 
-    if (avatar && !animationName.IsNull())
+    if (avatar && !animationName.empty())
     {
         plAGAnimInstance *anim = avatar->FindAnimInstance(animationName);
         if(anim)
@@ -749,7 +745,7 @@ PF_CONSOLE_CMD( Avatar_LOD, SetLODDistance, "float newDist", "Set Distance for s
 
 PF_CONSOLE_CMD( Avatar_LOD,  GetLODDistance, "", "Get Distance for switching Avatar LOD" )
 {
-    PrintStringF(PrintString, "Lod Distance = %f", plArmatureLODMod::fLODDistance);
+    pfConsolePrintF(PrintString, "Lod Distance = {f}", plArmatureLODMod::fLODDistance);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

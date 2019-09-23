@@ -40,11 +40,12 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 *==LICENSE==*/
 #include <cmath>
+#include <algorithm>
 
 #include "plAvBehaviors.h"
 #include "plAvBrainHuman.h"
 #include "plArmatureMod.h"
-#include "plAGAnimInstance.h"
+#include "plAnimation/plAGAnimInstance.h"
 #include "plMessage/plAvatarMsg.h"
 
 #include "plPipeline/plDebugText.h"
@@ -101,24 +102,24 @@ void plArmatureBehavior::Rewind()
         fAnim->SetCurrentTime(0.0f, true);
 }
 
-void plArmatureBehavior::DumpDebug(int &x, int &y, int lineHeight, char *strBuf, plDebugText &debugTxt)
+void plArmatureBehavior::DumpDebug(int &x, int &y, int lineHeight, plDebugText &debugTxt)
 {
     float strength = GetStrength();
     const char *onOff = strength > 0 ? "on" : "off";
-    char blendBar[11] = "||||||||||";
-    int bars = (int)min(10 * strength, 10);
+    char blendBar[] = "||||||||||";
+    int bars = std::min(static_cast<int>(10 * strength), 10);
     blendBar[bars] = '\0';
 
+    ST::string details;
     if (fAnim)
     {
-        plString animName = fAnim->GetName();
-        float time = fAnim->GetTimeConvert()->CurrentAnimTime();    
-        sprintf(strBuf, "%20s %3s time: %5.2f %s", animName.c_str(), onOff, time, blendBar);
+        float time = fAnim->GetTimeConvert()->CurrentAnimTime();
+        details = ST::format("{>20} {>3} time: {5.2f} {}", fAnim->GetName(), onOff, time, blendBar);
     }
     else
-        sprintf(strBuf, "         Behavior %2d %3s %s", fIndex, onOff, blendBar);
+        details = ST::format("         Behavior {2} {>3} {}", fIndex, onOff, blendBar);
 
-    debugTxt.DrawString(x, y, strBuf);
+    debugTxt.DrawString(x, y, details);
     y += lineHeight; 
 }
 

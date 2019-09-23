@@ -42,14 +42,14 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "HeadSpin.h"
 #include "hsWindows.h"
 
-#include <D3d9.h>
-#include <D3dx9core.h>
+#include <d3d9.h>
+#include <d3dx9core.h>
 
 #include "plDXVertexShader.h"
 
 #include "plSurface/plShader.h"
 
-#include "plPipeline/plGBufferGroup.h"
+#include "plDrawable/plGBufferGroup.h"
 #include "plDXPipeline.h"
 
 plDXVertexShader::plDXVertexShader(plShader* owner)
@@ -124,7 +124,9 @@ HRESULT plDXVertexShader::ICreate(plDXPipeline* pipe)
 
             if( FAILED(hr) )
             {
-                return IOnError(hr, compilationErrors ? (char*)compilationErrors->GetBufferPointer() : "File not found");
+                return IOnError(hr, compilationErrors
+                        ? reinterpret_cast<const char *>(compilationErrors->GetBufferPointer())
+                        : "File not found");
             }
 
             shaderCodes = (DWORD*)(compiledShader->GetBufferPointer());

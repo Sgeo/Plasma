@@ -59,6 +59,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "HeadSpin.h"
 #include "hsThread.h"
 #include "plFileSystem.h"
+#include "plLoggable.h"
 
 #include <string>
 
@@ -69,9 +70,9 @@ class plPipeline;
 //  really be visible at any given time.
 
 class plStatusLogMgr;
-class hsMutex;
 class plStatusLogDrawerStub;
-class plStatusLog
+
+class plStatusLog : public plLog
 {
     friend class plStatusLogMgr;
     friend class plStatusLogDrawerStub;
@@ -87,7 +88,7 @@ class plStatusLog
         plFileName   fFilename;
         char**       fLines;
         uint32_t*    fColors;
-        hsSemaphore* fSema;
+        hsGlobalSemaphore* fSema;
         FILE*        fFileHandle;
         uint32_t     fSize;
         bool         fForceLog;
@@ -101,7 +102,7 @@ class plStatusLog
 
         bool    IAddLine( const char *line, int32_t count, uint32_t color );
         bool    IPrintLineToFile( const char *line, uint32_t count );
-        void    IParseFileName(plFileName &fileNoExt, plString &ext) const;
+        void    IParseFileName(plFileName &fileNoExt, ST::string &ext) const;
 
         void    IInit( void );
         void    IFini( void );
@@ -158,6 +159,8 @@ class plStatusLog
 
         ~plStatusLog();
 
+        bool AddLine(const ST::string& line) HS_OVERRIDE;
+
         bool    AddLine( const char *line, uint32_t color = kWhite );
 
         /// printf-like functions
@@ -205,8 +208,6 @@ class plStatusLogMgr
         double fLastLogChangeTime;
 
         static plFileName IGetBasePath();
-
-        hsMutex     fMutex;     // To make multithreaded-safe
 
     public:
 

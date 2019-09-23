@@ -64,11 +64,11 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnKeyedObject/plFixedKey.h"
 
 // chronicle var
-#define kCleftSolved                    L"CleftSolved"
+#define kCleftSolved                    "CleftSolved"
 
 #include "plAvatar/plArmatureMod.h"
 #include "plAvatar/plAvatarTasks.h"
-#include "plAvatar/plAGAnim.h"
+#include "plAnimation/plAGAnim.h"
 #include "plMessage/plAvatarMsg.h"
 #include "plMessage/plLoadAgeMsg.h"
 
@@ -304,7 +304,7 @@ bool plLinkEffectsMgr::MsgReceive(plMessage *msg)
     plLinkEffectsTriggerMsg* pTriggerMsg = plLinkEffectsTriggerMsg::ConvertNoRef(msg);
     if (pTriggerMsg)
     {
-        plNetApp::GetInstance()->DebugMsg("Received LinkEffectsTriggerMsg, local=%d, linkingIn=%d, stealth=%d", 
+        plNetApp::GetInstance()->DebugMsg("Received LinkEffectsTriggerMsg, local={}, linkingIn={}, stealth={}",
             !msg->HasBCastFlag(plMessage::kNetNonLocal),
             !pTriggerMsg->IsLeavingAge(), pTriggerMsg->GetInvisLevel());
 
@@ -328,7 +328,7 @@ bool plLinkEffectsMgr::MsgReceive(plMessage *msg)
         plSceneObject *avatar = plSceneObject::ConvertNoRef(linkKey->ObjectIsLoaded());
         if (avatar == nil)
         {
-            plNetApp::GetInstance()->DebugMsg("Can't find avatar, mod=%s\n", linkKey->GetName().c_str());
+            plNetApp::GetInstance()->DebugMsg("Can't find avatar, mod={}\n", linkKey->GetName());
             return true;
         }
 
@@ -374,23 +374,23 @@ bool plLinkEffectsMgr::MsgReceive(plMessage *msg)
         if (linkKey == nc->GetLocalPlayerKey())
         {
             if(lm) {
-                const char *ageName = lm->GetAgeLink()->GetAgeInfo()->GetAgeFilename();
-                const char *prevAgeName = lm->GetPrevAgeLink()->GetAgeInfo()->GetAgeFilename();
+                ST::string ageName = lm->GetAgeLink()->GetAgeInfo()->GetAgeFilename();
+                ST::string prevAgeName = lm->GetPrevAgeLink()->GetAgeInfo()->GetAgeFilename();
 
-                bool linkToStartup = ageName && !stricmp(ageName, kStartUpAgeFilename   );      // To Startup
-                bool linkFromStartup = prevAgeName && !stricmp(prevAgeName, kStartUpAgeFilename);   // Leaving Startup
+                bool linkToStartup = ageName.compare_i(kStartUpAgeFilename) == 0;      // To Startup
+                bool linkFromStartup = prevAgeName.compare_i(kStartUpAgeFilename) == 0;   // Leaving Startup
 
                 bool cleftSolved = VaultHasChronicleEntry( kCleftSolved );
 
-                bool linkToACA = ageName && !stricmp(ageName, kAvCustomizationFilename);
-                bool linkFromACA = prevAgeName && !stricmp(prevAgeName, kAvCustomizationFilename);
+                bool linkToACA = ageName.compare_i(kAvCustomizationFilename) == 0;
+                bool linkFromACA = prevAgeName.compare_i(kAvCustomizationFilename) == 0;
 
                 bool linkToFissureDrop = lm && 
                                         lm->GetAgeLink()->HasSpawnPt() &&
-                                        !lm->GetAgeLink()->SpawnPoint().GetName().CompareI(kCleftAgeLinkInPointFissureDrop);
+                                        !lm->GetAgeLink()->SpawnPoint().GetName().compare_i(kCleftAgeLinkInPointFissureDrop);
                 bool linkToDsntFromShell = lm && 
                                         lm->GetAgeLink()->HasSpawnPt() &&
-                                        !lm->GetAgeLink()->SpawnPoint().GetTitle().CompareI(kDescentLinkFromShell);
+                                        !lm->GetAgeLink()->SpawnPoint().GetTitle().compare_i(kDescentLinkFromShell);
                 if ( linkToACA || linkFromACA || linkToStartup || linkFromStartup || linkToFissureDrop || linkToDsntFromShell)
                 {
                     BCMsg->SetLinkFlag(plLinkEffectBCMsg::kMute);
@@ -450,7 +450,7 @@ bool plLinkEffectsMgr::MsgReceive(plMessage *msg)
     plLinkCallbackMsg* pLinkCallbackMsg = plLinkCallbackMsg::ConvertNoRef(msg);
     if (pLinkCallbackMsg)
     {
-        plNetApp::GetInstance()->DebugMsg("Received pLinkCallbackMsg, localmsg=%d\n", 
+        plNetApp::GetInstance()->DebugMsg("Received pLinkCallbackMsg, localmsg={}\n",
             !msg->HasBCastFlag(plMessage::kNetNonLocal));
 
         static char str[ 128 ];
@@ -468,13 +468,13 @@ bool plLinkEffectsMgr::MsgReceive(plMessage *msg)
         }
         else if (pTriggerMsg->fEffects < 0 )
         {
-            plNetApp::GetInstance()->DebugMsg("Too many link callbacks received for avatar %s. Ignoring extras.\n",
-                    pTriggerMsg->GetLinkKey()->GetName().c_str());
+            plNetApp::GetInstance()->DebugMsg("Too many link callbacks received for avatar {}. Ignoring extras.\n",
+                    pTriggerMsg->GetLinkKey()->GetName());
         }
         else
         {
-            plNetApp::GetInstance()->DebugMsg("%d link callbacks left until avatar %s links...\n", 
-                     pTriggerMsg->fEffects, pTriggerMsg->GetLinkKey()->GetName().c_str());
+            plNetApp::GetInstance()->DebugMsg("{} link callbacks left until avatar {} links...\n",
+                     pTriggerMsg->fEffects, pTriggerMsg->GetLinkKey()->GetName());
         }
         return true;
     }

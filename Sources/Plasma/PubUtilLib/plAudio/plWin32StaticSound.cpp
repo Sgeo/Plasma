@@ -115,7 +115,7 @@ bool plWin32StaticSound::LoadSound( bool is3D )
 
         if( retVal == plSoundBuffer::kError )
         {
-            plString str = plString::Format( "Unable to open .wav file %s", fDataBufferKey ? fDataBufferKey->GetName().c_str() : "nil");
+            ST::string str = ST::format("Unable to open .wav file {}", fDataBufferKey ? fDataBufferKey->GetName() : "nil");
             IPrintDbgMessage( str.c_str(), true );
             fFailed = true;
             return false;
@@ -152,9 +152,10 @@ bool plWin32StaticSound::LoadSound( bool is3D )
         fDSoundBuffer = new plDSoundBuffer( bufferSize, header, is3D, IsPropertySet( kPropLooping ), tryStatic );
         if( !fDSoundBuffer->IsValid() )
         {
-            char str[256];
-            sprintf(str, "Can't create sound buffer for %s.wav. This could happen if the wav file is a stereo file. Stereo files are not supported on 3D sounds. If the file is not stereo then please report this error.", GetFileName().AsString().c_str());
-            IPrintDbgMessage( str, true );
+            ST::string str = ST::format("Can't create sound buffer for {}.wav. This could happen if the wav file is a stereo file."
+                                        " Stereo files are not supported on 3D sounds. If the file is not stereo then please report this error.",
+                                        GetFileName());
+            IPrintDbgMessage(str.c_str(), true);
             fFailed = true;
 
             delete fDSoundBuffer;
@@ -333,7 +334,7 @@ bool plWin32LinkSound::MsgReceive( plMessage* pMsg )
         if (sMsg->GetSender()->GetUoid().GetClonePlayerID() == GetKey()->GetUoid().GetClonePlayerID())
         {
             SetProperty(kPropFullyDisabled, (sMsg->fMode == plAvatarStealthModeMsg::kStealthCloaked));
-            plNetApp::StaticDebugMsg("plWin32LinkSound: rcvd avatarStealth msg, cloaked=%d", sMsg->fMode == plAvatarStealthModeMsg::kStealthCloaked);           
+            plNetApp::StaticDebugMsg("plWin32LinkSound: rcvd avatarStealth msg, cloaked={}", sMsg->fMode == plAvatarStealthModeMsg::kStealthCloaked);
         }
         return true;
     }

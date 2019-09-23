@@ -474,7 +474,7 @@ void plWinAudible::Read(hsStream* s, hsResMgr* mgr)
 
 void plWinAudible::IAssignSoundKey( plSound *sound, const char *name, uint32_t i )
 {
-    plString keyName = plString::Format( "%s_%d", name, i );
+    ST::string keyName = ST::format("{}_{}", name, i);
     hsgResMgr::ResMgr()->NewKey( keyName, sound, GetKey() ? GetKey()->GetUoid().GetLocation() : plLocation::kGlobalFixedLoc );
 }
 
@@ -606,7 +606,7 @@ int plWinAudible::GetSoundIndex(const char *keyname) const
     for( int i = 0; i < fSoundObjs.Count(); i++)
     {
         if(!fSoundObjs[i]) continue;
-        if(!fSoundObjs[i]->GetKeyName().Compare( keyname ))
+        if(!fSoundObjs[i]->GetKeyName().compare( keyname ))
         {
             return i;
         }
@@ -664,7 +664,7 @@ bool pl2WayWinAudible::MsgReceive(plMessage* msg)
     if (pCtrlMsg)
     {
         if (pCtrlMsg->GetControlCode() == S_PUSH_TO_TALK && fVoiceRecorder)
-            fVoiceRecorder->SetMikeOpen(pCtrlMsg->ControlActivated());
+            fVoiceRecorder->SetMicOpen(pCtrlMsg->ControlActivated());
         return true;
     }
 
@@ -674,16 +674,10 @@ bool pl2WayWinAudible::MsgReceive(plMessage* msg)
 void pl2WayWinAudible::Init(bool isLocal)
 {
     if (!fVoicePlayer)
-    {
-        if(!isLocal)
-            fVoicePlayer = new plVoicePlayer;
-    }
-    if(!fVoiceRecorder)
-    {
-        if(isLocal)
-        {
+        fVoicePlayer = new plVoicePlayer;
+    if (!fVoiceRecorder) {
+        if (isLocal)
             fVoiceRecorder = new plVoiceRecorder;
-        }
     }
     Activate();
 }
@@ -741,12 +735,7 @@ void pl2WayWinAudible::Read(hsStream* s, hsResMgr* mgr)
 void pl2WayWinAudible::PlayNetworkedSpeech(const char* addr, int32_t size, int numFrames, unsigned char flags)
 {
     if (fVoicePlayer)
-    {
-        if (!(flags & VOICE_ENCODED))
-            fVoicePlayer->PlaybackUncompressedVoiceMessage((uint8_t*)addr, size);
-        else
-            fVoicePlayer->PlaybackVoiceMessage((uint8_t*)addr, size, numFrames);
-    }
+        fVoicePlayer->PlaybackVoiceMessage((uint8_t*)addr, size, numFrames, flags);
 }
 
 plAudible& pl2WayWinAudible::SetTransform(const hsMatrix44& l2w, const hsMatrix44& w2l, int index)

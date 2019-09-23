@@ -129,7 +129,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plPickMaterialMap.h"
 
 #include "plInterp/plController.h"
-#include "plAvatar/plMatrixChannel.h"
+#include "plAnimation/plMatrixChannel.h"
 
 #include "MaxPlasmaMtls/Layers/plLayerTex.h"
 
@@ -1320,7 +1320,7 @@ bool plGUIDialogComponent::Convert(plMaxNode *node, plErrorMsg *pErrMsg)
     // Add it to the sceneNode as a generic interface, so it gets loaded with the sceneNode
     plLocation nodeLoc = sceneNodeKey->GetUoid().GetLocation();
 
-    plKey modKey = hsgResMgr::ResMgr()->NewKey( plString::FromUtf8( fCompPB->GetStr( kRefDialogName ) ), mod, nodeLoc );
+    plKey modKey = hsgResMgr::ResMgr()->NewKey( ST::string::from_utf8( fCompPB->GetStr( kRefDialogName ) ), mod, nodeLoc );
     hsgResMgr::ResMgr()->AddViaNotify( modKey, new plNodeRefMsg( sceneNodeKey, plRefMsg::kOnCreate, -1, plNodeRefMsg::kGeneric ), plRefFlags::kActiveRef );
 
     // Also add our dialog mod to the scene node in the same way
@@ -1361,7 +1361,7 @@ bool plGUIDialogComponent::PreConvert(plMaxNode *node,  plErrorMsg *pErrMsg)
                                                             fCompPB->GetStr( kRefDialogName ), (uint32_t)-1 );
 
         plLocation nodeLoc = sceneNodeKey->GetUoid().GetLocation();
-        plKey dlgKey = hsgResMgr::ResMgr()->NewKey( plString::FromUtf8( fCompPB->GetStr( kRefDialogName ) ), fDialogMod, nodeLoc );
+        plKey dlgKey = hsgResMgr::ResMgr()->NewKey( ST::string::from_utf8( fCompPB->GetStr( kRefDialogName ) ), fDialogMod, nodeLoc );
 
         fDialogMod->SetSceneNodeKey( sceneNodeKey );
 
@@ -1449,7 +1449,7 @@ void    plGUIDialogProc::ILoadPages( HWND hWnd, IParamBlock2 *pb )
     while( ( page = aged->GetNextPage() ) != nil )
     {
         int idx = ComboBox_AddString( hWnd, page->GetName().c_str() );
-        if( selPageName && page->GetName().CompareI( selPageName ) == 0 )
+        if( selPageName && page->GetName().compare_i( selPageName ) == 0 )
             ComboBox_SetCurSel( hWnd, idx );
     }
 
@@ -1470,10 +1470,10 @@ BOOL plGUIDialogProc::DlgProc( TimeValue t, IParamMap2 *pmap, HWND hWnd, UINT ms
                 ComboBox_ResetContent( ageCombo );
                 for( i = 0; i < ageList.GetCount(); i++ )
                 {
-                    plString ageName = ageList[i].GetFileNameNoExt();
+                    ST::string ageName = ageList[i].GetFileNameNoExt();
 
                     idx = ComboBox_AddString( ageCombo, ageName.c_str() );
-                    if( ageName.CompareI( pmap->GetParamBlock()->GetStr( plGUIDialogComponent::kRefAgeName ) ) == 0 )
+                    if( ageName.compare_i( pmap->GetParamBlock()->GetStr( plGUIDialogComponent::kRefAgeName ) ) == 0 )
                     {
                         selIdx = idx;
                     }
@@ -2691,7 +2691,7 @@ bool plGUIKnobCtrlComponent::PreConvert(plMaxNode *node,  plErrorMsg *pErrMsg)
 }
 
 // For hackery below (see warning below)
-#include "plAvatar/plAGMasterMod.h"
+#include "plAnimation/plAGMasterMod.h"
 
 bool plGUIKnobCtrlComponent::Convert(plMaxNode *node, plErrorMsg *pErrMsg)
 {
@@ -3629,10 +3629,6 @@ public:
 
     bool PreConvert(plMaxNode *pNode, plErrorMsg *pErrMsg);
     bool Convert(plMaxNode *node, plErrorMsg *pErrMsg);
-
-    enum
-    {
-    };
 };
 
 //Max desc stuff necessary below.
@@ -4413,7 +4409,7 @@ bool plGUIProgressCtrlComponent::PreConvert(plMaxNode *node,  plErrorMsg *pErrMs
 }
 
 // For hackery below (see warning below)
-#include "plAvatar/plAGMasterMod.h"
+#include "plAnimation/plAGMasterMod.h"
 
 bool plGUIProgressCtrlComponent::Convert(plMaxNode *node, plErrorMsg *pErrMsg)
 {

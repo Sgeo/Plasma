@@ -112,9 +112,9 @@ bool plLocation::IsVirtual() const
 }
 
 // THIS SHOULD BE FOR DEBUGGING ONLY <hint hint>
-plString plLocation::StringIze()  const // Format to displayable string
+ST::string plLocation::StringIze()  const // Format to displayable string
 {
-    return plString::Format("S0x%xF0x%x", fSequenceNumber, int(fFlags));
+    return ST::format("S{#x}F{#x}", fSequenceNumber, fFlags);
 }
 
 plLocation plLocation::MakeReserved(uint32_t number)
@@ -129,7 +129,7 @@ plLocation plLocation::MakeNormal(uint32_t number)
 
 //// plUoid //////////////////////////////////////////////////////////////////
 
-plUoid::plUoid(const plLocation& location, uint16_t classType, const plString& objectName, const plLoadMask& m)
+plUoid::plUoid(const plLocation& location, uint16_t classType, const ST::string& objectName, const plLoadMask& m)
 {
     Invalidate();
 
@@ -153,7 +153,7 @@ plUoid::~plUoid()
 
 void plUoid::Read(hsStream* s)
 {
-    hsAssert(fObjectName.IsNull(), "Reading over an old uoid? You're just asking for trouble, aren't you?");
+    hsAssert(fObjectName.empty(), "Reading over an old uoid? You're just asking for trouble, aren't you?");
 
     // first read contents flags
     uint8_t contents = s->ReadByte();
@@ -169,7 +169,7 @@ void plUoid::Read(hsStream* s)
     s->LogReadLE(&fClassType, "ClassType");
     s->LogReadLE(&fObjectID, "ObjectID");
     s->LogSubStreamPushDesc("ObjectName");
-    fObjectName = s->LogReadSafeString_TEMP();
+    fObjectName = s->LogReadSafeString();
 
     // conditional cloneIDs read
     if (contents & kHasCloneIDs)
@@ -220,7 +220,7 @@ void plUoid::Invalidate()
     fCloneID = 0;
     fClonePlayerID = 0;
     fClassType = 0;
-    fObjectName = plString::Null;
+    fObjectName = ST::null;
     fLocation.Invalidate();
     fLoadMask = plLoadMask::kAlways;
 
@@ -228,7 +228,7 @@ void plUoid::Invalidate()
 
 bool plUoid::IsValid() const
 {
-    if (!fLocation.IsValid() || fObjectName.IsNull())
+    if (!fLocation.IsValid() || fObjectName.empty())
         return false;
 
     return true;
@@ -259,12 +259,12 @@ plUoid& plUoid::operator=(const plUoid& rhs)
 }
 
 // THIS SHOULD BE FOR DEBUGGING ONLY <hint hint>
-plString plUoid::StringIze() const // Format to displayable string
+ST::string plUoid::StringIze() const // Format to displayable string
 {
-    return plString::Format("(0x%x:0x%x:%s:C:[%u,%u])",
-        fLocation.GetSequenceNumber(), 
-        int(fLocation.GetFlags()), 
-        fObjectName.c_str(),
-        GetClonePlayerID(), 
+    return ST::format("({#x}:{#x}:{}:C:[{},{}])",
+        fLocation.GetSequenceNumber(),
+        fLocation.GetFlags(),
+        fObjectName,
+        GetClonePlayerID(),
         GetCloneID());
 }

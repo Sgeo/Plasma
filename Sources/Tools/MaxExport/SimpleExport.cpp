@@ -254,7 +254,7 @@ int HSExport2::DoExport(const TCHAR *name,ExpInterface *ei,Interface *gi, BOOL s
     plFileName out_path = plFileName(name).StripFileName();
 
     // Apparently this was implied by the open dialog, but not if you call Max's ExportToFile() func
-    SetCurrentDirectoryW(out_path.AsString().ToWchar());
+    SetCurrentDirectoryW(out_path.WideString().data());
 
     // 
     // Setup ErrorMsg
@@ -306,7 +306,7 @@ int HSExport2::DoExport(const TCHAR *name,ExpInterface *ei,Interface *gi, BOOL s
 
     // Add disk source for writing
     plFileName datPath = plFileName::Join(out_path, "dat");
-    CreateDirectoryW(datPath.AsString().ToWchar(), NULL);
+    CreateDirectoryW(datPath.WideString().data(), NULL);
     plPluginResManager::ResMgr()->SetDataPath(datPath);
 
     if (hsgResMgr::Reset())
@@ -368,7 +368,8 @@ int HSExport2::DoExport(const TCHAR *name,ExpInterface *ei,Interface *gi, BOOL s
     dbLog.Open(name,"at");
     char str[256];
     exportTime = (timeGetTime() - exportTime) / 1000;
-    sprintf(str,"Export from Max File \"%s\" on %02d/%02d/%4d took %d:%02d\n",filename,tm.wMonth,tm.wDay,tm.wYear, exportTime/60, exportTime%60);
+    snprintf(str, arrsize(str), "Export from Max File \"%s\" on %02d/%02d/%4d took %d:%02d\n",
+             (const char *)filename, tm.wMonth, tm.wDay, tm.wYear, exportTime/60, exportTime%60);
     dbLog.WriteString(str);
     dbLog.Close();
 

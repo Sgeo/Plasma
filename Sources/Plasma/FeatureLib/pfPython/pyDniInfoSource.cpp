@@ -50,14 +50,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plVault/plVault.h"
 #include "pyDniCoordinates.h"
 
-pyDniInfoSource::pyDniInfoSource()
-:   fAgeName(nil)
-{}
-
-pyDniInfoSource::~pyDniInfoSource() {
-    free(fAgeName);
-}
-
 PyObject* pyDniInfoSource::GetAgeCoords( void )
 {
 #if 0 // this may get retooled for another purpose someday...
@@ -71,7 +63,7 @@ PyObject* pyDniInfoSource::GetAgeCoords( void )
 
 uint32_t pyDniInfoSource::GetAgeTime( void ) const
 {
-    RelVaultNode * node = VaultGetAgeInfoNodeIncRef();
+    hsRef<RelVaultNode> node = VaultGetAgeInfoNode();
     if (!node)
         return 0;
     
@@ -81,34 +73,26 @@ uint32_t pyDniInfoSource::GetAgeTime( void ) const
         result = (uint32_t)utime->GetSecs();
     else
         result = 0;
-    node->DecRef();
 
     return result;
 }
 
-const char * pyDniInfoSource::GetAgeName( void ) const
+ST::string pyDniInfoSource::GetAgeName() const
 {
-    RelVaultNode * node = VaultGetAgeInfoNodeIncRef();
+    hsRef<RelVaultNode> node = VaultGetAgeInfoNode();
     if (!node)
-        return "";
+        return ST::null;
 
     VaultAgeInfoNode ageInfo(node);
-
-    fAgeName = StrDupToAnsi(ageInfo.GetAgeInstanceName());
-    node->DecRef();
-
-    return fAgeName;
+    return ageInfo.GetAgeInstanceName();
 }
 
 plUUID pyDniInfoSource::GetAgeGuid( void ) const
 {
-    if (RelVaultNode * node = VaultGetAgeInfoNodeIncRef())
+    if (hsRef<RelVaultNode> node = VaultGetAgeInfoNode())
     {
         VaultAgeInfoNode ageInfo(node);
-        plUUID uuid = ageInfo.GetAgeInstanceGuid();
-        node->DecRef();
-
-        return uuid;
+        return ageInfo.GetAgeInstanceGuid();
     }
 
     return kNilUuid;

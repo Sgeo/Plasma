@@ -46,10 +46,19 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #ifdef _MSC_VER
 #   include <crtdbg.h>
 #endif
+
 #pragma hdrstop
 
+#if defined(HS_BUILD_FOR_UNIX)
+#   include <cstring>
+#   include <sys/stat.h>
+#   include <fcntl.h>
+#   include <unistd.h>
+#   include <signal.h>
+#endif
+
 #include "hsTemplates.h"
-#include "plString.h"
+#include <string_theory/format>
 
 
 ///////////////////////////////////////////////////////////////////////////
@@ -80,7 +89,7 @@ hsDebugMessageProc hsSetDebugMessageProc(hsDebugMessageProc newProc)
 }
 
 #ifdef HS_DEBUGGING
-void hsDebugMessage (const char message[], long val)
+void hsDebugMessage (const char* message, long val)
 {
     char    s[1024];
 
@@ -93,15 +102,14 @@ void hsDebugMessage (const char message[], long val)
         gHSDebugProc(&s[1]);
     else
 #if HS_BUILD_FOR_WIN32
-    {   OutputDebugString(&s[1]);
+    {
+        OutputDebugString(&s[1]);
         OutputDebugString("\n");
     }
-#elif HS_BUILD_FOR_UNIX
-    {   fprintf(stderr, "%s\n", &s[1]);
-//      hsThrow(&s[1]);
-    }
 #else
-    hsThrow(&s[1]);
+    {
+        fprintf(stderr, "%s\n", &s[1]);
+    }
 #endif
 }
 #endif
@@ -112,33 +120,60 @@ void ErrorEnableGui(bool enabled)
     s_GuiAsserts = enabled;
 }
 
-void ErrorAssert(int line, const char file[], const char fmt[], ...)
+NORETURN void ErrorAssert(int line, const char* file, const char* fmt, ...)
 {
 #if defined(HS_DEBUGGING) || !defined(PLASMA_EXTERNAL_RELEASE)
     char msg[1024];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(msg, sizeof(msg), fmt, args);
-#ifdef HS_DEBUGGING
+    vsnprintf(msg, arrsize(msg), fmt, args);
+#if defined(HS_DEBUGGING)
+#if defined(_MSC_VER)
     if (s_GuiAsserts)
     {
-        if(_CrtDbgReport(_CRT_ASSERT, file, line, NULL, msg))
-            DebugBreak();
+        if (_CrtDbgReport(_CRT_ASSERT, file, line, NULL, msg))
+            DebugBreakAlways();
     } else
-#endif // HS_DEBUGGING
-      if (DebugIsDebuggerPresent()) {
-        char str[] = "-------\nASSERTION FAILED:\nFile: %s   Line: %i\nMessage: %s\n-------";
-        DebugMsg(str, file, line, msg);
+#endif // _MSC_VER
+    {
+        DebugMsg("-------\nASSERTION FAILED:\nFile: %s   Line: %i\nMessage: %s\n-------",
+                 file, line, msg);
+        fflush(stderr);
+
+        DebugBreakAlways();
     }
+#endif // HS_DEBUGGING
 #else
     DebugBreakIfDebuggerPresent();
 #endif // defined(HS_DEBUGGING) || !defined(PLASMA_EXTERNAL_RELEASE)
+
+    // If no debugger break occurred, just crash.
+    std::abort();
 }
 
 bool DebugIsDebuggerPresent()
 {
-#ifdef _MSC_VER
+#if defined(HS_BUILD_FOR_WIN32)
     return IsDebuggerPresent();
+#elif defined(HS_BUILD_FOR_LINUX)
+    // From http://google-perftools.googlecode.com/svn/trunk/src/heap-checker.cc
+    char buf[256];   // TracerPid comes relatively earlier in status output
+    int fd = open("/proc/self/status", O_RDONLY);
+    if (fd == -1) {
+        return false;  // Can't tell for sure.
+    }
+    const int len = read(fd, buf, sizeof(buf));
+    bool rc = false;
+    if (len > 0) {
+        const char* const kTracerPid = "TracerPid:\t";
+        buf[len - 1] = '\0';
+        const char* p = strstr(buf, kTracerPid);
+        if (p) {
+            rc = (strncmp(p + strlen(kTracerPid), "0\n", 2) != 0);
+        }
+    }
+    close(fd);
+    return rc;
 #else
     // FIXME
     return false;
@@ -147,7 +182,7 @@ bool DebugIsDebuggerPresent()
 
 void DebugBreakIfDebuggerPresent()
 {
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
     __try
     {
         __debugbreak();
@@ -155,32 +190,49 @@ void DebugBreakIfDebuggerPresent()
         // Debugger not present or some such shwiz.
         // Whatever. Don't crash here.
     }
+#elif defined(HS_BUILD_FOR_UNIX)
+    if (DebugIsDebuggerPresent())
+        raise(SIGTRAP);
+#else
+    // FIXME
 #endif // _MSC_VER
 }
 
-void DebugMsg(const char fmt[], ...)
+void DebugBreakAlways()
+{
+#if defined(_MSC_VER)
+    DebugBreak();
+#elif defined(HS_BUILD_FOR_UNIX)
+    raise(SIGTRAP);
+#else
+    // FIXME
+    abort();
+#endif // _MSC_VER
+}
+
+void DebugMsg(const char* fmt, ...)
 {
     char msg[1024];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(msg, sizeof(msg), fmt, args);
+    vsnprintf(msg, arrsize(msg), fmt, args);
+    fprintf(stderr, "%s\n", msg);
 
+#ifdef _MSC_VER
     if (DebugIsDebuggerPresent())
     {
-#ifdef _MSC_VER
+        // Also print to the MSVC Output window
         OutputDebugStringA(msg);
         OutputDebugStringA("\n");
-#endif
-    } else {
-        fprintf(stderr, "%s\n", msg);
     }
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////
 
 #ifndef PLASMA_EXTERNAL_RELEASE
 
-void hsStatusMessage(const char message[])
+void hsStatusMessage(const char* message)
 {
   if (gHSStatusProc) {
     gHSStatusProc(message);
@@ -216,22 +268,6 @@ void hsStatusMessageF(const char * fmt, ...)
 
 #endif
 
-// TODO: Deprecate these in favor of plString
-char * hsFormatStr(const char * fmt, ...)
-{
-    va_list args;
-    va_start(args,fmt);
-    char * result = hsFormatStrV(fmt,args);
-    va_end(args);
-    return result;
-}
-
-char * hsFormatStrV(const char * fmt, va_list args)
-{
-    plString buf = plString::IFormat(fmt, args);
-    return hsStrcpy(buf.c_str());
-}
-
 class hsMinimizeClientGuard
 {
 #ifdef CLIENT
@@ -259,7 +295,7 @@ public:
 
 bool hsMessageBox_SuppressPrompts = false;
 
-int hsMessageBoxWithOwner(hsWindowHndl owner, const char message[], const char caption[], int kind, int icon)
+int hsMessageBoxWithOwner(hsWindowHndl owner, const char* message, const char* caption, int kind, int icon)
 {
     if (hsMessageBox_SuppressPrompts)
         return hsMBoxOk;
@@ -312,7 +348,7 @@ int hsMessageBoxWithOwner(hsWindowHndl owner, const char message[], const char c
     return hsMBoxCancel;
 }
 
-int hsMessageBoxWithOwner(hsWindowHndl owner, const wchar_t message[], const wchar_t caption[], int kind, int icon)
+int hsMessageBoxWithOwner(hsWindowHndl owner, const wchar_t* message, const wchar_t* caption, int kind, int icon)
 {
     if (hsMessageBox_SuppressPrompts)
         return hsMBoxOk;
@@ -365,25 +401,25 @@ int hsMessageBoxWithOwner(hsWindowHndl owner, const wchar_t message[], const wch
     return hsMBoxCancel;
 }
 
-int hsMessageBox(const char message[], const char caption[], int kind, int icon)
+int hsMessageBox(const char* message, const char* caption, int kind, int icon)
 {
     return hsMessageBoxWithOwner((hsWindowHndl)nil,message,caption,kind,icon);
 }
 
-int hsMessageBox(const wchar_t message[], const wchar_t caption[], int kind, int icon)
+int hsMessageBox(const wchar_t* message, const wchar_t* caption, int kind, int icon)
 {
     return hsMessageBoxWithOwner((hsWindowHndl)nil,message,caption,kind,icon);
 }
 
 /**************************************/
-char* hsStrcpy(char dst[], const char src[])
+char* hsStrcpy(char* dst, const char* src)
 {
     if (src)
     {
         if (dst == nil)
         {
-            int count = strlen(src);
-            dst = (char *)malloc(count + 1);
+            size_t count = strlen(src);
+            dst = new char[count + 1];
             memcpy(dst, src, count);
             dst[count] = 0;
             return dst;
@@ -452,150 +488,109 @@ char    *hsWStringToString( const wchar_t *str )
 // Microsoft SAMPLE CODE
 // returns array of allocated version info strings or nil
 //
-char** DisplaySystemVersion()
+std::vector<ST::string> DisplaySystemVersion()
 {
-    // TODO:  I so want to std::vector<plString> this, but that requires
-    //        including more headers in HeadSpin.h :(
+    std::vector<ST::string> versionStrs;
 #if HS_BUILD_FOR_WIN32
 #ifndef VER_SUITE_PERSONAL
 #define VER_SUITE_PERSONAL 0x200
 #endif
-    hsTArray<char*> versionStrs;
-    OSVERSIONINFOEX osvi;
-    BOOL bOsVersionInfoEx;
+    const RTL_OSVERSIONINFOEXW& version = hsGetWindowsVersion();
 
-    // Try calling GetVersionEx using the OSVERSIONINFOEX structure.
-    //
-    // If that fails, try using the OSVERSIONINFO structure.
-
-    ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-
-    if( !(bOsVersionInfoEx = GetVersionEx ((OSVERSIONINFO *) &osvi)) )
-    {
-        // If OSVERSIONINFOEX doesn't work, try OSVERSIONINFO.
-
-        osvi.dwOSVersionInfoSize = sizeof (OSVERSIONINFO);
-        if (! GetVersionEx ( (OSVERSIONINFO *) &osvi) )
-            return FALSE;
-    }
-
-    switch (osvi.dwPlatformId)
+    switch (version.dwPlatformId)
     {
     case VER_PLATFORM_WIN32_NT:
 
         // Test for the product.
 
-        if ( osvi.dwMajorVersion <= 4 )
-            versionStrs.Append(hsStrcpy("Microsoft Windows NT "));
+        if ( version.dwMajorVersion <= 4 )
+            versionStrs.push_back("Microsoft Windows NT ");
 
-        if ( osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0 )
-            versionStrs.Append(hsStrcpy ("Microsoft Windows 2000 "));
+        if ( version.dwMajorVersion == 5 && version.dwMinorVersion == 0 )
+            versionStrs.push_back("Microsoft Windows 2000 ");
 
-        if ( osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 1 )
-            versionStrs.Append(hsStrcpy ("Microsoft Windows XP "));
+        if ( version.dwMajorVersion == 5 && version.dwMinorVersion == 1 )
+            versionStrs.push_back("Microsoft Windows XP ");
 
-        if ( osvi.dwMajorVersion == 6 && osvi.dwMinorVersion == 0 )
-            versionStrs.Append(hsStrcpy ("Microsoft Windows Vista "));
+        if ( version.dwMajorVersion == 6 && version.dwMinorVersion == 0 )
+            versionStrs.push_back("Microsoft Windows Vista ");
 
-        if ( osvi.dwMajorVersion == 6 && osvi.dwMinorVersion == 1 )
-            versionStrs.Append(hsStrcpy ("Microsoft Windows 7 "));
+        if ( version.dwMajorVersion == 6 && version.dwMinorVersion == 1 )
+            versionStrs.push_back("Microsoft Windows 7 ");
 
-        if ( osvi.dwMajorVersion == 6 && osvi.dwMinorVersion == 2 )
-            versionStrs.Append(hsStrcpy ("Microsoft Windows 8 "));
+        if ( version.dwMajorVersion == 6 && version.dwMinorVersion == 2 )
+            versionStrs.push_back("Microsoft Windows 8 ");
+
+        if ( version.dwMajorVersion == 6 && version.dwMinorVersion == 3 )
+            versionStrs.push_back("Microsoft Windows 8.1 ");
+
+        if ( version.dwMajorVersion == 10 && version.dwMinorVersion == 0 )
+            versionStrs.push_back("Microsoft Windows 10 ");
 
         // Test for product type.
 
-        if( bOsVersionInfoEx )
+        if ( version.wProductType == VER_NT_WORKSTATION )
         {
-            if ( osvi.wProductType == VER_NT_WORKSTATION )
-            {
-                if( osvi.wSuiteMask & VER_SUITE_PERSONAL )
-                    versionStrs.Append(hsStrcpy ( "Personal " ));
-                else
-                    versionStrs.Append(hsStrcpy ( "Professional " ));
-            }
-
-            else if ( osvi.wProductType == VER_NT_SERVER )
-            {
-                if( osvi.wSuiteMask & VER_SUITE_DATACENTER )
-                    versionStrs.Append(hsStrcpy ( "DataCenter Server " ));
-                else if( osvi.wSuiteMask & VER_SUITE_ENTERPRISE )
-                    versionStrs.Append(hsStrcpy ( "Advanced Server " ));
-                else
-                    versionStrs.Append(hsStrcpy ( "Server " ));
-            }
+            if( version.wSuiteMask & VER_SUITE_PERSONAL )
+                versionStrs.push_back("Personal ");
+            else
+                versionStrs.push_back("Professional ");
         }
-        else
+        else if ( version.wProductType == VER_NT_SERVER )
         {
-            HKEY hKey;
-            char szProductType[80];
-            DWORD dwBufLen;
-
-            RegOpenKeyEx( HKEY_LOCAL_MACHINE,
-                "SYSTEM\\CurrentControlSet\\Control\\ProductOptions",
-                0, KEY_QUERY_VALUE, &hKey );
-            RegQueryValueEx( hKey, "ProductType", NULL, NULL,
-                (LPBYTE) szProductType, &dwBufLen);
-            RegCloseKey( hKey );
-            if ( lstrcmpi( "WINNT", szProductType) == 0 )
-                versionStrs.Append(hsStrcpy( "Professional " ));
-            if ( lstrcmpi( "LANMANNT", szProductType) == 0 )
-                versionStrs.Append(hsStrcpy( "Server " ));
-            if ( lstrcmpi( "SERVERNT", szProductType) == 0 )
-                versionStrs.Append(hsStrcpy( "Advanced Server " ));
+            if( version.wSuiteMask & VER_SUITE_DATACENTER )
+                versionStrs.push_back("DataCenter Server ");
+            else if( version.wSuiteMask & VER_SUITE_ENTERPRISE )
+                versionStrs.push_back("Advanced Server ");
+            else
+                versionStrs.push_back("Server ");
         }
 
         // Display version, service pack (if any), and build number.
 
-        if ( osvi.dwMajorVersion <= 4 )
+        if ( version.dwMajorVersion <= 4 )
         {
-            versionStrs.Append(hsStrcpy (plString::Format("version %d.%d %s (Build %d)\n",
-                osvi.dwMajorVersion,
-                osvi.dwMinorVersion,
-                osvi.szCSDVersion,
-                osvi.dwBuildNumber & 0xFFFF).c_str()));
+            versionStrs.push_back(ST::format("version {}.{} {} (Build {})\n",
+                version.dwMajorVersion,
+                version.dwMinorVersion,
+                version.szCSDVersion,
+                version.dwBuildNumber & 0xFFFF));
         }
         else
         {
-            versionStrs.Append(hsStrcpy (plString::Format("%s (Build %d)\n",
-                osvi.szCSDVersion,
-                osvi.dwBuildNumber & 0xFFFF).c_str()));
+            versionStrs.push_back(ST::format("{} (Build {})\n",
+                version.szCSDVersion,
+                version.dwBuildNumber & 0xFFFF));
         }
-        break;
-
-    case VER_PLATFORM_WIN32_WINDOWS:
-
-        if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 0)
-        {
-            versionStrs.Append(hsStrcpy ("Microsoft Windows 95 "));
-            if ( osvi.szCSDVersion[1] == 'C' || osvi.szCSDVersion[1] == 'B' )
-                versionStrs.Append(hsStrcpy("OSR2 " ));
-        }
-
-        if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 10)
-        {
-            versionStrs.Append(hsStrcpy ("Microsoft Windows 98 "));
-            if ( osvi.szCSDVersion[1] == 'A' )
-                versionStrs.Append(hsStrcpy("SE " ));
-        }
-
-        if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 90)
-        {
-            versionStrs.Append(hsStrcpy ("Microsoft Windows Me "));
-        }
-        break;
-
-    case VER_PLATFORM_WIN32s:
-
-        versionStrs.Append(hsStrcpy ("Microsoft Win32s "));
         break;
     }
-
-    versionStrs.Append(nil);    // terminator
-
-    return versionStrs.DetachArray();
-#else
-    return nil;
 #endif
+    return versionStrs;
 }
+
+#ifdef HS_BUILD_FOR_WIN32
+static RTL_OSVERSIONINFOEXW s_WinVer;
+
+const RTL_OSVERSIONINFOEXW& hsGetWindowsVersion()
+{
+    static bool done = false;
+    if (!done) {
+        memset(&s_WinVer, 0, sizeof(RTL_OSVERSIONINFOEXW));
+        HMODULE ntdll = LoadLibraryW(L"ntdll.dll");
+        hsAssert(ntdll, "Failed to LoadLibrary on ntdll???");
+
+        if (ntdll) {
+            s_WinVer.dwOSVersionInfoSize = sizeof(RTL_OSVERSIONINFOEXW);
+            typedef LONG(WINAPI* RtlGetVersionPtr)(RTL_OSVERSIONINFOEXW*);
+            RtlGetVersionPtr getVersion = (RtlGetVersionPtr)GetProcAddress(ntdll, "RtlGetVersion");
+            hsAssert(getVersion, "Could not find RtlGetVersion in ntdll");
+            if (getVersion) {
+                getVersion(&s_WinVer);
+                done = true;
+            }
+        }
+        FreeLibrary(ntdll);
+    }
+    return s_WinVer;
+}
+#endif

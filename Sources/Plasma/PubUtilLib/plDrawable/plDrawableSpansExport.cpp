@@ -55,6 +55,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsResMgr.h"
 #include "plPipeline.h"
 #include "plGeometrySpan.h"
+#include "plGBufferGroup.h"
 
 #include "plSpaceTree.h"
 #include "plSpaceTreeMaker.h"       // This is fun and amusing and wonderful to have here.
@@ -64,7 +65,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnMessage/plRefMsg.h"
 #include "pnMessage/plNodeRefMsg.h" // for NodeRefMsg
 #include "plMessage/plDeviceRecreateMsg.h"
-#include "plPipeline/plGBufferGroup.h"
 #include "plSurface/hsGMaterial.h"
 #include "plSurface/plLayerInterface.h"
 #include "plGImage/plBitmap.h"
@@ -755,18 +755,18 @@ short   plDrawableSpans::ICompareSpans( plGeometrySpan *span1, plGeometrySpan *s
         else if( t1 == nil && t2 == nil )
             break;  // Textures equal up to here--keep going with rest of tests
         
-        if( !t1->GetKeyName().IsNull() && !t2->GetKeyName().IsNull() )
+        if( !t1->GetKeyName().empty() && !t2->GetKeyName().empty() )
         {
-            j = t1->GetKeyName().Compare( t2->GetKeyName(), plString::kCaseInsensitive );
+            j = t1->GetKeyName().compare( t2->GetKeyName(), ST::case_insensitive );
             if( j != 0 )
                 return (short)j;
         }
     }
 
     // Finally, by material itself.
-    if( !span1->fMaterial->GetKeyName().IsNull() && !span2->fMaterial->GetKeyName().IsNull() )
+    if( !span1->fMaterial->GetKeyName().empty() && !span2->fMaterial->GetKeyName().empty() )
     {
-        j = span1->fMaterial->GetKeyName().Compare( span2->fMaterial->GetKeyName(), plString::kCaseInsensitive );
+        j = span1->fMaterial->GetKeyName().compare( span2->fMaterial->GetKeyName(), ST::case_insensitive );
         if( j != 0 )
             return (short)j;
     }

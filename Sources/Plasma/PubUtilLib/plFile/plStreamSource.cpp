@@ -40,17 +40,25 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 *==LICENSE==*/
 
-#include <string>
+#include "HeadSpin.h"
 #include "plStreamSource.h"
 #include "plSecureStream.h"
 #include "plEncryptedStream.h"
+#include "hsLockGuard.h"
 
 #if HS_BUILD_FOR_UNIX
 #    include <wctype.h>
 #endif
 
+plStreamSource::plStreamSource()
+{
+    memset(fServerKey, 0, arrsize(fServerKey));
+}
+
 void plStreamSource::ICleanup()
 {
+    hsLockGuard(fMutex);
+
     // loop through all the file data records, and delete the streams
     decltype(fFileData.begin()) curData;
     for (curData = fFileData.begin(); curData != fFileData.end(); curData++)
@@ -65,6 +73,8 @@ void plStreamSource::ICleanup()
 
 hsStream* plStreamSource::GetFile(const plFileName& filename)
 {
+    hsLockGuard(fMutex);
+
     plFileName sFilename = filename.Normalize('/');
     if (fFileData.find(sFilename) == fFileData.end())
     {
@@ -78,14 +88,15 @@ hsStream* plStreamSource::GetFile(const plFileName& filename)
             fFileData[sFilename].fExt = sFilename.GetFileExt();
             if (plSecureStream::IsSecureFile(filename))
             {
-                uint32_t encryptionKey[4];
-                if (!plSecureStream::GetSecureEncryptionKey(filename, encryptionKey, 4))
-                {
-                    FATAL("Hey camper... You need an NTD key file!");
-                    return nil;
-                }
+                hsStream* ss = nullptr;
 
-                fFileData[sFilename].fStream = plSecureStream::OpenSecureFile(filename, 0, encryptionKey);
+                uint32_t encryptionKey[4];
+                if (plSecureStream::GetSecureEncryptionKey(filename, encryptionKey, 4))
+                    ss = plSecureStream::OpenSecureFile(filename, 0, encryptionKey);
+                else
+                    ss = plSecureStream::OpenSecureFile(filename, 0, fServerKey);
+                fFileData[sFilename].fStream = ss;
+                hsAssert(ss, "failed to open a SecureStream for a disc file!");
             }
             else // otherwise it is an encrypted or plain stream, this call handles both
                 fFileData[sFilename].fStream = plEncryptedStream::OpenEncryptedFile(filename);
@@ -98,17 +109,18 @@ hsStream* plStreamSource::GetFile(const plFileName& filename)
     return fFileData[sFilename].fStream;
 }
 
-std::vector<plFileName> plStreamSource::GetListOfNames(const plFileName& dir, const plString& ext)
+std::vector<plFileName> plStreamSource::GetListOfNames(const plFileName& dir, const ST::string& ext)
 {
     plFileName sDir = dir.Normalize('/');
-    hsAssert(ext.CharAt(0) != '.', "Don't add a dot");
+    hsAssert(ext.front() != '.', "Don't add a dot");
+    hsLockGuard(fMutex);
 
     // loop through all the file data records, and create the list
     std::vector<plFileName> retVal;
     for (auto curData = fFileData.begin(); curData != fFileData.end(); curData++)
     {
-        if ((curData->second.fDir.AsString().CompareI(sDir.AsString()) == 0) &&
-            (curData->second.fExt.CompareI(ext) == 0))
+        if ((curData->second.fDir.AsString().compare_i(sDir.AsString()) == 0) &&
+            (curData->second.fExt.compare_i(ext) == 0))
             retVal.push_back(curData->second.fFilename);
     }
 
@@ -131,6 +143,7 @@ bool plStreamSource::InsertFile(const plFileName& filename, hsStream* stream)
 {
     plFileName sFilename = filename.Normalize('/');
 
+    hsLockGuard(fMutex);
     if (fFileData.find(sFilename) != fFileData.end())
         return false; // duplicate entry, return failure
 

@@ -41,8 +41,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 *==LICENSE==*/
 #pragma warning(disable: 4503 4786)
 
-#include <algorithm>
-
 #include "plAvatarMgr.h"
 
 // local
@@ -50,7 +48,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plSeekPointMod.h"
 #include "plOneShotMod.h"
 #include "plArmatureMod.h"
-#include "plAGModifier.h"
+#include "plAnimation/plAGModifier.h"
 #include "plAnimStage.h"
 #include "plCoopCoordinator.h"
 #include "plAvBrainCoop.h"
@@ -83,8 +81,12 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plMessage/plMemberUpdateMsg.h"
 #include "plMessage/plAvatarMsg.h"
 #include "plMessage/plAvCoopMsg.h"
+#include "plMessage/plLoadClothingMsg.h"
 #include "pnMessage/plTimeMsg.h"
 #include "plStatusLog/plStatusLog.h"
+
+#include <algorithm>
+#include <cmath>
 
 // The static single instance, allocated on demand by GetInstance()
 plAvatarMgr     *plAvatarMgr::fInstance = nil;
@@ -149,12 +151,12 @@ void plAvatarMgr::IReset()
     fActiveCoops.clear();
 }
 
-plKey plAvatarMgr::LoadPlayer(const char *name, const char *account)
+plKey plAvatarMgr::LoadPlayer(const ST::string &name, const ST::string &account)
 {
-    return LoadAvatar(name, account, true, nil, nil);
+    return LoadAvatar(name, account, true, nullptr, nullptr);
 }
 
-plKey plAvatarMgr::LoadPlayer(const char *name, const char *account, const char *linkInName)
+plKey plAvatarMgr::LoadPlayer(const ST::string &name, const ST::string &account, const ST::string &linkInName)
 {
     // what we'd like to do is turn the linkInName into a spawn point key and
     // put that into the plLoadAvatarMsg, which is already set up to handle
@@ -163,29 +165,34 @@ plKey plAvatarMgr::LoadPlayer(const char *name, const char *account, const char 
     // so we're goin to do this the "old way" for now.
     
     plArmatureMod::SetSpawnPointOverride(linkInName);
-    return LoadAvatar(name, account, true, nil, nil);
+    return LoadAvatar(name, account, true, nullptr, nullptr);
 }
 
+plKey plAvatarMgr::LoadPlayerFromFile(const ST::string &name, const ST::string &account, const plFileName &clothingFile)
+{
+    return LoadAvatar(name, account, true, nullptr, nullptr, "", clothingFile);
+}
 
-plKey plAvatarMgr::LoadAvatar(const char *name, const char *accountName, bool isPlayer, plKey spawnPoint, plAvTask *initialTask, const char *userStr /*=nil*/)
+plKey plAvatarMgr::LoadAvatar(ST::string name, const ST::string &accountName, bool isPlayer, plKey spawnPoint, plAvTask *initialTask,
+                              const ST::string &userStr, const plFileName &clothingFile)
 {
     // *** account is currently unused. the idea is that eventually an NPC will
     // *** be able to use a customization account
-    plKey result = nil;
+    plKey result = nullptr;
     plKey requestor = GetKey(); // avatar manager is always the requestor for avatar loads
     plNetClientMgr *netMgr = plNetClientMgr::GetInstance();
 
     if(netMgr)      // can't clone without the net manager
     {
-        hsAssert(name, "name required by LoadPlayer fxn");
-        netMgr->DebugMsg("Local: Loading player %s", name); 
+        hsAssert(!name.empty(), "name required by LoadPlayer fxn");
+        netMgr->DebugMsg("Local: Loading player {}", name);
 
         // look up player by key name provided by user.
         // this string search should be replaced with some other method of 
         // avatar selection and key lookup.
 
         // Get the location for the player first
-        plKey playerKey = nil;
+        plKey playerKey = nullptr;
         const plLocation& globalLoc = plKeyFinder::Instance().FindLocation("GlobalAvatars", name);
         const plLocation& maleLoc = plKeyFinder::Instance().FindLocation("GlobalAvatars", "Male");
         const plLocation& custLoc = plKeyFinder::Instance().FindLocation("CustomAvatars", name);
@@ -199,14 +206,18 @@ plKey plAvatarMgr::LoadAvatar(const char *name, const char *accountName, bool is
         const plLocation& loc = (globalLoc.IsValid() ? globalLoc : custLoc.IsValid() ? custLoc : maleLoc);
 #endif
 
-        plString theName = name;
-        if ( loc == maleLoc )
-            theName = "Male";
+        if (loc == maleLoc)
+            name = "Male";
 
         if (loc.IsValid())
         {
-            plUoid uID(loc, plSceneObject::Index(), theName);
-            plLoadAvatarMsg *cloneMsg = new plLoadAvatarMsg (uID, requestor, 0, isPlayer, spawnPoint, initialTask, userStr);
+            plUoid uID(loc, plSceneObject::Index(), name);
+            plLoadAvatarMsg *cloneMsg = new plLoadAvatarMsg(uID, requestor, 0, isPlayer, spawnPoint, initialTask, userStr);
+            if (clothingFile.IsValid())
+            {
+                plLoadClothingMsg *clothingMsg = new plLoadClothingMsg(clothingFile);
+                cloneMsg->SetTriggerMsg(clothingMsg);
+            }
             result =  cloneMsg->GetCloneKey();
             
             // the clone message is automatically addressed to the net client manager
@@ -547,7 +558,7 @@ void plAvatarMgr::AddSeekPoint(plSeekPointMod *seekPoint)
 {
     if(seekPoint)
     {
-        plString name = seekPoint->GetTarget(0)->GetKey()->GetName();
+        ST::string name = seekPoint->GetTarget(0)->GetKey()->GetName();
         plSeekPointMod *alreadyThere = FindSeekPoint(name);
 
         /// hsAssert( ! alreadyThere, "Tried to add a seek point with duplicate name. Ignoring second seek point.");
@@ -564,7 +575,7 @@ void plAvatarMgr::RemoveSeekPoint(plSeekPointMod *seekPoint)
 {
     if(seekPoint)
     {
-        plString name = seekPoint->GetTarget(0)->GetKey()->GetName();
+        ST::string name = seekPoint->GetTarget(0)->GetKey()->GetName();
 
         plSeekPointMap::iterator found = fSeekPoints.find(name);
 
@@ -576,7 +587,7 @@ void plAvatarMgr::RemoveSeekPoint(plSeekPointMod *seekPoint)
 }
 
 // FINDSEEKPOINT
-plSeekPointMod * plAvatarMgr::FindSeekPoint(const plString &name)
+plSeekPointMod * plAvatarMgr::FindSeekPoint(const ST::string &name)
 {
     plSeekPointMap::iterator found = fSeekPoints.find(name);
     
@@ -593,7 +604,7 @@ void plAvatarMgr::AddOneShot(plOneShotMod *oneshot)
 {
     if(oneshot)
     {
-        plString name = oneshot->GetTarget(0)->GetKey()->GetName();
+        ST::string name = oneshot->GetTarget(0)->GetKey()->GetName();
         plOneShotMod *alreadyThere = FindOneShot(name);
 
 
@@ -611,7 +622,7 @@ void plAvatarMgr::RemoveOneShot(plOneShotMod *oneshot)
 
     while (i != fOneShots.end())
     {
-        plString name = i->first;
+        ST::string name = i->first;
         plOneShotMod *thisOneshot = i->second;
 
         if(oneshot == thisOneshot)
@@ -624,7 +635,7 @@ void plAvatarMgr::RemoveOneShot(plOneShotMod *oneshot)
 }
 
 // FINDONESHOT
-plOneShotMod *plAvatarMgr::FindOneShot(const plString &name)
+plOneShotMod *plAvatarMgr::FindOneShot(const ST::string &name)
 {
     plOneShotMap::iterator found = fOneShots.find(name);
 
@@ -707,7 +718,7 @@ plArmatureMod *plAvatarMgr::GetFirstRemoteAvatar()
     return nil;
 }
 
-plArmatureMod* plAvatarMgr::FindAvatar(plKey& avatarKey)
+plArmatureMod* plAvatarMgr::FindAvatar(const plKey& avatarKey)
 {
     plSceneObject *so = plSceneObject::ConvertNoRef(avatarKey->ObjectIsLoaded());
     if (so)
@@ -728,13 +739,13 @@ plArmatureMod* plAvatarMgr::FindAvatarByPlayerID(uint32_t pid)
     return nil;
 }
 
-plArmatureMod *plAvatarMgr::FindAvatarByModelName(const plString& name)
+plArmatureMod *plAvatarMgr::FindAvatarByModelName(const ST::string& name)
 {
     plAvatarVec::iterator it;
     for (it = fAvatars.begin(); it != fAvatars.end(); ++it)
     {
         plArmatureMod* armature = plArmatureMod::ConvertNoRef((*it)->ObjectIsLoaded());
-        if (armature && (!armature->GetTarget(0)->GetKeyName().Compare(name)))
+        if (armature && (!armature->GetTarget(0)->GetKeyName().compare(name)))
             return armature;
     }
     
@@ -747,7 +758,7 @@ void plAvatarMgr::FindAllAvatarsByModelName(const char* name, plArmatureModPtrVe
     for (it = fAvatars.begin(); it != fAvatars.end(); ++it)
     {
         plArmatureMod* armature = plArmatureMod::ConvertNoRef((*it)->ObjectIsLoaded());
-        if (armature && (!armature->GetTarget(0)->GetKeyName().Compare(name)))
+        if (armature && (!armature->GetTarget(0)->GetKeyName().compare(name)))
             outVec.push_back(armature);
     }
 }
@@ -785,8 +796,8 @@ int plAvatarMgr::FindSpawnPoint( const char *name ) const
     for( i = 0; i < fSpawnPoints.size(); i++ )
     {
         if( fSpawnPoints[ i ] != nil && 
-            ( fSpawnPoints[ i ]->GetKey()->GetUoid().GetObjectName().Find( name ) >= 0 ||
-              fSpawnPoints[ i ]->GetTarget(0)->GetKeyName().Find( name ) >= 0 ))
+            ( fSpawnPoints[ i ]->GetKey()->GetUoid().GetObjectName().contains( name ) ||
+              fSpawnPoints[ i ]->GetTarget(0)->GetKeyName().contains( name ) ))
             return i;
     }
 

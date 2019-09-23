@@ -53,7 +53,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pfMessage/plClothingMsg.h"
 #include "plMessage/plRenderMsg.h"
 #include "plGImage/plMipmap.h"
-#include "plPipeline/hsGDeviceRef.h"
+#include "hsGDeviceRef.h"
 #include "plPipeline/plRenderTarget.h"
 #include "plPipeline.h"
 #include "plClothingLayout.h"
@@ -80,9 +80,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plNetClientComm/plNetClientComm.h"
 
 
-plClothingItem::plClothingItem() : fName(nil), fGroup(0), fTileset(0), fType(0), fSortOrder(0),
-                                   fDescription(nil), fCustomText(nil), fThumbnail(nil), 
-                                   fAccessory(nil), fAccessoryName(nil)
+plClothingItem::plClothingItem() : fGroup(0), fTileset(0), fType(0), fSortOrder(0),
+                                   fThumbnail(nil), fAccessory(nil)
 {   
     int i;
     fTextures.Reset();
@@ -99,16 +98,8 @@ plClothingItem::plClothingItem() : fName(nil), fGroup(0), fTileset(0), fType(0),
 
 plClothingItem::~plClothingItem()
 {
-    while (fElementNames.GetCount() > 0)
-        delete [] fElementNames.Pop();
-
     while (fTextures.GetCount() > 0)
         delete [] fTextures.Pop();
-    
-    delete [] fName;
-    delete [] fDescription;
-    delete [] fCustomText;
-    delete [] fAccessoryName;
 }
 
 bool plClothingItem::CanWearWith(plClothingItem *item)
@@ -190,7 +181,7 @@ void plClothingItem::Read(hsStream *s, hsResMgr *mgr)
         for (j = 0; j < layerCount; j++)
         {
             int layer = s->ReadByte();
-            mgr->ReadKeyNotifyMe(s, new plElementRefMsg(GetKey(), plRefMsg::kOnCreate, i, -1, nil, layer), plRefFlags::kActiveRef); // texture
+            mgr->ReadKeyNotifyMe(s, new plElementRefMsg(GetKey(), plRefMsg::kOnCreate, i, -1, ST::null, layer), plRefFlags::kActiveRef); // texture
         }
     }
 
@@ -274,13 +265,13 @@ void plClothingItem::Write(hsStream *s, hsResMgr *mgr)
 
     // EXPORT ONLY
     plKey accessoryKey = nil;
-    if (fAccessoryName)
+    if (!fAccessoryName.empty())
     {
-        plString strBuf = plString::Format("CItm_%s", fAccessoryName);
+        ST::string strBuf = ST::format("CItm_{}", fAccessoryName);
         accessoryKey = plKeyFinder::Instance().StupidSearch("GlobalClothing", "", plClothingItem::Index(), strBuf);
         if (accessoryKey == nil)
         {
-            strBuf = plString::Format("Couldn't find accessory \"%s\". It won't show at runtime.", fAccessoryName);
+            strBuf = ST::format("Couldn't find accessory \"{}\". It won't show at runtime.", fAccessoryName);
             hsMessageBox(strBuf.c_str(), GetKeyName().c_str(), hsMessageBoxNormal);
         }
     }
@@ -306,10 +297,10 @@ bool plClothingItem::MsgReceive(plMessage* msg)
                 if (fTextures.GetCount() <= eMsg->fWhich)
                     fTextures.ExpandAndZero(eMsg->fWhich + 1);
                 if (fElementNames.GetCount() <= eMsg->fWhich)
-                    fElementNames.ExpandAndZero(eMsg->fWhich + 1);
+                    fElementNames.Expand(eMsg->fWhich + 1);
                 
-                if (fElementNames.Get(eMsg->fWhich) == nil)
-                    fElementNames.Set(eMsg->fWhich, hsStrcpy(eMsg->fElementName));
+                if (fElementNames.Get(eMsg->fWhich).empty())
+                    fElementNames.Set(eMsg->fWhich, eMsg->fElementName);
                 if (fTextures.Get(eMsg->fWhich) == nil)
                 {
                     plMipmap **layers = new plMipmap*[plClothingElement::kLayerMax];
@@ -378,13 +369,7 @@ bool plClosetItem::IsMatch(plClosetItem *other)
 
 /////////////////////////////////////////////////////////////////////////////
 
-plClothingBase::plClothingBase() : fName(nil), fBaseTexture(nil), fLayoutName(nil) {}
-
-plClothingBase::~plClothingBase()
-{
-    delete [] fName;
-    delete [] fLayoutName;
-}
+plClothingBase::plClothingBase() : fBaseTexture(nil) {}
 
 void plClothingBase::Read(hsStream* s, hsResMgr* mgr)
 {
@@ -430,7 +415,8 @@ bool plClothingBase::MsgReceive(plMessage* msg)
 /////////////////////////////////////////////////////////////////////////////
 
 plClothingOutfit::plClothingOutfit() : 
-    fTargetLayer(nil), fBase(nil), fGroup(0), fAvatar(nil), fSynchClients(false), fMaterial(nil), fVaultSaveEnabled(true), fMorphsInitDone(false)
+    fTargetLayer(nullptr), fBase(nullptr), fGroup(0), fAvatar(nullptr), fSynchClients(false), fMaterial(nullptr),
+    fVaultSaveEnabled(true), fMorphsInitDone(false)
 {
     fSkinTint.Set(1.f, 0.84, 0.71, 1.f);
     fItems.Reset();
@@ -639,7 +625,7 @@ void plClothingOutfit::IAddItem(plClothingItem *item)
 
             if (soundEffect)
             {
-                if (!strcmp(item->fName, "03_MLFoot04_01") || !strcmp(item->fName, "03_FLFoot04_01"))
+                if (item->fName == "03_MLFoot04_01" || item->fName == "03_FLFoot04_01")
                     soundEffect->SetFootType(plArmatureEffectFootSound::kFootTypeBare);
                 else
                     soundEffect->SetFootType(plArmatureEffectFootSound::kFootTypeShoe);
@@ -715,10 +701,9 @@ hsColorRGBA plClothingOutfit::GetItemTint(plClothingItem *item, uint8_t layer /*
 bool plClothingOutfit::IMorphItem(plClothingItem *item, uint8_t layer, uint8_t delta, float weight)
 {
     uint32_t index = fItems.Find(item);
-    if (index != fItems.kMissingIndex)
+    if (fAvatar && index != fItems.kMissingIndex)
     {
-        int i;
-        for (i = 0; i < fAvatar->GetNumLOD(); i++)
+        for (uint8_t i = 0; i < fAvatar->GetNumLOD(); i++)
         {
             if (item->fMeshes[i]->fMorphSet == nil)
                 continue;
@@ -802,27 +787,36 @@ void plClothingOutfit::IHandleMorphSDR(plStateDataRecord *sdr)
         morph->SetCurrentStateFrom(sdr);
 }
 
-void plClothingOutfit::ReadFromVault()
+bool plClothingOutfit::ReadClothing()
+{
+    // Have we set a clothing file? If that's the case, load from there.
+    if (fClothingFile.IsValid())
+        return IReadFromFile(fClothingFile);
+    else
+        return IReadFromVault();
+}
+
+bool plClothingOutfit::IReadFromVault()
 {
     SetupMorphSDL();
 
     WearDefaultClothing();
 
-    RelVaultNode * rvn;
-    if (nil == (rvn = VaultGetAvatarOutfitFolderIncRef()))
-        return;
+    hsRef<RelVaultNode> rvn = VaultGetAvatarOutfitFolder();
+    if (!rvn)
+        return false;
 
-    ARRAY(RelVaultNode*) nodes;
-    rvn->GetChildNodesIncRef(plVault::kNodeType_SDL, 1, &nodes);    
+    RelVaultNode::RefList nodes;
+    rvn->GetChildNodes(plVault::kNodeType_SDL, 1, &nodes);
 
-    for (unsigned i = 0; i < nodes.Count(); ++i) {
-        VaultSDLNode sdl(nodes[i]);
+    for (const hsRef<RelVaultNode> &node : nodes) {
+        VaultSDLNode sdl(node);
         if (sdl.GetSDLDataLength()) {
             hsRAMStream ram;
             ram.Write(sdl.GetSDLDataLength(), sdl.GetSDLData());
             ram.Rewind();
-            
-            plString sdlRecName;
+
+            ST::string sdlRecName;
             int sdlRecVersion;
             plStateDataRecord::ReadStreamHeader(&ram, &sdlRecName, &sdlRecVersion);
             plStateDescriptor * desc = plSDLMgr::GetInstance()->FindDescriptor(sdlRecName, sdlRecVersion);
@@ -837,13 +831,12 @@ void plClothingOutfit::ReadFromVault()
                 delete sdlDataRec;              
             }
         }
-        nodes[i]->DecRef();
     }
     
     fSynchClients = true; // set true if the next synch should be bcast
     ForceUpdate(true);
     
-    rvn->DecRef();
+    return true;
 }
 
 void plClothingOutfit::SaveCustomizations(bool retry /* = true */)
@@ -862,8 +855,8 @@ void plClothingOutfit::WriteToVault()
     if (!fVaultSaveEnabled)
         return;
 
-    RelVaultNode * rvn;
-    if (nil == (rvn = VaultGetAvatarOutfitFolderIncRef()))
+    hsRef<RelVaultNode> rvn = VaultGetAvatarOutfitFolder();
+    if (!rvn)
         return;
 
     ARRAY(plStateDataRecord*) SDRs;
@@ -879,7 +872,6 @@ void plClothingOutfit::WriteToVault()
     SDRs.Add(appearanceStateDesc->GetStateDataRecord(0));
     
     WriteToVault(SDRs);
-    rvn->DecRef();
 }
 
 void plClothingOutfit::WriteToVault(const ARRAY(plStateDataRecord*) & SDRs)
@@ -888,8 +880,8 @@ void plClothingOutfit::WriteToVault(const ARRAY(plStateDataRecord*) & SDRs)
     if (fAvatar->GetTarget(0) != plNetClientApp::GetInstance()->GetLocalPlayer())
         return;
 
-    RelVaultNode * rvn;
-    if (nil == (rvn = VaultGetAvatarOutfitFolderIncRef()))
+    hsRef<RelVaultNode> rvn = VaultGetAvatarOutfitFolder();
+    if (!rvn)
         return;
         
     ARRAY(plStateDataRecord*)   morphs;
@@ -911,12 +903,12 @@ void plClothingOutfit::WriteToVault(const ARRAY(plStateDataRecord*) & SDRs)
         }
     }
     
-    ARRAY(RelVaultNode*) templates;
-    ARRAY(RelVaultNode*) actuals;
-    ARRAY(RelVaultNode*) nodes;
+    RelVaultNode::RefList templates;
+    RelVaultNode::RefList actuals;
+    RelVaultNode::RefList nodes;
 
     // Get all existing clothing SDRs
-    rvn->GetChildNodesIncRef(plVault::kNodeType_SDL, 1, &nodes);    // REF: Find
+    rvn->GetChildNodes(plVault::kNodeType_SDL, 1, &nodes);    // REF: Find
 
     const ARRAY(plStateDataRecord*) * arrs[] = {
         &SDRs,
@@ -927,55 +919,41 @@ void plClothingOutfit::WriteToVault(const ARRAY(plStateDataRecord*) & SDRs)
         
         // Write all SDL to to the outfit folder, reusing existing nodes and creating new ones as necessary
         for (unsigned i = 0; i < arr->Count(); ++i) {
-            RelVaultNode * node;
-            if (nodes.Count()) {
-                node = nodes[0];
-                nodes.DeleteUnordered(0);
-                node->IncRef(); // REF: Work
-                node->DecRef(); // REF: Find
+            hsRef<RelVaultNode> node;
+            if (!nodes.empty()) {
+                node = nodes.front();
+                nodes.pop_front();
             }
             else {
-                RelVaultNode * templateNode = new RelVaultNode;
-                templateNode->SetNodeType(plVault::kNodeType_SDL);
-                templates.Add(templateNode);
-                node = templateNode;
-                node->IncRef(); // REF: Create
-                node->IncRef(); // REF: Work
+                node = new RelVaultNode;
+                node->SetNodeType(plVault::kNodeType_SDL);
+                templates.push_back(node);
             }
 
             VaultSDLNode sdl(node);
             sdl.SetStateDataRecord((*arr)[i], 0);
-            node->DecRef();     // REF: Work
         }
     }
 
     // Delete any leftover nodes
-    for (unsigned i = 0; i < nodes.Count(); ++i) {
-        VaultDeleteNode(nodes[i]->GetNodeId());
-        nodes[i]->DecRef(); // REF: Array
-    }
+    for (const hsRef<RelVaultNode> &node : nodes)
+        VaultDeleteNode(node->GetNodeId());
 
     // Create actual new nodes from their templates
-    for (unsigned i = 0; i < templates.Count(); ++i) {
+    for (const hsRef<RelVaultNode> &temp : templates) {
         ENetError result;
-        if (RelVaultNode * actual = VaultCreateNodeAndWaitIncRef(templates[i], &result)) {
-            actuals.Add(actual);
-        }
-        templates[i]->DecRef(); // REF: Create
+        if (hsRef<RelVaultNode> actual = VaultCreateNodeAndWait(temp, &result))
+            actuals.push_back(actual);
     }
 
     // Add new nodes to outfit folder
-    for (unsigned i = 0; i < actuals.Count(); ++i) {
-        VaultAddChildNodeAndWait(rvn->GetNodeId(), actuals[i]->GetNodeId(), NetCommGetPlayer()->playerInt);
-        actuals[i]->DecRef();   // REF: Create
-    }
+    for (const hsRef<RelVaultNode> &act : actuals)
+        VaultAddChildNodeAndWait(rvn->GetNodeId(), act->GetNodeId(), NetCommGetPlayer()->playerInt);
 
     // Cleanup morph SDRs
     for (unsigned i = 0; i < morphs.Count(); ++i) {
         delete morphs[i];
     }
-
-    rvn->DecRef();
 }
 
 // XXX HACK. DON'T USE (this function exists for the temp console command Clothing.SwapClothTexHACK)
@@ -1135,7 +1113,7 @@ void plClothingOutfit::WearMaintainerOutfit()
 
 void plClothingOutfit::RemoveMaintainerOutfit()
 {
-    ReadFromVault();
+    ReadClothing();
 
     fVaultSaveEnabled = true;
 }
@@ -1409,7 +1387,7 @@ bool plClothingOutfit::MsgReceive(plMessage* msg)
 // TESTING SDL
 // Send clothing sendState msg to object's plClothingSDLModifier
 //
-bool plClothingOutfit::DirtySynchState(const char* SDLStateName, uint32_t synchFlags)
+bool plClothingOutfit::DirtySynchState(const ST::string& SDLStateName, uint32_t synchFlags)
 {
     plSynchEnabler ps(true);    // make sure synching is enabled, since this happens during load
     synchFlags |= plSynchedObject::kForceFullSend;  // TEMP
@@ -1424,15 +1402,16 @@ bool plClothingOutfit::DirtySynchState(const char* SDLStateName, uint32_t synchF
 // we'll be good about this, but I wanted to get it working first.
 void plClothingOutfit::IInstanceSharedMeshes(plClothingItem *item)
 {
-    if (fAvatar)
-        fAvatar->ValidateMesh();
+    if (!fAvatar)
+        return;
 
-    bool partialSort = item->fCustomText && strstr(item->fCustomText, "NeedsSort");
-    int i;
-    for (i = 0; i < plClothingItem::kMaxNumLODLevels; i++)
+    fAvatar->ValidateMesh();
+
+    bool partialSort = item->fCustomText.contains("NeedsSort");
+    for (int i = 0; i < plClothingItem::kMaxNumLODLevels; i++)
     {
         const plSceneObject *so = fAvatar->GetClothingSO(i);
-        if (so != nil && item->fMeshes[i] != nil)
+        if (so && item->fMeshes[i])
         {
             plInstanceDrawInterface *idi = const_cast<plInstanceDrawInterface*>(plInstanceDrawInterface::ConvertNoRef(so->GetDrawInterface()));
             if (idi)
@@ -1482,6 +1461,87 @@ void plClothingOutfit::SetupMorphSDL()
     }
 }
 
+bool plClothingOutfit::WriteToFile(const plFileName &filename)
+{
+    if (!filename.IsValid())
+        return false;
+
+    hsRef<RelVaultNode> rvn = VaultGetAvatarOutfitFolder();
+    if (!rvn)
+        return false;
+
+    hsUNIXStream S;
+    if (!S.Open(filename, "wb"))
+        return false;
+
+    S.WriteByte(fGroup);
+
+    RelVaultNode::RefList nodes;
+    rvn->GetChildNodes(plVault::kNodeType_SDL, 1, &nodes);
+    S.WriteLE32(nodes.size());
+    for (const hsRef<RelVaultNode> &node : nodes) {
+        VaultSDLNode sdl(node);
+        S.WriteLE32(sdl.GetSDLDataLength());
+        if (sdl.GetSDLDataLength())
+            S.Write(sdl.GetSDLDataLength(), sdl.GetSDLData());
+    }
+
+    S.Close();
+    return true;
+}
+
+bool plClothingOutfit::IReadFromFile(const plFileName &filename)
+{
+    if (!filename.IsValid())
+        return false;
+
+    hsUNIXStream S;
+    if (!S.Open(filename))
+        return false;
+
+    bool isLocalAvatar = plAvatarMgr::GetInstance()->GetLocalAvatar()->GetClothingOutfit() == this;
+
+    uint8_t gender = S.ReadByte();
+    if (gender != fGroup) {
+        if (isLocalAvatar) {
+            if (gender == plClothingMgr::kClothingBaseMale)
+                plClothingMgr::ChangeAvatar("Male", filename);
+            else if (gender == plClothingMgr::kClothingBaseFemale)
+                plClothingMgr::ChangeAvatar("Female", filename);
+        }
+        S.Close();
+        return true;
+    }
+
+    StripAccessories();
+
+    uint32_t nodeCount = S.ReadLE32();
+    for (size_t i = 0; i < nodeCount; i++) {
+        uint32_t dataLen = S.ReadLE32();
+        if (dataLen) {
+            ST::string sdlRecName;
+            int sdlRecVersion;
+            plStateDataRecord::ReadStreamHeader(&S, &sdlRecName, &sdlRecVersion);
+            plStateDescriptor* desc = plSDLMgr::GetInstance()->FindDescriptor(sdlRecName, sdlRecVersion);
+            if (desc) {
+                plStateDataRecord sdlDataRec(desc);
+                if (sdlDataRec.Read(&S, 0)) {
+                    if (sdlRecName == kSDLMorphSequence)
+                        IHandleMorphSDR(&sdlDataRec);
+                    else
+                        plClothingSDLModifier::HandleSingleSDR(&sdlDataRec, this);
+                }
+            }
+        }
+    }
+
+    S.Close();
+    fSynchClients = true;
+    ForceUpdate(true);
+    SaveCustomizations(); // Sync with the vault
+    return true;
+}
+
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -1523,23 +1583,21 @@ plClothingMgr::~plClothingMgr()
         delete fItems.Pop();
 }
 
-plClothingLayout *plClothingMgr::GetLayout(char *name)
+plClothingLayout *plClothingMgr::GetLayout(const ST::string &name) const
 {
-    int i;
-    for (i = 0; i < fLayouts.GetCount(); i++)
+    for (int i = 0; i < fLayouts.GetCount(); i++)
     {
-        if (!strcmp(fLayouts.Get(i)->fName, name))
+        if (fLayouts.Get(i)->fName == name)
             return fLayouts.Get(i);
     }
     return nil;
 }
 
-plClothingElement *plClothingMgr::FindElementByName(const char *name)
+plClothingElement *plClothingMgr::FindElementByName(const ST::string &name) const
 {
-    int i;
-    for (i = 0; i < fElements.GetCount(); i++)
+    for (int i = 0; i < fElements.GetCount(); i++)
     {
-        if (!strcmp(fElements.Get(i)->fName, name))
+        if (fElements.Get(i)->fName == name)
             return fElements.Get(i);
     }
     return nil; 
@@ -1547,14 +1605,14 @@ plClothingElement *plClothingMgr::FindElementByName(const char *name)
 
 void plClothingMgr::AddItemsToCloset(hsTArray<plClosetItem> &items)
 {
-    RelVaultNode * rvn = VaultGetAvatarClosetFolderIncRef();
+    hsRef<RelVaultNode> rvn = VaultGetAvatarClosetFolder();
     if (!rvn)
         return;
         
     hsTArray<plClosetItem> closet;
     GetClosetItems(closet);
     
-    ARRAY(RelVaultNode*)    templates;
+    RelVaultNode::RefList templates;
     
     for (unsigned i = 0; i < items.GetCount(); ++i) {
         bool match = false;
@@ -1572,44 +1630,40 @@ void plClothingMgr::AddItemsToCloset(hsTArray<plClosetItem> &items)
         plStateDataRecord rec(plClothingSDLModifier::GetClothingItemSDRName());
         plClothingSDLModifier::PutSingleItemIntoSDR(&items[i], &rec);
         
-        RelVaultNode * templateNode = new RelVaultNode;
-        templateNode->IncRef();
+        hsRef<RelVaultNode> templateNode = new RelVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_SDL);
         
         VaultSDLNode sdl(templateNode);
         sdl.SetStateDataRecord(&rec);
 
-        templates.Add(templateNode);
+        templates.push_back(templateNode);
     }
     
-    for (unsigned i = 0; i < templates.Count(); ++i) {
+    for (const hsRef<RelVaultNode> &temp : templates) {
         ENetError result;
-        if (RelVaultNode * actual = VaultCreateNodeAndWaitIncRef(templates[i], &result)) {
+        if (hsRef<RelVaultNode> actual = VaultCreateNodeAndWait(temp, &result)) {
             VaultAddChildNodeAndWait(
                 rvn->GetNodeId(),
                 actual->GetNodeId(),
                 NetCommGetPlayer()->playerInt
             );
-            actual->DecRef(); // REF: Create
         }
-        templates[i]->DecRef(); // REF: Create
     }
-    
-    rvn->DecRef();
 }
 
 void plClothingMgr::GetClosetItems(hsTArray<plClosetItem> &out)
 {
-    RelVaultNode * rvn = VaultGetAvatarClosetFolderIncRef();
+    hsRef<RelVaultNode> rvn = VaultGetAvatarClosetFolder();
     if (!rvn)
         return;
 
-    ARRAY(RelVaultNode*)    nodes;
-    rvn->GetChildNodesIncRef(plVault::kNodeType_SDL, 1, &nodes);
-    out.SetCount(nodes.Count());
+    RelVaultNode::RefList nodes;
+    rvn->GetChildNodes(plVault::kNodeType_SDL, 1, &nodes);
+    out.SetCount(nodes.size());
     
-    for (unsigned i = 0; i < nodes.Count(); ++i) {
-        VaultSDLNode sdl(nodes[i]);
+    auto iter = nodes.begin();
+    for (unsigned i = 0; i < nodes.size(); ++i, ++iter) {
+        VaultSDLNode sdl(*iter);
         plStateDataRecord * rec = new plStateDataRecord;
         if (sdl.GetStateDataRecord(rec, 0))
             plClothingSDLModifier::HandleSingleSDR(rec, nil, &out[i]);
@@ -1622,9 +1676,7 @@ void plClothingMgr::GetClosetItems(hsTArray<plClosetItem> &out)
                 out.Remove(i);
         }
     }
-    
-    rvn->DecRef();
-}   
+}
 
 void plClothingMgr::GetAllWithSameMesh(plClothingItem *item, hsTArray<plClothingItem*> &out)
 {
@@ -1654,16 +1706,15 @@ void plClothingMgr::FilterUniqueMeshes(hsTArray<plClothingItem*> &items)
     }
 }
 
-plClothingItem *plClothingMgr::FindItemByName(const char *name)
+plClothingItem *plClothingMgr::FindItemByName(const ST::string &name) const
 {
-    if (!name)
+    if (name.empty())
         return nil;
-    
-    int i;
-    for (i = 0; i < fItems.GetCount(); i++)
+
+    for (int i = 0; i < fItems.GetCount(); i++)
     {
         plClothingItem* item = fItems.Get(i);
-        if (!strcmp(item->fName, name))
+        if (item->fName == name)
             return item;
     }
     return nil;
@@ -1806,7 +1857,7 @@ void plClothingMgr::IAddItem(plClothingItem *item)
     {
         for (j = 0; j < fElements.GetCount(); j++)
         {   
-            if (!strcmp(item->fElementNames.Get(i), fElements.Get(j)->fName))
+            if (item->fElementNames.Get(i) == fElements.Get(j)->fName)
             {
                 item->fElements.Set(i, fElements.Get(j));
                 break;
@@ -1832,9 +1883,8 @@ void plClothingMgr::IAddItem(plClothingItem *item)
         hsAssert(false, "Couldn't match all elements of added clothing item.");
 }
 
-void plClothingMgr::ChangeAvatar(char *name)
+void plClothingMgr::ChangeAvatar(const ST::string& name, const plFileName &clothingFile)
 {
     plAvatarMgr::GetInstance()->UnLoadLocalPlayer();
-    plAvatarMgr::GetInstance()->LoadPlayer(name, nil);
+    plAvatarMgr::GetInstance()->LoadPlayerFromFile(name, "", clothingFile);
 }
-

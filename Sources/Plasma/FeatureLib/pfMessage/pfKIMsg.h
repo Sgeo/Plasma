@@ -64,9 +64,9 @@ class pfKIMsg : public plMessage
         uint32_t  fFlags;
 
         // for the hack chat message thingy
-        char    *fUser;
-        uint32_t  fPlayerID;
-        plString  fString;
+        ST::string  fUser;
+        uint32_t    fPlayerID;
+        ST::string  fString;
 
         // for the SetChatFadeDelay
         float fDelay;
@@ -77,8 +77,8 @@ class pfKIMsg : public plMessage
         void IInit()
         {
             fCommand = kNoCommand;
-            fString = "";
-            fUser = nil;
+            fString = ST::null;
+            fUser = ST::null;
             fPlayerID = 0;
             fFlags = 0;
             fDelay = 0.0;
@@ -180,7 +180,6 @@ class pfKIMsg : public plMessage
         pfKIMsg() : plMessage( nil, nil, nil ) { SetBCastFlag( kBCastByExactType ); IInit(); }
         pfKIMsg( uint8_t command ) : plMessage( nil, nil, nil ) { SetBCastFlag( kBCastByExactType ); IInit(); fCommand = command; }
         pfKIMsg( plKey &receiver, uint8_t command ) : plMessage( nil, nil, nil ) { AddReceiver( receiver ); IInit(); fCommand = command; }
-        ~pfKIMsg() { delete [] fUser; }
 
         CLASSNAME_REGISTER( pfKIMsg );
         GETINTERFACE_ANY( pfKIMsg, plMessage );
@@ -191,7 +190,7 @@ class pfKIMsg : public plMessage
             s->ReadLE( &fCommand );
             fUser = s->ReadSafeString();
             fPlayerID = s->ReadLE32();
-            fString = s->ReadSafeWString_TEMP();
+            fString = s->ReadSafeWString();
             fFlags = s->ReadLE32();
             fDelay = s->ReadLEScalar();
             fValue = s->ReadLE32();
@@ -211,12 +210,12 @@ class pfKIMsg : public plMessage
 
         uint8_t     GetCommand( void ) const { return fCommand; }
 
-        void        SetString( const plString &str ) { fString = str; }
-        plString    GetString( void ) { return fString; }
+        void        SetString( const ST::string &str ) { fString = str; }
+        ST::string  GetString( void ) { return fString; }
 
-        void        SetUser( const char *str, uint32_t pid=0 ) { fUser = hsStrcpy( str ); fPlayerID = pid; }
-        const char  *GetUser( void ) { return fUser; }
-        uint32_t    GetPlayerID( void ) { return fPlayerID; }
+        void        SetUser(const ST::string &str, uint32_t pid=0) { fUser = str; fPlayerID = pid; }
+        ST::string  GetUser() const { return fUser; }
+        uint32_t    GetPlayerID() const { return fPlayerID; }
 
         void        SetFlags( uint32_t flags ) { fFlags = flags; }
         uint32_t    GetFlags( void ) const { return fFlags; }

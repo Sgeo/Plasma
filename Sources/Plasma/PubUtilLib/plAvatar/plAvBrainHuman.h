@@ -46,7 +46,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "plAvBrainGeneric.h"
 #include "plAvBehaviors.h"
-#include "plAGAnim.h"
+#include "plAnimation/plAGAnim.h"
 
 #pragma warning(disable: 4284)
 #include <deque>
@@ -97,7 +97,7 @@ public:
     virtual void Write(hsStream *stream, hsResMgr *mgr);
     virtual void Read(hsStream *stream, hsResMgr *mgr);
     virtual bool MsgReceive(plMessage *msg);
-    virtual void DumpToDebugDisplay(int &x, int &y, int lineHeight, char *strBuf, plDebugText &debugTxt);
+    virtual void DumpToDebugDisplay(int &x, int &y, int lineHeight, plDebugText &debugTxt);
 
     // Hardwired Identifiers for all the canonical bones.
     enum HumanBoneID {
@@ -402,7 +402,7 @@ public:
 bool PushSimpleMultiStage(plArmatureMod *avatar, const char *enterAnim, const char *idleAnim,
                           const char *exitAnim, bool netPropagate, bool autoExit, plAGAnim::BodyUsage bodyUsage,
                           plAvBrainGeneric::BrainType type = plAvBrainGeneric::kGeneric);
-
+bool PushRepeatEmote(plArmatureMod* avatar, const ST::string& anim);
 bool AvatarEmote(plArmatureMod *avatar, const char *emoteName);
 
 

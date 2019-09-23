@@ -45,7 +45,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
-#include "plString.h"
 #include "pfConsoleCmd.h"
 
 
@@ -428,8 +427,8 @@ void    pfConsoleCmd::ICreateSignature(const char *paramList )
     hsAssert( strlen( paramList ) < sizeof( params ), "Make the (#*$& params string larger!" );
     hsStrcpy( params, paramList );
 
-    fSignature.Empty();
-    fSigLabels.Empty();
+    fSignature.Reset();
+    fSigLabels.Reset();
 
     /// Loop through all the types given in the list
     ptr = params;

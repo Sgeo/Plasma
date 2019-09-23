@@ -53,16 +53,13 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pyGlueHelpers.h"
 #include "pyVaultNode.h"
 
-#include "pnNetBase/pnNetBase.h"
+#include <vector>
 
 struct RelVaultNode;
 class plUUID;
 
 class pyVaultMarkerGameNode : public pyVaultNode
 {
-private:
-    mutable char fGameName[kMaxVaultNodeStringLength];
-
 protected:
     // should only be created from C++ side
     pyVaultMarkerGameNode(RelVaultNode* vaultNode);
@@ -80,14 +77,15 @@ public:
 
     static void AddPlasmaClasses(PyObject *m);
 
-//==================================================================
-// class RelVaultNode : public plVaultNode
-//
-    const char *    GetGameName () const;
-    void            SetGameName (const char v[]);
+    ST::string      GetGameName () const;
+    void            SetGameName (const ST::string& name);
 
-    plUUID          GetGameGuid() const;
-    void            SetGameGuid (const char v[]);
+    ST::string GetReward() const;
+    void SetReward(const ST::string& value);
+
+    /** Returns a tuple of tuples */
+    PyObject*       GetMarkers() const;
+    void            SetMarkers(const std::vector<struct VaultMarker>& markers);
 };
 
 #endif // _pyVaultMarkerGameNode_h_

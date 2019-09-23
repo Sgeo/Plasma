@@ -58,8 +58,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "hsGeometry3.h"
 #include "plEAXEffects.h"
 #include "pnNetCommon/plSynchedObject.h"
-#include "plAvatar/plAGChannel.h"
-#include "plAvatar/plAGApplicator.h"
+#include "plAnimation/plAGChannel.h"
+#include "plAnimation/plAGApplicator.h"
 #include "plAudioCore/plSoundBuffer.h"
 
 class hsResMgr;
@@ -239,7 +239,7 @@ public:
     virtual void        UpdateSoftVolume( bool enable, bool firstTime = false );
 
     virtual bool        MsgReceive( plMessage* pMsg );
-    virtual bool        DirtySynchState( const char *sdlName = nil, uint32_t sendFlags = 0 ); // call when state has changed
+    virtual bool        DirtySynchState( const ST::string &sdlName = ST::null, uint32_t sendFlags = 0 ); // call when state has changed
 
     // Tests whether this sound is within range of the given position, not counting soft regions
     bool                IsWithinRange( const hsPoint3 &listenerPos, float *distSquared );
@@ -260,7 +260,7 @@ public:
     virtual void        ForceUnload( void );
 
     // Note: ONLY THE AUDIOSYS SHOULD CALL THIS. If you're not the audioSys, get lost.
-    static void         SetCurrDebugPlate( const plKey soundKey );
+    static void         SetCurrDebugPlate( const plKey& soundKey );
 
     void                RegisterOnAudioSys( void );
     void                UnregisterOnAudioSys( void );
@@ -343,7 +343,7 @@ protected:
     void            IUpdateDebugPlate( void );
     void            IPrintDbgMessage( const char *msg, bool isErr = false );
 
-    virtual void    ISetActualVolume(const float v) = 0;
+    virtual void    ISetActualVolume(float v) = 0;
     virtual void    IActuallyStop( void );
     virtual bool    IActuallyPlaying( void ) = 0;
     virtual void    IActuallyPlay( void ) = 0;

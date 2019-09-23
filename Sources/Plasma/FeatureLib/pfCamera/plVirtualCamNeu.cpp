@@ -309,6 +309,7 @@ void plVirtualCam1::Refresh()
 {
     plPipeline* pipe = plVirtualCam1::Instance()->fPipe;
     SetAspectRatio((float)pipe->Width() / (float)pipe->Height());
+    plVirtualCam1::Instance()->SetOutputFOV();
 }
 
 void plVirtualCam1::SetAspectRatio(float ratio)
@@ -517,12 +518,12 @@ void plVirtualCam1::SetRender(bool render)
 }
 
 // hack, hack, hack
-bool plVirtualCam1::RestoreFromName(const plString& name)
+bool plVirtualCam1::RestoreFromName(const ST::string& name)
 {
     for(plSOVec::iterator it = fCamerasLoaded.begin(); it != fCamerasLoaded.end(); ++it)
     {
         plKey cam = (*it)->GetKey();
-        if (name.Compare(cam->GetName(), plString::kCaseInsensitive) == 0)
+        if (name.compare(cam->GetName(), ST::case_insensitive) == 0)
         {
             RebuildStack(cam);
             return true;
@@ -848,24 +849,26 @@ void plVirtualCam1::Output()
     targetMatrix.GetInverse(&inverse);
     fPipe->SetWorldToCamera( targetMatrix, inverse );
     if (HasFlags(kSetFOV)) // are we changing the field of view?
-    {
-        ClearFlags(kSetFOV);
-        fPipe->SetFOV(fFOVw,fFOVh);
-        fPipe->RefreshMatrices();
-        if (foutLog)
-        {
-            fprintf(foutLog, "****************************************************************\n");
-            fprintf(foutLog, "FOV changed to %f %f\n",fFOVh, fFOVw);
-            fprintf(foutLog, "****************************************************************\n");
-        }   
-
-    }
+        SetOutputFOV();
 /*  if (foutLog)
     {
         fprintf(foutLog, "output pos %f %f %f\n", fOutputPos.fX,fOutputPos.fY,fOutputPos.fZ);
         fprintf(foutLog, "output poa %f %f %f\n", fOutputPOA.fX,fOutputPOA.fY,fOutputPOA.fZ);
         fprintf(foutLog, "\n");
     }   */
+}
+
+void plVirtualCam1::SetOutputFOV()
+{
+    ClearFlags(kSetFOV);
+    fPipe->SetFOV(fFOVw, fFOVh);
+    fPipe->RefreshMatrices();
+    if (foutLog)
+    {
+        fprintf(foutLog, "****************************************************************\n");
+        fprintf(foutLog, "FOV changed to %f %f\n", fFOVh, fFOVw);
+        fprintf(foutLog, "****************************************************************\n");
+    }
 }
 
 void plVirtualCam1::Init()
@@ -1949,7 +1952,7 @@ void plVirtualCam1::StartTransition(CamTrans* transition)
     pBrain->SetCamera(fTransitionCamera);
 
     // deal with FOV -
-    float diffH = hsABS(pCam->GetFOVh() - fPrevCam->GetFOVh());
+    float diffH = fabs(pCam->GetFOVh() - fPrevCam->GetFOVh());
     if ( diffH )
     {
         double time = 0;

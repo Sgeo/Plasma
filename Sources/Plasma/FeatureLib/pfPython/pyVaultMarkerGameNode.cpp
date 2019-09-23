@@ -45,6 +45,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //
 //////////////////////////////////////////////////////////////////////
 
+#include <Python.h>
+#include "pyGeometry3.h"
 #pragma hdrstop
 
 #include "pyVaultMarkerGameNode.h"
@@ -64,45 +66,65 @@ pyVaultMarkerGameNode::pyVaultMarkerGameNode(int n)
     fNode->SetNodeType(plVault::kNodeType_MarkerGame);
 }
 
-//==================================================================
-// class RelVaultNode : public plVaultNode
-//
-
-const char * pyVaultMarkerGameNode::GetGameName () const
+ST::string pyVaultMarkerGameNode::GetGameName () const
 {
-    fGameName[0] = 0;
-    
     if (fNode) {
         VaultMarkerGameNode access(fNode);
-        StrToAnsi(fGameName, access.GetGameName(), arrsize(fGameName));
+        return access.GetGameName();
     }
-    return fGameName;
+    return ST::null;
 }
 
-void pyVaultMarkerGameNode::SetGameName (const char v[])
+void pyVaultMarkerGameNode::SetGameName (const ST::string& name)
 {
     if (fNode) {
         VaultMarkerGameNode access(fNode);
-        wchar_t unicode[kMaxVaultNodeStringLength];
-        StrToUnicode(unicode, v, arrsize(unicode));
-        access.SetGameName(unicode);
+        access.SetGameName(name);
     }
 }
 
-plUUID pyVaultMarkerGameNode::GetGameGuid() const
+ST::string pyVaultMarkerGameNode::GetReward() const
 {
     if (fNode) {
         VaultMarkerGameNode access(fNode);
-        return access.GetGameGuid();
+        return access.GetReward();
     }
-    return kNilUuid;
+    return ST::null;
 }
 
-void pyVaultMarkerGameNode::SetGameGuid (const char v[])
+void pyVaultMarkerGameNode::SetReward(const ST::string& value)
 {
     if (fNode) {
         VaultMarkerGameNode access(fNode);
-        plUUID uuid(v);
-        access.SetGameGuid(uuid);
+        access.SetReward(value);
+    }
+}
+
+PyObject* pyVaultMarkerGameNode::GetMarkers() const
+{
+    if (!fNode)
+        PYTHON_RETURN_NONE;
+
+    VaultMarkerGameNode marker(fNode);
+    std::vector<VaultMarker> collector;
+    marker.GetMarkerData(collector);
+
+    PyObject* list = PyList_New(collector.size());
+    for (size_t i = 0; i < collector.size(); ++i) {
+        PyObject* marker_tup = PyTuple_New(4);
+        PyTuple_SET_ITEM(marker_tup, 0, PyInt_FromLong(collector[i].id));
+        PyTuple_SET_ITEM(marker_tup, 1, PyUnicode_FromSTString(collector[i].age));
+        PyTuple_SET_ITEM(marker_tup, 2, pyPoint3::New(collector[i].pos));
+        PyTuple_SET_ITEM(marker_tup, 3, PyUnicode_FromSTString(collector[i].description));
+        PyList_SET_ITEM(list, i, marker_tup);
+    }
+    return list;
+}
+
+void pyVaultMarkerGameNode::SetMarkers(const std::vector<VaultMarker>& markers)
+{
+    if (fNode) {
+        VaultMarkerGameNode marker(fNode);
+        marker.SetMarkerData(markers);
     }
 }

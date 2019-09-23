@@ -5,6 +5,8 @@ A CMake-based fork of the GPLv3-licensed **CyanWorlds.com Engine** (Headspin/Pla
 
 For more information on Myst Online, see http://mystonline.com/developers/
 
+For a project roadmap, see https://github.com/H-uru/Plasma/wiki/Roadmap
+
 
 Related Projects
 ----------------
@@ -19,56 +21,67 @@ Library Dependencies
 Plasma currently requires the following third-party libraries:
 
 - nVidia PhysX 2.6.4 - http://www.nvidia.com/object/physx_archives.html#SDK
-- Creative Labs' OpenAL SDK 1.1 - http://connect.creativelabs.com/openal/Downloads/OpenAL11CoreSDK.zip
 - Microsoft DirectX SDK - http://www.microsoft.com/downloads/en/details.aspx?familyid=3021d52b-514e-41d3-ad02-438a3ba730ba
 - Python 2.7 - http://www.python.org/download/releases/2.7/
 - libOgg and libVorbis - http://www.xiph.org/downloads/
 - OpenSSL - http://www.slproweb.com/products/Win32OpenSSL.html
+- OpenAL - http://www.openal.org/
 - eXpat - http://expat.sourceforge.net/
-- libJPEG - http://www.ijg.org/
+- libJPEG - http://libjpeg-turbo.virtualgl.org/
 - libPNG - http://www.libpng.org/
-- speex - http://www.speex.org/downloads/
 - zlib - http://zlib.net/
-- PCRE - http://www.pcre.org/
 - libcurl - http://curl.haxx.se/
+- string_theory - http://github.com/zrax/string_theory/
 
 The following libraries are optional:
 
 - (for building resource.dat) PyGTK - http://www.pygtk.org/downloads.html
-- (for building resource.dat) PIL - http://www.pythonware.com/products/pil/
+- (for building resource.dat) Pillow - https://python-pillow.org/
 - (for plFontConverter) Freetype - http://freetype.org/
 - (for building Oculus Rift support) - https://github.com/Mystfit/LibOVR/ - Includes changes made to the sdk for compatibility with Plasma's left-handed coordinate system. (Original SDK is located at http://developer.oculus.com)
+- (for the GUI tools) Qt5 - http://www.qt.io/download-open-source/
+- (for video) VPX - http://www.webmproject.org/
+- (for video and voice chat) Opus - http://www.opus-codec.org/
+- (for legacy voice chat) speex - http://www.speex.org/downloads/
 
 Reducing the use of proprietary libraries is a focus of development and should be expected to change.
 
-PhysX, OpenAL, and DirectX SDK will need to be acquired through the above links.
+PhysX and DirectX SDK will need to be acquired through the above links.
 All other required libraries are available as precompiled binaries and associated files in the [development libraries bundle](http://guildofwriters.org/tools/devlibs.zip) or can be built using their individual build instructions.
 
 
 Compiling Instructions
 ----------------------
 
-Currently, compilation only targets Windows systems and requires Visual Studio 2010 or Visual Studio 2012 (including Express Editions).
+Currently, compilation only targets Windows systems and requires Visual Studio
+2013 (including Visual Studio 2013 Express for Windows Desktop).
 
-To compile:
+**Quick-start instructions:**
 
-1.  Start **CMake-GUI**.
-2.  Set the *Where is the source code* option to the location where you cloned the repository.
-3.  Set the *Where to build the binaries* option to a subfolder of the aforementioned location called *build*.
-4.  Check the **Grouped** and **Advanced** options.
-5.  Press **Configure**. Select *Visual Studio 10* (or your preferred version of Visual Studio) as the generator.
-6.  Set the *CMAKE_INSTALL_PREFIX* option under CMAKE to the *cwe-prefix* folder that you extracted from the [development libraries bundle](http://guildofwriters.org/tools/devlibs.zip).
-7.  Press **Configure** again.
-8.  Set the *OpenAL include and library path* options under OPENAL.
-    - Default Include Path: `C:\Program Files\OpenAL 1.1 SDK\include`
-    - Default Library Path: `C:\Program Files\OpenAL 1.1 SDK\lib\win32\OpenAL32.lib`
-9.  Press **Configure** again.
-10. Set the *PHYSX_SDK_PATH* option under PHYSX. 
-    - Default Path: `C:\Program Files\AGEIA Technologies\AGEIA PhysX SDK\v2.6.4\SDKs`
-11. If you are planning building support for the Oculus Rift, set the location of the libOVR library and include directories underneath 'libOVR'. 
-12. Press **Configure**... For the last time!
-13. Press **Generate**. You will now have a Visual Studio solution file (.sln) in the folder that you specified to build the binaries in.
-14. Open the solution in Visual Studio. You can compile CyanWorlds.com Engine by pressing *Build -> Build Solution*. This will take some time. 
+1. Run the `prepare_env.bat` script included in the repository.
+2. You should now have a *build* folder with a Visual Studio solution file
+   (.sln) inside.
+3. Open the solution in Visual Studio. You can compile CyanWorlds.com Engine by
+   pressing *Build -> Build Solution*. This will take some time.
+
+
+**To configure manually with CMake and build:**
+
+1. Start **CMake-GUI**.
+2. Set the *Where is the source code* option to the location where you cloned
+   the repository.
+3. Set the *Where to build the binaries* option to a subfolder of the
+   aforementioned location called *build*.
+4. Check the **Grouped** and **Advanced** options.
+5. Press **Configure**. Select *Visual Studio 12* as the generator.
+6. Set the *CMAKE_INSTALL_PREFIX* option under CMAKE to the *cwe-prefix* folder
+   that you extracted from the [development libraries
+   bundle](http://guildofwriters.org/tools/devlibs.zip).
+7. Press **Configure** again.
+8. Press **Generate**. You will now have a Visual Studio solution file (.sln)
+   in the folder that you specified to build the binaries in.
+9. Open the solution in Visual Studio. You can compile CyanWorlds.com Engine by
+   pressing *Build -> Build Solution*. This will take some time.
 
 
 Running Instructions

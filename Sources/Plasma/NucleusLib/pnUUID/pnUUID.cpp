@@ -56,7 +56,7 @@ plUUID::plUUID(const char* s)
     FromString(s);
 }
 
-plUUID::plUUID(const plString& s)
+plUUID::plUUID(const ST::string& s)
 {
     FromString(s.c_str());
 }
@@ -77,9 +77,9 @@ void plUUID::Write(hsStream* s)
     s->Write(sizeof(fData), (const void*)fData);
 }
 
-plString plUUID::AsString() const
+ST::string plUUID::AsString() const
 {
-    plString str;
+    ST::string str;
     ToString(str);
     return str;
 }

@@ -74,6 +74,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnMessage/plCursorChangeMsg.h"
 #include "pnMessage/plEventCallbackMsg.h"
 #include "plMessage/plAnimCmdMsg.h"
+#include "plInterp/plAnimEaseTypes.h"
 
 #include "MaxConvert/plConvert.h"
 
@@ -453,8 +454,8 @@ bool plClickDragComponent::Convert(plMaxNode *node, plErrorMsg *pErrMsg)
         pCall2->AddReceiver(axisKey);
 
         plAnimCmdMsg* pMsg = new plAnimCmdMsg;
-        plString tempAnimName = pAnim->GetAnimName();
-        if (tempAnimName.IsNull())
+        ST::string tempAnimName = pAnim->GetAnimName();
+        if (tempAnimName.empty())
         {
             //pMsg->SetAnimName(ENTIRE_ANIMATION_NAME);
             pMsg->SetAnimName(pAnim->GetModKey(node)->GetName());

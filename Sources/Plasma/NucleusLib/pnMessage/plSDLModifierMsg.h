@@ -63,7 +63,7 @@ public:
     };
 
 protected:
-    plString fSDLName;              // the state descriptor name (ie. "physical")
+    ST::string fSDLName;            // the state descriptor name (ie. "physical")
     Action fAction;
     plStateDataRecord* fState;      // for recving state
     bool fManageStateMem;           // delete fState?
@@ -71,11 +71,11 @@ protected:
     uint32_t fFlags;
 
 public:
-    plSDLModifierMsg(const plString& sdlName="", Action a=kActionNone);
+    plSDLModifierMsg(const ST::string& sdlName=ST::null, Action a=kActionNone);
     ~plSDLModifierMsg();
 
-    CLASSNAME_REGISTER( plSDLModifierMsg );
-    GETINTERFACE_ANY( plSDLModifierMsg, plMessage );
+    CLASSNAME_REGISTER(plSDLModifierMsg);
+    GETINTERFACE_ANY(plSDLModifierMsg, plMessage);
 
     uint32_t GetFlags() const { return fFlags; }
     void SetFlags(uint32_t f) { fFlags = f; }
@@ -86,15 +86,19 @@ public:
     plStateDataRecord* GetState(bool unManageState=false) { if ( unManageState ) fManageStateMem=false; return fState; }
     void SetState(plStateDataRecord* s, bool manageState) { fState=s; fManageStateMem=manageState; }
 
-    plString GetSDLName() const { return fSDLName; }
-    void SetSDLName(const plString& s) { fSDLName=s; }
-        
+    ST::string GetSDLName() const { return fSDLName; }
+    void SetSDLName(const ST::string& s) { fSDLName=s; }
+
     uint32_t GetPlayerID() const { return fPlayerID;  }
     void SetPlayerID(uint32_t p) { fPlayerID=p;   }
-    
-    // IO 
-    void Read(hsStream* stream, hsResMgr* mgr) { hsAssert(false, "local only msg"); }
-    void Write(hsStream* stream, hsResMgr* mgr) { hsAssert(false, "local only msg"); }
+
+    // IO
+    void Read(hsStream* stream, hsResMgr* mgr) HS_OVERRIDE {
+        hsAssert(false, "local only msg");
+    }
+    void Write(hsStream* stream, hsResMgr* mgr) HS_OVERRIDE {
+        hsAssert(false, "local only msg");
+    }
 };
 
 #endif  // plSDLModifierMsg_INC

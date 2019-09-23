@@ -57,8 +57,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "hsResMgr.h"
 #include "hsStream.h"
+#include "hsGDeviceRef.h"
 #include "pnKeyedObject/plKey.h"
-#include "plPipeline/hsGDeviceRef.h"
 
 
 //// Static Members ///////////////////////////////////////////////////////////
@@ -113,7 +113,8 @@ uint32_t  plBitmap::Read( hsStream *s )
     fFlags = s->ReadLE16();
     fCompressionType = s->ReadByte();
 
-    if(( fCompressionType == kUncompressed )||( fCompressionType == kJPEGCompression ))
+    if( fCompressionType == kUncompressed || fCompressionType == kJPEGCompression ||
+        fCompressionType == kPNGCompression )
     {
         fUncompressedInfo.fType = s->ReadByte();
         read++;
@@ -145,7 +146,8 @@ uint32_t  plBitmap::Write( hsStream *s )
     s->WriteLE16( fFlags );
     s->WriteByte( fCompressionType );
 
-    if(( fCompressionType == kUncompressed )||(fCompressionType == kJPEGCompression ))
+    if( fCompressionType == kUncompressed || fCompressionType == kJPEGCompression ||
+        fCompressionType == kPNGCompression )
     {
         s->WriteByte( fUncompressedInfo.fType );
         written++;

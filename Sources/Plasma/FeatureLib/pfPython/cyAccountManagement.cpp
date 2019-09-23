@@ -49,33 +49,27 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include <Python.h>
 #pragma hdrstop
 
+#include "pyGlueHelpers.h"
 #include "cyAccountManagement.h"
 #include "plNetClientComm/plNetClientComm.h"
 
-bool cyAccountManagement::IsSubscriptionActive()
-{
-    const NetCommAccount* account = NetCommGetAccount();    
-    return (account->billingType & kBillingTypePaidSubscriber);
-}
-
 PyObject* cyAccountManagement::GetPlayerList()
 {
-    const ARRAY(NetCommPlayer)& playerList = NetCommGetPlayerList();
-    int numPlayers = NetCommGetPlayerCount();
+    const std::vector<NetCommPlayer>& playerList = NetCommGetPlayerList();
     PyObject* pList = PyList_New(0);
 
     PyObject* visitor = nil;
 
-    for (int i = 0; i < numPlayers; ++i)
+    for (Py_ssize_t i = 0; i < playerList.size(); ++i)
     {
         PyObject* playerTuple   = PyTuple_New(3);
-        PyObject* playerName    = PyUnicode_FromUnicode((const Py_UNICODE*)playerList[i].playerName, wcslen(playerList[i].playerName));
+        PyObject* playerName    = PyUnicode_FromSTString(playerList[i].playerName);
         PyObject* playerId      = PyInt_FromLong(playerList[i].playerInt);
-        PyObject* avatarShape   = PyString_FromString(playerList[i].avatarDatasetName);
+        PyObject* avatarShape   = PyString_FromSTString(playerList[i].avatarDatasetName);
 
-        PyTuple_SetItem(playerTuple, 0, playerName);
-        PyTuple_SetItem(playerTuple, 1, playerId);
-        PyTuple_SetItem(playerTuple, 2, avatarShape);
+        PyTuple_SET_ITEM(playerTuple, 0, playerName);
+        PyTuple_SET_ITEM(playerTuple, 1, playerId);
+        PyTuple_SET_ITEM(playerTuple, 2, avatarShape);
 
         if (visitor || playerList[i].explorer)
             PyList_Append(pList, playerTuple);
@@ -96,13 +90,13 @@ PyObject* cyAccountManagement::GetPlayerList()
     return pList;
 }
 
-std::wstring cyAccountManagement::GetAccountName()
+ST::string cyAccountManagement::GetAccountName()
 {
     const NetCommAccount* acct = NetCommGetAccount();
     if (acct)
         return acct->accountName;
     else
-        return L"";
+        return ST::null;
 }
 
 void cyAccountManagement::CreatePlayer(const char* playerName, const char* avatar, const char* invitationCode)
@@ -112,7 +106,11 @@ void cyAccountManagement::CreatePlayer(const char* playerName, const char* avata
 
 void cyAccountManagement::CreatePlayerW(const wchar_t* playerName, const wchar_t* avatar, const wchar_t* invitationCode)
 {
-    NetCommCreatePlayer(playerName, avatar, invitationCode, 0, nil);
+    NetCommCreatePlayer(ST::string::from_wchar(playerName),
+        ST::string::from_wchar(avatar),
+        ST::string::from_wchar(invitationCode),
+        0,
+        nullptr);
 }
 
 void cyAccountManagement::DeletePlayer(unsigned playerId)
@@ -130,14 +128,7 @@ bool cyAccountManagement::IsActivePlayerSet()
     return NetCommGetPlayer()->playerInt != 0;
 }
 
-void cyAccountManagement::UpgradeVisitorToExplorer(unsigned playerId)
+void cyAccountManagement::ChangePassword(const ST::string& password)
 {
-    NetCommUpgradeVisitorToExplorer(playerId, nil);
-}
-
-void cyAccountManagement::ChangePassword(const char* password)
-{
-    wchar_t* wpassword = StrDupToUnicode(password);
-    NetCommChangeMyPassword(wpassword);
-    free(wpassword);
+    NetCommChangeMyPassword(password);
 }

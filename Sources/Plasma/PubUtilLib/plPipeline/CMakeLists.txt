@@ -4,6 +4,8 @@ include_directories("../../NucleusLib/inc")
 include_directories("../../NucleusLib")
 include_directories("../../PubUtilLib")
 
+if(PLASMA_PIPELINE STREQUAL "DirectX")
+
 if(LibOVR_FOUND)
     include_directories(${LibOVR_INCLUDE_DIR})
 endif(LibOVR_FOUND)  
@@ -13,12 +15,11 @@ if(Bink_SDK_AVAILABLE)
 endif()
 if(WIN32)
     include_directories(${DirectX_INCLUDE_DIR})
-endif(WIN32)
+endif(PLASMA_PIPELINE STREQUAL "DirectX")
 
 set(plPipeline_SOURCES
     hsG3DDeviceSelector.cpp
-    hsGColorizer.cpp
-    hsGDDrawDllLoad.cpp
+    pl3DPipeline.cpp
     plCaptureRender.cpp
     plCubicRenderTargetModifier.cpp
     plCullTree.cpp
@@ -26,17 +27,18 @@ set(plPipeline_SOURCES
     plDTProgressMgr.cpp
     plDynamicEnvMap.cpp
     plFogEnvironment.cpp
-    plGBufferGroup.cpp
+    plPipelineViewSettings.cpp
     plPlates.cpp
     plRenderTarget.cpp
     plStatusLogDrawer.cpp
     plTextFont.cpp
     plTextGenerator.cpp
     plTransitionMgr.cpp
-    plVertCoder.cpp
 )
 
 set(plDXPipeline_SOURCES
+    DX/hsGDirect3D.cpp
+    DX/plDXDevice.cpp
     DX/plDXDeviceRefs.cpp
     DX/plDXEnumerate.cpp
     DX/plDXPipeline.cpp
@@ -47,14 +49,17 @@ set(plDXPipeline_SOURCES
 	DX/D3DUtils.cpp
 )
 
+set(plGLPipeline_SOURCES
+    GL/plGLDevice.cpp
+    GL/plGLDeviceRefs.cpp
+    GL/plGLPipeline.cpp
+)
+
 set(plPipeline_HEADERS
     hsFogControl.h
     hsG3DDeviceSelector.h
-    hsGColorizer.h
-    hsGDDrawDllLoad.h
-    hsGDeviceRef.h
     hsWinRef.h
-    plBinkPlayer.h
+    pl3DPipeline.h
     plCaptureRender.h
     plCubicRenderTarget.h
     plCubicRenderTargetModifier.h
@@ -65,10 +70,9 @@ set(plPipeline_HEADERS
     plDTProgressMgr.h
     plDynamicEnvMap.h
     plFogEnvironment.h
-    plGBufferGroup.h
-    plPipeDebugFlags.h
     plPipelineCreatable.h
     plPipelineCreate.h
+    plPipelineViewSettings.h
     plPlates.h
     plRenderTarget.h
     plStatusLogDrawer.h
@@ -76,11 +80,12 @@ set(plPipeline_HEADERS
     plTextFont.h
     plTextGenerator.h
     plTransitionMgr.h
-    plVertCoder.h
 )
 
 set(plDXPipeline_HEADERS
+    DX/hsGDirect3D.h
     DX/plDXBufferRefs.h
+    DX/plDXDevice.h
     DX/plDXDeviceRef.h
     DX/plDXEnumerate.h
     DX/plDXLightRef.h
@@ -95,16 +100,34 @@ set(plDXPipeline_HEADERS
 	DX/D3DUtils.h
 )
 
-if(WIN32)
+set(plGLPipeline_HEADERS
+    GL/plGLDevice.h
+    GL/plGLDeviceRef.h
+    GL/plGLPipeline.h
+)
+
+if(PLASMA_PIPELINE STREQUAL "DirectX")
     add_library(plPipeline STATIC ${plPipeline_SOURCES} ${plDXPipeline_SOURCES} ${plPipeline_HEADERS} ${plDXPipeline_HEADERS})
-else()
-    add_library(plPipeline STATIC ${plPipeline_SOURCES} ${plPipeline_HEADERS})
-endif()
+
+    target_link_libraries(plPipeline ${DirectX_LIBRARIES})
+endif(PLASMA_PIPELINE STREQUAL "DirectX")
+
+if(PLASMA_PIPELINE STREQUAL "OpenGL")
+    add_library(plPipeline STATIC ${plPipeline_SOURCES} ${plGLPipeline_SOURCES} ${plPipeline_HEADERS} ${plGLPipeline_HEADERS})
+
+    target_link_libraries(plPipeline EGL)
+    target_link_libraries(plPipeline GLESv2)
+endif(PLASMA_PIPELINE STREQUAL "OpenGL")
 
 source_group("Source Files" FILES ${plPipeline_SOURCES})
 source_group("Header Files" FILES ${plPipeline_HEADERS})
 
-if(WIN32)
+if(PLASMA_PIPELINE STREQUAL "DirectX")
     source_group("DX\\Source Files" FILES ${plDXPipeline_SOURCES})
     source_group("DX\\Header Files" FILES ${plDXPipeline_HEADERS})
-endif()
+endif(PLASMA_PIPELINE STREQUAL "DirectX")
+
+if(PLASMA_PIPELINE STREQUAL "OpenGL")
+    source_group("GL\\Source Files" FILES ${plGLPipeline_SOURCES})
+    source_group("GL\\Header Files" FILES ${plGLPipeline_HEADERS})
+endif(PLASMA_PIPELINE STREQUAL "OpenGL")

@@ -45,22 +45,17 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "pnMessage/plMessageWithCallbacks.h"
 #include "hsBitVector.h"
-#include "hsTemplates.h"
-#include "hsGeometry3.h"
-#include "plString.h"
-#include "plInterp/plAnimEaseTypes.h"
-#include "plInterp/plAnimTimeConvert.h"
 
 class plAGAnimInstance;
 
 class plAnimCmdMsg : public plMessageWithCallbacks
 {
 protected:
-    plString fAnimName;
-    plString fLoopName;
+    ST::string fAnimName;
+    ST::string fLoopName;
 
 private:
-    void IInit() { fBegin=fEnd=fLoopBegin=fLoopEnd=fSpeed=fSpeedChangeRate=fTime=0; fAnimName=fLoopName=plString::Null;}
+    void IInit() { fBegin=fEnd=fLoopBegin=fLoopEnd=fSpeed=fSpeedChangeRate=fTime=0; fAnimName=fLoopName=ST::null;}
 public:
     plAnimCmdMsg()
         : plMessageWithCallbacks(nil, nil, nil) { IInit(); }
@@ -111,12 +106,12 @@ public:
     bool Cmd(int n) const { return fCmd.IsBitSet(n); }
     void SetCmd(int n) { fCmd.SetBit(n); }
     void ClearCmd();
-    void SetAnimName(const plString &name) { fAnimName = name; }
-    plString GetAnimName() { return fAnimName; }
+    void SetAnimName(const ST::string &name) { fAnimName = name; }
+    ST::string GetAnimName() const { return fAnimName; }
     bool CmdChangesAnimTime(); // Will this command cause an update to the current anim time?
 
-    void SetLoopName(const plString &name) { fLoopName = name; }
-    plString GetLoopName() { return fLoopName; }
+    void SetLoopName(const ST::string &name) { fLoopName = name; }
+    ST::string GetLoopName() { return fLoopName; }
 
     float fBegin;
     float fEnd;
@@ -137,11 +132,11 @@ public:
 class plAGCmdMsg : public plMessage
 {
 protected:
-    plString fAnimName;
+    ST::string fAnimName;
 
 private:
     void IInit() { fBlend = fAmp = 0;
-                   fAnimName=plString::Null;}
+                   fAnimName=ST::null;}
 public:
     plAGCmdMsg()
         : plMessage(nil, nil, nil) { IInit(); }
@@ -166,8 +161,8 @@ public:
     bool Cmd(int n) const { return fCmd.IsBitSet(n); }
     void SetCmd(int n) { fCmd.SetBit(n); }
     void ClearCmd() { fCmd.Clear(); }
-    void SetAnimName(const plString &name);
-    plString GetAnimName();
+    void SetAnimName(const ST::string& name) { fAnimName = name; }
+    ST::string GetAnimName() const { return fAnimName; }
 
     float fBlend;
     float fBlendRate;
@@ -200,7 +195,7 @@ public:
 class plAGDetachCallbackMsg : public plEventCallbackMsg
 {
 protected:
-    plString fAnimName;
+    ST::string fAnimName;
 
 public:
     plAGDetachCallbackMsg() : plEventCallbackMsg() {}
@@ -209,13 +204,13 @@ public:
 
     CLASSNAME_REGISTER( plAGDetachCallbackMsg );
     GETINTERFACE_ANY( plAGDetachCallbackMsg, plEventCallbackMsg );
-    
+
     // These aren't meant to go across the net, so no IO necessary.
     void Read(hsStream* stream, hsResMgr* mgr) {}
     void Write(hsStream* stream, hsResMgr* mgr) {}
-    
-    void SetAnimName(const plString &name);
-    plString GetAnimName();
+
+    void SetAnimName(const ST::string& name) { fAnimName = name; }
+    ST::string GetAnimName() const { return fAnimName; }
 };
 
 

@@ -46,13 +46,13 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnSceneObject/plSceneObject.h"
 #include "plSurface/hsGMaterial.h"
 #include "plSurface/plLayerAnimation.h"
-#include "plAvatar/plAGMasterMod.h"
-#include "plAvatar/plAGAnimInstance.h"
-#include "plAvatar/plAGAnim.h"
+#include "plAnimation/plAGMasterMod.h"
+#include "plAnimation/plAGAnimInstance.h"
+#include "plAnimation/plAGAnim.h"
 #include "plResMgr/plKeyFinder.h"
 #include "plPipeline/plDebugText.h"
 
-void plAnimDebugList::AddObjects(const plString &subString)
+void plAnimDebugList::AddObjects(const ST::string &subString)
 {
     std::vector<plKey> keys;
     std::vector<plKey>::iterator i;
@@ -78,18 +78,18 @@ void plAnimDebugList::AddObjects(const plString &subString)
     }
 }
 
-void plAnimDebugList::RemoveObjects(const plString &subString)
+void plAnimDebugList::RemoveObjects(const ST::string &subString)
 {
     int i;
     for (i = fMaterialKeys.GetCount() - 1; i >= 0; i--)
     {
-        if (fMaterialKeys[i]->GetName().Find(subString) >= 0)
+        if (fMaterialKeys[i]->GetName().contains(subString))
             fMaterialKeys.Remove(i);
     }
 
     for (i = fSOKeys.GetCount() - 1; i >= 0; i--)
     {
-        if (fSOKeys[i]->GetName().Find(subString) >= 0)
+        if (fSOKeys[i]->GetName().contains(subString))
             fSOKeys.Remove(i);
     }
 }
@@ -103,7 +103,7 @@ void plAnimDebugList::ShowReport()
 
     int y,x,i,j;
     const int yOff=10, startY=40, startX=10;
-    plString str;
+    ST::string str;
 
     x = startX;
     y = startY;
@@ -123,10 +123,10 @@ void plAnimDebugList::ShowReport()
                 plLayerAnimation *layerAnim = plLayerAnimation::ConvertNoRef(layer);
                 if (layerAnim)
                 {
-                    str = plString::Format("%s: %s %.3f (%.3f)", mat->GetKeyName().c_str(), layerAnim->GetKeyName().c_str(),
+                    str = ST::format("{}: {} {.3f} ({.3f})", mat->GetKeyName(), layerAnim->GetKeyName(),
                             layerAnim->GetTimeConvert().CurrentAnimTime(),
                             layerAnim->GetTimeConvert().WorldToAnimTimeNoUpdate(hsTimer::GetSysSeconds()));
-                    txt.DrawString(x, y, str.c_str());
+                    txt.DrawString(x, y, str);
                     y += yOff;
                 }
                 layer = layer->GetOverLay();
@@ -147,17 +147,17 @@ void plAnimDebugList::ShowReport()
         if (!mod)
             continue;
 
-        str = plString::Format("  %s", so->GetKeyName().c_str());
-        txt.DrawString(x, y, str.c_str());
+        str = ST::format("  {}", so->GetKeyName());
+        txt.DrawString(x, y, str);
         y += yOff;
 
         for (j = 0; j < mod->GetNumATCAnimations(); j++)
         {
             plAGAnimInstance *anim = mod->GetATCAnimInstance(j);
-            str = plString::Format("    %s: %.3f (%.3f)", anim->GetAnimation()->GetName().c_str(),
+            str = ST::format("    {}: {.3f} ({.3f})", anim->GetAnimation()->GetName(),
                     anim->GetTimeConvert()->CurrentAnimTime(),
                     anim->GetTimeConvert()->WorldToAnimTimeNoUpdate(hsTimer::GetSysSeconds()));
-            txt.DrawString(x, y, str.c_str());
+            txt.DrawString(x, y, str);
             y += yOff;
         }
     }

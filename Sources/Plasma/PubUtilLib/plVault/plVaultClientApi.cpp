@@ -74,22 +74,11 @@ struct INotifyAfterDownload : THashKeyVal<unsigned> {
     {}
 };
 
-struct DeviceInbox : CHashKeyStr {
-    HASHLINK(DeviceInbox)   link;
-    wchar_t                 inboxName[kMaxVaultNodeStringLength];
-
-    DeviceInbox (const wchar_t device[], const wchar_t inbox[])
-    :   CHashKeyStr(device)
-    {
-        StrCopy(inboxName, inbox, arrsize(inboxName));
-    }
-};
-
 // A RelVaultNodeLink may be either stored in the global table,
 // or stored in an IRelVaultNode's parents or children table.
 struct RelVaultNodeLink : THashKeyVal<unsigned> {
     HASHLINK(RelVaultNodeLink)  link;
-    RelVaultNode * const        node;
+    hsRef<RelVaultNode>         node;
     unsigned                    ownerId;
     bool                        seen;
     
@@ -99,16 +88,12 @@ struct RelVaultNodeLink : THashKeyVal<unsigned> {
     ,   ownerId(ownerId)
     ,   seen(seen)
     {
-        node->IncRef();
-    }
-    ~RelVaultNodeLink () {
-        node->DecRef();
     }
 };
 
 
 struct IRelVaultNode {
-    RelVaultNode *  node;
+    RelVaultNode * node;        // MUST be a weak ref!
     
     HASHTABLEDECL(
         RelVaultNodeLink,
@@ -139,7 +124,7 @@ struct VaultCreateNodeTrans {
     void *                      param;
 
     unsigned                    nodeId;
-    RelVaultNode *              node;
+    hsRef<RelVaultNode>         node;
 
     VaultCreateNodeTrans ()
         : callback(nil), state(nil), param(nil), nodeId(0), node(nil) { }
@@ -188,7 +173,7 @@ struct VaultDownloadTrans {
     FVaultProgressCallback      progressCallback;
     void *                      cbProgressParam;
 
-    wchar_t     tag[MAX_PATH];
+    ST::string  tag;
     unsigned    nodeCount;
     unsigned    nodesLeft;
     unsigned    vaultId;
@@ -198,18 +183,15 @@ struct VaultDownloadTrans {
         : callback(nil), cbParam(nil), progressCallback(nil), cbProgressParam(nil),
           nodeCount(0), nodesLeft(0), vaultId(0), result(kNetSuccess)
     {
-        memset(tag, 0, sizeof(tag));
     }
 
-    VaultDownloadTrans (const wchar_t * _tag, FVaultDownloadCallback _callback,
+    VaultDownloadTrans (const ST::string& _tag, FVaultDownloadCallback _callback,
                         void * _cbParam, FVaultProgressCallback _progressCallback,
                         void * _cbProgressParam, unsigned _vaultId)
         : callback(_callback), cbParam(_cbParam), progressCallback(_progressCallback),
           cbProgressParam(_cbProgressParam), nodeCount(0), nodesLeft(0),
-          vaultId(_vaultId), result(kNetSuccess)
+          vaultId(_vaultId), result(kNetSuccess), tag(_tag)
     {
-        wcsncpy(tag, _tag, arrsize(tag));
-        tag[arrsize(tag)-1] = 0;
     }
 
 
@@ -250,7 +232,7 @@ struct AddChildNodeFetchTrans {
     FVaultAddChildNodeCallback  callback;
     void *                      cbParam;
     ENetError                   result;
-    long                        opCount;
+    std::atomic<long>           opCount;
 
     AddChildNodeFetchTrans()
         : callback(nil), cbParam(nil), result(kNetSuccess), opCount(0) { }
@@ -297,11 +279,7 @@ static HASHTABLEDECL(
     link
 ) s_notifyAfterDownload;
 
-static HASHTABLEDECL(
-    DeviceInbox,
-    CHashKeyStr,
-    link
-) s_ageDeviceInboxes;
+static std::unordered_map<ST::string, ST::string, ST::hash> s_ageDeviceInboxes;
 
 static bool s_processPlayerInbox = false;
 
@@ -401,8 +379,8 @@ static void BuildNodeTree (
                 childLink->ownerId = ownerId;
         }
 
-        RelVaultNode * parentNode = parentLink->node;
-        RelVaultNode * childNode = childLink->node;
+        hsRef<RelVaultNode> parentNode = parentLink->node;
+        hsRef<RelVaultNode> childNode = childLink->node;
         
         bool isImmediateParent = parentNode->IsParentOf(refs[i].childId, 1);
         bool isImmediateChild = childNode->IsChildOf(refs[i].parentId, 1);
@@ -456,8 +434,7 @@ static void FetchRefOwners (
                 ownerIds.Add(ownerId);
     }
     QSORT(unsigned, ownerIds.Ptr(), ownerIds.Count(), elem1 < elem2);
-    RelVaultNode * templateNode = new RelVaultNode;
-    templateNode->IncRef();
+    hsRef<RelVaultNode> templateNode = new RelVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_PlayerInfo);
     {   unsigned prevId = 0;
         for (unsigned i = 0; i < ownerIds.Count(); ++i) {
@@ -465,10 +442,8 @@ static void FetchRefOwners (
                 prevId = ownerIds[i];
                 VaultPlayerInfoNode access(templateNode);
                 access.SetPlayerId(refs[i].ownerId);
-                if (RelVaultNode * rvn = VaultGetNodeIncRef(templateNode)) {
-                    rvn->DecRef();
+                if (VaultGetNode(templateNode))
                     continue;
-                }
                 NetCliAuthVaultNodeFind(
                     templateNode,
                     VaultNodeFound,
@@ -477,7 +452,6 @@ static void FetchRefOwners (
             }
         }
     }
-    templateNode->DecRef();
 }
 
 //============================================================================
@@ -561,14 +535,14 @@ static void VaultNodeFetched (
     // Add to global node table
     RelVaultNodeLink * link = s_nodes.Find(node->GetNodeId());
     if (!link) {
-        link = new RelVaultNodeLink(false, 0, node->GetNodeId(), new RelVaultNode);
+        link = new RelVaultNodeLink(false, 0, node->GetNodeId(), new RelVaultNode());
         link->node->SetNodeId_NoDirty(node->GetNodeId());
         s_nodes.Add(link);
     }
-    link->node->CopyFrom(node, NetVaultNode::kCopyOverwrite);
+    link->node->CopyFrom(node);
     InitFetchedNode(link->node);
-    
-    link->node->Print(L"Fetched", LogDumpProc, 0);
+
+    link->node->Print("Fetched", 0);
 }
 
 //============================================================================
@@ -610,7 +584,7 @@ static void VaultNodeChanged (
 
     // We are the party responsible for the change, so we already have the
     // latest version of the node; no need to fetch it.
-    if (link->node->revisionId == revisionId)
+    if (link->node->GetRevision() == revisionId)
         return;
 
     // We have the node and we weren't the one that changed it, so fetch it.
@@ -629,11 +603,9 @@ static void VaultNodeAdded (
 ) {
     LogMsg(kLogDebug, L"Notify: Node added: p:%u,c:%u", parentId, childId);
 
-    unsigned inboxId = 0;   
-    if (RelVaultNode * rvnInbox = VaultGetPlayerInboxFolderIncRef()) {
+    unsigned inboxId = 0;
+    if (hsRef<RelVaultNode> rvnInbox = VaultGetPlayerInboxFolder())
         inboxId = rvnInbox->GetNodeId();
-        rvnInbox->DecRef();
-    }
 
     // Build the relationship locally
     NetVaultNodeRef refs[] = {
@@ -661,10 +633,10 @@ static void VaultNodeAdded (
             continue;
         prevId = link->node->GetNodeId();
         VaultDownload(
-            L"NodeAdded",
+            "NodeAdded",
             nodeIds[i],
             VaultNodeAddedDownloadCallback,
-            (void*)nodeIds[i],
+            (void*)(uintptr_t)nodeIds[i],
             nil,
             nil
         );
@@ -729,22 +701,17 @@ static void SaveDirtyNodes () {
     static const unsigned kSaveUpdateIntervalMs     = 250;
     static const unsigned kMaxBytesPerSaveUpdate    = 5 * 1024;
     static unsigned s_nextSaveMs;
-    unsigned currTimeMs = TimeGetMs() | 1;
+    unsigned currTimeMs = hsTimer::GetMilliSeconds<uint32_t>() | 1;
     if (!s_nextSaveMs || signed(s_nextSaveMs - currTimeMs) <= 0) {
         s_nextSaveMs = (currTimeMs + kSaveUpdateIntervalMs) | 1;
         unsigned bytesWritten = 0;
         for (RelVaultNodeLink * link = s_nodes.Head(); link; link = s_nodes.Next(link)) {
             if (bytesWritten >= kMaxBytesPerSaveUpdate)
                 break;
-            if (link->node->GetDirtyFlags()) {
-
-                // Auth server needs the name of the sdl record
-                if (link->node->GetNodeType() == plVault::kNodeType_SDL)
-                    link->node->SetDirtyFlags(VaultSDLNode::kSDLName);
-
+            if (link->node->IsDirty()) {
                 if (unsigned bytes = NetCliAuthVaultNodeSave(link->node, nil, nil)) {
                     bytesWritten += bytes;
-                    link->node->Print(L"Saving", LogDumpProc, 0);
+                    link->node->Print("Saving", 0);
                 }
             }
         }
@@ -752,35 +719,27 @@ static void SaveDirtyNodes () {
 }
 
 //============================================================================
-static RelVaultNode * GetChildFolderNode (
+static hsRef<RelVaultNode> GetChildFolderNode (
     RelVaultNode *  parent,
     unsigned        folderType,
     unsigned        maxDepth
 ) {
     if (!parent)
-        return nil;
+        return nullptr;
 
-    RelVaultNode * rvn = parent->GetChildFolderNodeIncRef(folderType, maxDepth);
-    if (rvn)
-        rvn->DecRef();
-
-    return rvn;
+    return parent->GetChildFolderNode(folderType, maxDepth);
 }
 
 //============================================================================
-static RelVaultNode * GetChildPlayerInfoListNode (
+static hsRef<RelVaultNode> GetChildPlayerInfoListNode (
     RelVaultNode *  parent,
     unsigned        folderType,
     unsigned        maxDepth
 ) {
     if (!parent)
-        return nil;
+        return nullptr;
 
-    RelVaultNode * rvn = parent->GetChildPlayerInfoListNodeIncRef(folderType, maxDepth);
-    if (rvn)
-        rvn->DecRef();
-
-    return rvn;
+    return parent->GetChildPlayerInfoListNode(folderType, maxDepth);
 }
 
 
@@ -900,7 +859,7 @@ void VaultDownloadTrans::VaultNodeFetched (
     }
     
     if (!trans->nodesLeft) {
-        VaultDump(trans->tag, trans->vaultId, LogDumpProc);
+        VaultDump(trans->tag, trans->vaultId);
 
         if (trans->callback)
             trans->callback(
@@ -1019,12 +978,11 @@ void AddChildNodeFetchTrans::VaultNodeRefsFetched (
             param,
             &incFetchCount
         );
-        AtomicAdd(&trans->opCount, incFetchCount);
+        trans->opCount += incFetchCount;
     }
 
     // Make the callback now if there are no nodes to fetch, or if error
-    AtomicAdd(&trans->opCount, -1); 
-    if (!trans->opCount) {
+    if (!(--trans->opCount)) {
         if (trans->callback)
             trans->callback(
                 trans->result,
@@ -1046,9 +1004,8 @@ void AddChildNodeFetchTrans::VaultNodeFetched (
     
     if (IS_NET_ERROR(result))
         trans->result = result;
-        
-    AtomicAdd(&trans->opCount, -1); 
-    if (!trans->opCount) {
+
+    if (!(--trans->opCount)) {
         if (trans->callback)
             trans->callback(
                 trans->result,
@@ -1215,119 +1172,103 @@ void RelVaultNode::GetParentNodeIds (
 
 
 //============================================================================
-RelVaultNode * RelVaultNode::GetParentNodeIncRef (
+hsRef<RelVaultNode> RelVaultNode::GetParentNode (
     NetVaultNode *      templateNode,
     unsigned            maxDepth
 ) {
     if (maxDepth == 0)
-        return nil;
+        return nullptr;
 
     RelVaultNodeLink * link;
     link = state->parents.Head();
     for (; link; link = state->parents.Next(link)) {
-        if (link->node->Matches(templateNode)) {
-            link->node->IncRef("Found");
+        if (link->node->Matches(templateNode))
             return link->node;
-        }
     }
     
     link = state->parents.Head();
     for (; link; link = state->parents.Next(link)) {
-        if (RelVaultNode * node = link->node->GetParentNodeIncRef(templateNode, maxDepth-1))
+        if (hsRef<RelVaultNode> node = link->node->GetParentNode(templateNode, maxDepth - 1))
             return node;
     }
 
-    return nil; 
+    return nullptr;
 }
 
 //============================================================================
-RelVaultNode * RelVaultNode::GetChildNodeIncRef (
+hsRef<RelVaultNode> RelVaultNode::GetChildNode (
     NetVaultNode *      templateNode,
     unsigned            maxDepth
 ) {
     if (maxDepth == 0)
-        return nil;
+        return nullptr;
 
     RelVaultNodeLink * link;
     link = state->children.Head();
     for (; link; link = state->children.Next(link)) {
-        if (link->node->Matches(templateNode)) {
-            link->node->IncRef("Found");
+        if (link->node->Matches(templateNode))
             return link->node;
-        }
     }
     
     link = state->children.Head();
     for (; link; link = state->children.Next(link)) {
-        if (RelVaultNode * node = link->node->GetChildNodeIncRef(templateNode, maxDepth-1))
+        if (hsRef<RelVaultNode> node = link->node->GetChildNode(templateNode, maxDepth-1))
             return node;
     }
 
-    return nil; 
+    return nullptr;
 }
 
 //============================================================================
-RelVaultNode * RelVaultNode::GetChildNodeIncRef (
+hsRef<RelVaultNode> RelVaultNode::GetChildNode (
     unsigned            nodeType,
     unsigned            maxDepth
 ) {
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(nodeType);
-    RelVaultNode * result = GetChildNodeIncRef(templateNode, maxDepth);
-    templateNode->DecRef();
-    return result;
+    return GetChildNode(templateNode, maxDepth);
 }
 
 //============================================================================
-RelVaultNode * RelVaultNode::GetChildFolderNodeIncRef (
+hsRef<RelVaultNode> RelVaultNode::GetChildFolderNode (
     unsigned            folderType,
     unsigned            maxDepth
 ) {
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_Folder);
     VaultFolderNode folder(templateNode);
     folder.SetFolderType(folderType);
-    RelVaultNode * result = GetChildNodeIncRef(templateNode, maxDepth);
-    templateNode->DecRef();
-    return result;
+    return GetChildNode(templateNode, maxDepth);
 }
 
 //============================================================================
-RelVaultNode * RelVaultNode::GetChildPlayerInfoListNodeIncRef (
+hsRef<RelVaultNode> RelVaultNode::GetChildPlayerInfoListNode (
     unsigned            folderType,
     unsigned            maxDepth
 ) {
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_PlayerInfoList);
     VaultPlayerInfoListNode access(templateNode);
     access.SetFolderType(folderType);
-    RelVaultNode * result = GetChildNodeIncRef(templateNode, maxDepth);
-    templateNode->DecRef();
-    return result;
+    return GetChildNode(templateNode, maxDepth);
 }
 
 //============================================================================
-RelVaultNode * RelVaultNode::GetChildAgeInfoListNodeIncRef (
+hsRef<RelVaultNode> RelVaultNode::GetChildAgeInfoListNode (
     unsigned            folderType,
     unsigned            maxDepth
 ) {
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_AgeInfoList);
     VaultAgeInfoListNode access(templateNode);
     access.SetFolderType(folderType);
-    RelVaultNode * result = GetChildNodeIncRef(templateNode, maxDepth);
-    templateNode->DecRef();
-    return result;
+    return GetChildNode(templateNode, maxDepth);
 }
 
 //============================================================================
-void RelVaultNode::GetChildNodesIncRef (
+void RelVaultNode::GetChildNodes (
     unsigned                maxDepth,
-    ARRAY(RelVaultNode*) *  nodes
+    RelVaultNode::RefList * nodes
 ) {
     if (maxDepth == 0)
         return;
@@ -1335,9 +1276,8 @@ void RelVaultNode::GetChildNodesIncRef (
     RelVaultNodeLink * link;
     link = state->children.Head();
     for (; link; link = state->children.Next(link)) {
-        nodes->Add(link->node);
-        link->node->IncRef();
-        link->node->GetChildNodesIncRef(
+        nodes->push_back(link->node);
+        link->node->GetChildNodes(
             maxDepth - 1,
             nodes
         );
@@ -1345,19 +1285,18 @@ void RelVaultNode::GetChildNodesIncRef (
 }
 
 //============================================================================
-void RelVaultNode::GetChildNodesIncRef (
+void RelVaultNode::GetChildNodes (
     NetVaultNode *          templateNode,
     unsigned                maxDepth,
-    ARRAY(RelVaultNode*) *  nodes
+    RelVaultNode::RefList * nodes
 ) {
     RelVaultNodeLink * link;
     link = state->children.Head();
     for (; link; link = state->children.Next(link)) {
-        if (link->node->Matches(templateNode)) {
-            nodes->Add(link->node);
-            link->node->IncRef();
-        }
-        link->node->GetChildNodesIncRef(
+        if (link->node->Matches(templateNode))
+            nodes->push_back(link->node);
+
+        link->node->GetChildNodes(
             templateNode,
             maxDepth - 1,
             nodes
@@ -1366,39 +1305,35 @@ void RelVaultNode::GetChildNodesIncRef (
 }
 
 //============================================================================
-void RelVaultNode::GetChildNodesIncRef (
+void RelVaultNode::GetChildNodes (
     unsigned                nodeType,
     unsigned                maxDepth,
-    ARRAY(RelVaultNode*) *  nodes
+    RelVaultNode::RefList * nodes
 ) {
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(nodeType);
-    GetChildNodesIncRef(
+    GetChildNodes(
         templateNode,
         maxDepth,
         nodes
     );
-    templateNode->DecRef();
 }
 
 //============================================================================
-void RelVaultNode::GetChildFolderNodesIncRef (
+void RelVaultNode::GetChildFolderNodes (
     unsigned                folderType,
     unsigned                maxDepth,
-    ARRAY(RelVaultNode*) *  nodes
+    RelVaultNode::RefList * nodes
 ) {
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_Folder);
     VaultFolderNode fldr(templateNode);
     fldr.SetFolderType(folderType);
-    GetChildNodesIncRef(
+    GetChildNodes(
         templateNode,
         maxDepth,
         nodes
     );
-    templateNode->DecRef();
 }
 
 //============================================================================
@@ -1431,93 +1366,12 @@ void RelVaultNode::SetSeen (unsigned parentId, bool seen) {
 }
 
 //============================================================================
-template <typename T>
-static bool IStrSqlEscape (const T src[], T * dst, unsigned dstChars) {
-    // count the number of ' chars
-    unsigned ticks = 0;
-    {
-        const T * cur = src;
-        while (*cur) {
-            if (*cur == L'\'')
-                ++ticks;
-            cur++;
-        }
-    }
-
-    unsigned reqChars = StrLen(src) + ticks + 1;
-
-    if (dstChars < reqChars)
-        // failure!
-        return false;
-
-    T * cur = dst;
-
-    // copy src to dst, escaping ' chars
-    while (*src) {
-        if (*src == L'\'') {
-            *cur++ = L'\'';
-            *cur++ = *src++;
-            continue;
-        }
-        *cur++ = *src++;
-    }
-
-    // null-terminate dst string
-    *cur = 0;
-
-    // success!
-    return true;
-}
-
-static void IGetStringFieldValue (
-    const wchar_t * value,
-    wchar_t *       dst,
-    size_t          dstChars
-) {
-    wchar_t * tmp = (wchar_t*)malloc(sizeof(wchar_t) * dstChars);
-    IStrSqlEscape(value, tmp, dstChars);
-    swprintf(dst, dstChars, L"'%s'", tmp);
-    free(tmp);
-}
-
-static void IGetUuidFieldValue (
-    const plUUID &  value,
-    wchar_t *       dst,
-    size_t          dstChars
-) {
-    swprintf(dst, dstChars, L"hextoraw('%S')", value.AsString().c_str());
-}
-
-static void IGetUintFieldValue (
-    uint32_t    value,
-    wchar_t *   dst,
-    size_t      dstChars
-) {
-    swprintf(dst, dstChars, L"%u", value);
-}
-
-static void IGetIntFieldValue (
-    int32_t     value,
-    wchar_t *   dst,
-    size_t      dstChars
-) {
-    swprintf(dst, dstChars, L"%d", value);
-}
-
-void RelVaultNode::Print (const wchar_t tag[], FStateDump dumpProc, unsigned level) {
-    wchar_t str[1024];
-    StrPrintf(
-        str,
-        arrsize(str),
-        L"%s%*s%*s%u, %S",
-        tag ? tag : L"",
-        tag ? 1 : 0,
-        " ",
-        level * 2,
-        " ",
-        GetNodeId(),
-        plVault::NodeTypeStr(GetNodeType(), false)
-    );
+void RelVaultNode::Print (const ST::string& tag, unsigned level) {
+    ST::string_stream ss;
+    ss << tag;
+    ss << ST::string::fill(level * 2, ' ');
+    ss << " " << GetNodeId();
+    ss << " " << plVault::NodeTypeStr(GetNodeType());
 
     for (uint64_t bit = 1; bit; bit <<= 1) {
         if (!(GetFieldFlags() & bit))
@@ -1525,82 +1379,90 @@ void RelVaultNode::Print (const wchar_t tag[], FStateDump dumpProc, unsigned lev
         if (bit > GetFieldFlags())
             break;
 
-        #define STPRINT(flag, func) case k##flag: { \
-                wcsncat(str, L", " L ## #flag L"=", arrsize(str)); \
-                const size_t chars = wcslen(str); \
-                func(Get##flag(), str + chars, arrsize(str) - chars * sizeof(str[0])); \
-            }; break
-        #define STNAME(flag) case k##flag: { \
-                wcsncat(str, L", " L ## #flag, arrsize(str)); \
-            }; break
+#define STPRINT(flag) \
+    case k##flag: \
+        ss << ", " #flag "=\"" << Get##flag() << "\""; \
+        break;
+#define STPRINT_UUID(flag) \
+    case k##flag: \
+        ss << ", " #flag "=\"" << Get##flag().AsString() << "\""; \
+        break;
+#define STPRINT_ESCAPE(flag) \
+    case k##flag: \
+        ss << ", " #flag "=\"" << Get##flag().replace("\"", "\\\"") << "\""; \
+        break;
+#define STNAME(flag) \
+    case k##flag: \
+        ss << ", " << #flag; \
+        break;
+
         switch (bit) {
-            STPRINT(NodeId,         IGetUintFieldValue);
-            STPRINT(CreateTime,     IGetUintFieldValue);
-            STPRINT(ModifyTime,     IGetUintFieldValue);
-            STPRINT(CreateAgeName,  IGetStringFieldValue);
-            STPRINT(CreateAgeUuid,  IGetUuidFieldValue);
-            STPRINT(CreatorAcct,    IGetUuidFieldValue);
-            STPRINT(CreatorId,      IGetUintFieldValue);
-            STPRINT(NodeType,       IGetUintFieldValue);
-            STPRINT(Int32_1,        IGetIntFieldValue);
-            STPRINT(Int32_2,        IGetIntFieldValue);
-            STPRINT(Int32_3,        IGetIntFieldValue);
-            STPRINT(Int32_4,        IGetIntFieldValue);
-            STPRINT(UInt32_1,       IGetUintFieldValue);
-            STPRINT(UInt32_2,       IGetUintFieldValue);
-            STPRINT(UInt32_3,       IGetUintFieldValue);
-            STPRINT(UInt32_4,       IGetUintFieldValue);
-            STPRINT(Uuid_1,         IGetUuidFieldValue);
-            STPRINT(Uuid_2,         IGetUuidFieldValue);
-            STPRINT(Uuid_3,         IGetUuidFieldValue);
-            STPRINT(Uuid_4,         IGetUuidFieldValue);
-            STPRINT(String64_1,     IGetStringFieldValue);
-            STPRINT(String64_2,     IGetStringFieldValue);
-            STPRINT(String64_3,     IGetStringFieldValue);
-            STPRINT(String64_4,     IGetStringFieldValue);
-            STPRINT(String64_5,     IGetStringFieldValue);
-            STPRINT(String64_6,     IGetStringFieldValue);
-            STPRINT(IString64_1,    IGetStringFieldValue);
-            STPRINT(IString64_2,    IGetStringFieldValue);
+            STPRINT(NodeId);
+            STPRINT(CreateTime);
+            STPRINT(ModifyTime);
+            STPRINT(CreateAgeName);
+            STPRINT_UUID(CreateAgeUuid);
+            STPRINT_UUID(CreatorAcct);
+            STPRINT(CreatorId);
+            STPRINT(NodeType);
+            STPRINT(Int32_1);
+            STPRINT(Int32_2);
+            STPRINT(Int32_3);
+            STPRINT(Int32_4);
+            STPRINT(UInt32_1);
+            STPRINT(UInt32_2);
+            STPRINT(UInt32_3);
+            STPRINT(UInt32_4);
+            STPRINT_UUID(Uuid_1);
+            STPRINT_UUID(Uuid_2);
+            STPRINT_UUID(Uuid_3);
+            STPRINT_UUID(Uuid_4);
+            STPRINT_ESCAPE(String64_1);
+            STPRINT_ESCAPE(String64_2);
+            STPRINT_ESCAPE(String64_3);
+            STPRINT_ESCAPE(String64_4);
+            STPRINT_ESCAPE(String64_5);
+            STPRINT_ESCAPE(String64_6);
+            STPRINT_ESCAPE(IString64_1);
+            STPRINT_ESCAPE(IString64_2);
             STNAME(Text_1);
             STNAME(Text_2);
             STNAME(Blob_1);
             STNAME(Blob_2);
             DEFAULT_FATAL(bit);
         }
-        #undef STPRINT
+#undef STPRINT
+#undef STNAME
     }
 
-    dumpProc(nil, str);
+    plStatusLog::AddLineS("VaultClient.log", ss.to_string().c_str());
 }
 
 //============================================================================
-void RelVaultNode::PrintTree (FStateDump dumpProc, unsigned level) {
-    Print(L"", dumpProc, level);
+void RelVaultNode::PrintTree (unsigned level) {
+    Print("", level);
     for (RelVaultNodeLink * link = state->children.Head(); link; link = state->children.Next(link))
-        link->node->PrintTree(dumpProc, level + 1);
+        link->node->PrintTree(level + 1);
 }
 
 //============================================================================
-RelVaultNode * RelVaultNode::GetParentAgeLinkIncRef () {
+hsRef<RelVaultNode> RelVaultNode::GetParentAgeLink () {
 
     // this function only makes sense when called on age info nodes
     ASSERT(GetNodeType() == plVault::kNodeType_AgeInfo);
 
-    RelVaultNode * result = nil;
+    hsRef<RelVaultNode> result;
 
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_AgeLink);
 
     // Get our parent AgeLink node  
-    if (RelVaultNode * rvnLink = GetParentNodeIncRef(templateNode, 1)) {
+    if (hsRef<RelVaultNode> rvnLink = GetParentNode(templateNode, 1)) {
         // Get the next AgeLink node in our parent tree
-        result = rvnLink->GetParentNodeIncRef(templateNode, 3);
+        result = rvnLink->GetParentNode(templateNode, 3);
     }
-    
-    templateNode->DecRef();
-    return result;      
+
+    return result;
 }
 
 
@@ -1674,18 +1536,8 @@ void VaultUpdate () {
 ***/
 
 //============================================================================
-static RelVaultNode * GetNode (
-    unsigned id
-) {
-    RelVaultNodeLink * link = s_nodes.Find(id);
-    if (link)
-        return link->node;
-    return nil;
-}
-
-//============================================================================
-static RelVaultNode * GetNode (
-    NetVaultNode *  templateNode
+hsRef<RelVaultNode> VaultGetNode (
+    NetVaultNode * templateNode
 ) {
     ASSERT(templateNode);
     RelVaultNodeLink * link = s_nodes.Head();
@@ -1694,41 +1546,16 @@ static RelVaultNode * GetNode (
             return link->node;
         link = s_nodes.Next(link);
     }
-    return nil;
+    return nullptr;
 }
 
 //============================================================================
-RelVaultNode * VaultGetNodeIncRef (
-    NetVaultNode *  templateNode
+hsRef<RelVaultNode> VaultGetNode (
+    unsigned nodeId
 ) {
-    if (RelVaultNode * node = GetNode(templateNode)) {
-        node->IncRef();
-        return node;
-    }
-    return nil;
-}
-
-//============================================================================
-RelVaultNode * VaultGetNodeIncRef (
-    unsigned        nodeId
-) {
-    if (RelVaultNode * node = GetNode(nodeId)) {
-        node->IncRef();
-        return node;
-    }
-    return nil;
-}
-
-//============================================================================
-RelVaultNode * VaultGetNodeIncRef (
-    unsigned    nodeId,
-    const char  reftag[]
-) {
-    if (RelVaultNodeLink * link = s_nodes.Find(nodeId)) {
-        link->node->IncRef(reftag);
+    if (RelVaultNodeLink * link = s_nodes.Find(nodeId))
         return link->node;
-    }
-    return nil;
+    return nullptr;
 }
 
 //============================================================================
@@ -1793,13 +1620,13 @@ void VaultAddChildNode (
                 // One or more nodes need to be fetched before the callback is made
                 AddChildNodeFetchTrans * trans = new AddChildNodeFetchTrans(callback, param);
                 if (!childLink->node->GetNodeType()) {
-                    AtomicAdd(&trans->opCount, 1);
+                    ++trans->opCount;
                     NetCliAuthVaultNodeFetch(
                         childId,
                         AddChildNodeFetchTrans::VaultNodeFetched,
                         trans
                     );
-                    AtomicAdd(&trans->opCount, 1);
+                    ++trans->opCount;
                     NetCliAuthVaultFetchNodeRefs(
                         childId,
                         AddChildNodeFetchTrans::VaultNodeRefsFetched,
@@ -1807,13 +1634,13 @@ void VaultAddChildNode (
                     );
                 }
                 if (!parentLink->node->GetNodeType()) {
-                    AtomicAdd(&trans->opCount, 1);
+                    ++trans->opCount;
                     NetCliAuthVaultNodeFetch(
                         parentId,
                         AddChildNodeFetchTrans::VaultNodeFetched,
                         trans
                     );
-                    AtomicAdd(&trans->opCount, 1);
+                    ++trans->opCount;
                     NetCliAuthVaultFetchNodeRefs(
                         parentId,
                         AddChildNodeFetchTrans::VaultNodeRefsFetched,
@@ -1953,25 +1780,24 @@ void VaultDeleteNode (
 
 //============================================================================
 void VaultPublishNode (
-    unsigned        nodeId,
-    const wchar_t     deviceName[]
+    unsigned          nodeId,
+    const ST::string& deviceName
 ) {
-    RelVaultNode * rvn;
-    
-    rvn = VaultAgeGetDeviceInboxIncRef(deviceName);
-    if (!rvn) {
-        LogMsg(kLogDebug, L"Failed to find inbox for device %s, adding it on-the-fly", deviceName);
-        VaultAgeSetDeviceInboxAndWaitIncRef(deviceName, DEFAULT_DEVICE_INBOX);
+    hsRef<RelVaultNode> rvn;
 
-        rvn = VaultAgeGetDeviceInboxIncRef(deviceName);
+    rvn = VaultAgeGetDeviceInbox(deviceName);
+    if (!rvn) {
+        LogMsg(kLogDebug, L"Failed to find inbox for device %S, adding it on-the-fly", deviceName.c_str());
+        VaultAgeSetDeviceInboxAndWait(deviceName, DEFAULT_DEVICE_INBOX);
+
+        rvn = VaultAgeGetDeviceInbox(deviceName);
         if (!rvn) {
-            LogMsg(kLogDebug, L"Failed to add inbox to device %s on-the-fly", deviceName);
+            LogMsg(kLogDebug, L"Failed to add inbox to device %S on-the-fly", deviceName.c_str());
             return;
         }
     }
     
     VaultAddChildNode(rvn->GetNodeId(), nodeId, VaultGetPlayerId(), nil, nil);
-    rvn->DecRef();
 }
 
 //============================================================================
@@ -1992,13 +1818,10 @@ void VaultCreateNode (
 ) {
     VaultCreateNodeTrans * trans = new VaultCreateNodeTrans(callback, state, param);
 
-    if (RelVaultNode * age = VaultGetAgeNodeIncRef()) {
+    if (hsRef<RelVaultNode> age = VaultGetAgeNode()) {
         VaultAgeNode access(age);
-        if (!(templateNode->GetFieldFlags() & NetVaultNode::kCreateAgeName))
-            templateNode->SetCreateAgeName(access.GetAgeName());
-        if (!(templateNode->GetFieldFlags() & NetVaultNode::kCreateAgeUuid))
-            templateNode->SetCreateAgeUuid(access.GetAgeInstanceGuid());
-        age->DecRef();
+        templateNode->SetCreateAgeName(access.GetAgeName());
+        templateNode->SetCreateAgeUuid(access.GetAgeInstanceGuid());
     }
     
     NetCliAuthVaultNodeCreate(
@@ -2015,8 +1838,7 @@ void VaultCreateNode (
     void *                      state,
     void *                      param
 ) {
-    RelVaultNode * templateNode = new RelVaultNode;
-    templateNode->IncRef();
+    hsRef<RelVaultNode> templateNode = new RelVaultNode;
     templateNode->SetNodeType(nodeType);
     
     VaultCreateNode(
@@ -2025,12 +1847,10 @@ void VaultCreateNode (
         state,
         param
     );
-
-    templateNode->DecRef();
 }
 
 //============================================================================
-namespace _VaultCreateNodeAndWaitIncRef {
+namespace _VaultCreateNodeAndWait {
 
 struct _CreateNodeParam {
     RelVaultNode *  node;
@@ -2049,13 +1869,13 @@ static void _CreateNodeCallback (
     param->complete = true;
 }
 
-} // namespace _VaultCreateNodeAndWaitIncRef
+} // namespace _VaultCreateNodeAndWait
 
-RelVaultNode * VaultCreateNodeAndWaitIncRef (
+hsRef<RelVaultNode> VaultCreateNodeAndWait (
     NetVaultNode *              templateNode,
     ENetError *                 result
 ) {
-    using namespace _VaultCreateNodeAndWaitIncRef;
+    using namespace _VaultCreateNodeAndWait;
     
     _CreateNodeParam param;
     memset(&param, 0, sizeof(param));
@@ -2074,25 +1894,18 @@ RelVaultNode * VaultCreateNodeAndWaitIncRef (
     }
     
     *result = param.result;
-    if (IS_NET_SUCCESS(param.result))
-        param.node->IncRef();
     return param.node;
 }
 
 //============================================================================
-RelVaultNode * VaultCreateNodeAndWaitIncRef (
+hsRef<RelVaultNode> VaultCreateNodeAndWait (
     plVault::NodeTypes          nodeType,
     ENetError *                 result
 ) {
-    RelVaultNode * node;
-    RelVaultNode * templateNode = new RelVaultNode;
-    templateNode->IncRef();
+    hsRef<RelVaultNode> templateNode = new RelVaultNode;
     templateNode->SetNodeType(nodeType);
-    
-    node = VaultCreateNodeAndWaitIncRef(templateNode, result);
 
-    templateNode->DecRef();
-    return node;
+    return VaultCreateNodeAndWait(templateNode, result);
 }
 
 //============================================================================
@@ -2218,8 +2031,7 @@ namespace _VaultFetchNodesAndWait {
     ) {
         ::VaultNodeFetched(result, nil, node);
         
-        long * nodeCount = (long *)param;
-        AtomicAdd(nodeCount, -1);
+        --(*reinterpret_cast<std::atomic<unsigned>*>(param));
     }
 
 } // namespace _VaultFetchNodesAndWait
@@ -2231,20 +2043,21 @@ void VaultFetchNodesAndWait (
 ) {
     using namespace _VaultFetchNodesAndWait;
     
-    long nodeCount = (long)count;
+    std::atomic<unsigned> nodeCount(count);
     
     for (unsigned i = 0; i < count; ++i) {
         
         if (!force) {
             // See if we already have this node
             if (RelVaultNodeLink * link = s_nodes.Find(nodeIds[i])) {
-                AtomicAdd(&nodeCount, -1);
+                --nodeCount;
                 continue;
             }
         }
 
-        // Start fetching the node          
-        NetCliAuthVaultNodeFetch(nodeIds[i], _VaultNodeFetched, (void *)&nodeCount);
+        // Start fetching the node
+        NetCliAuthVaultNodeFetch(nodeIds[i], _VaultNodeFetched,
+                                 reinterpret_cast<void *>(&nodeCount));
     }
 
     while (nodeCount) {
@@ -2264,23 +2077,13 @@ void VaultInitAge (
 ) {
     VaultAgeInitTrans * trans = new VaultAgeInitTrans(callback, state, param);
 
-    wchar_t ageFilename[MAX_PATH];
-    wchar_t ageInstName[MAX_PATH];
-    wchar_t ageUserName[MAX_PATH];
-    wchar_t ageDesc[1024];
-
-    StrToUnicode(ageFilename, info->GetAgeFilename(), arrsize(ageFilename));
-    StrToUnicode(ageInstName, info->GetAgeInstanceName(), arrsize(ageInstName));
-    StrToUnicode(ageUserName, info->GetAgeUserDefinedName(), arrsize(ageUserName));
-    StrToUnicode(ageDesc, info->GetAgeDescription(), arrsize(ageDesc));
-    
     NetCliAuthVaultInitAge(
         *info->GetAgeInstanceGuid(),
         parentAgeInstId,
-        ageFilename,
-        ageInstName,
-        ageUserName,
-        ageDesc,
+        info->GetAgeFilename(),
+        info->GetAgeInstanceName(),
+        info->GetAgeUserDefinedName(),
+        info->GetAgeDescription(),
         info->GetAgeSequenceNumber(),
         info->GetAgeLanguage(),
         VaultAgeInitTrans::AgeInitCallback,
@@ -2295,256 +2098,210 @@ void VaultInitAge (
 ***/
 
 //============================================================================
-static RelVaultNode * GetPlayerNode () {
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+static hsRef<RelVaultNode> GetPlayerNode () {
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_VNodeMgrPlayer);
     if (NetCommGetPlayer())
         templateNode->SetNodeId(NetCommGetPlayer()->playerInt);
-    RelVaultNode * result = GetNode(templateNode);
-    templateNode->DecRef();
-    return result;
+    return VaultGetNode(templateNode);
 }
 
 //============================================================================
 unsigned VaultGetPlayerId () {
-    if (RelVaultNode * rvn = GetPlayerNode())
+    if (hsRef<RelVaultNode> rvn = GetPlayerNode())
         return rvn->GetNodeId();
     return 0;
 }
 
 //============================================================================
-RelVaultNode * VaultGetPlayerNodeIncRef () {
-    if (RelVaultNode * rvnPlr = GetPlayerNode()) {
-        rvnPlr->IncRef();
+hsRef<RelVaultNode> VaultGetPlayerNode () {
+    if (hsRef<RelVaultNode> rvnPlr = GetPlayerNode())
         return rvnPlr;
-    }
-    return nil;
+    return nullptr;
 }
 
 //============================================================================
-RelVaultNode * VaultGetPlayerInfoNodeIncRef () {
-    RelVaultNode * rvnPlr = VaultGetPlayerNodeIncRef();
+hsRef<RelVaultNode> VaultGetPlayerInfoNode () {
+    hsRef<RelVaultNode> rvnPlr = VaultGetPlayerNode();
     if (!rvnPlr)
-        return nil;
+        return nullptr;
 
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_PlayerInfo);
     VaultPlayerInfoNode plrInfo(templateNode);
     plrInfo.SetPlayerId(rvnPlr->GetNodeId());
-            
-    rvnPlr->DecRef();
 
-    RelVaultNode * result = nil;
-    if (RelVaultNode * rvnPlrInfo = rvnPlr->GetChildNodeIncRef(templateNode, 1))
+    hsRef<RelVaultNode> result;
+    if (hsRef<RelVaultNode> rvnPlrInfo = rvnPlr->GetChildNode(templateNode, 1))
         result = rvnPlrInfo;
 
-    templateNode->DecRef();
-    
     return result;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAvatarOutfitFolderIncRef () {
-    if (RelVaultNode * rvn = GetPlayerNode())
-        return rvn->GetChildFolderNodeIncRef(plVault::kAvatarOutfitFolder, 1);
-    return nil;
+hsRef<RelVaultNode> VaultGetAvatarOutfitFolder () {
+    if (hsRef<RelVaultNode> rvn = GetPlayerNode())
+        return rvn->GetChildFolderNode(plVault::kAvatarOutfitFolder, 1);
+    return nullptr;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAvatarClosetFolderIncRef () {
-    if (RelVaultNode * rvn = GetPlayerNode())
-        return rvn->GetChildFolderNodeIncRef(plVault::kAvatarClosetFolder, 1);
-    return nil;
+hsRef<RelVaultNode> VaultGetAvatarClosetFolder () {
+    if (hsRef<RelVaultNode> rvn = GetPlayerNode())
+        return rvn->GetChildFolderNode(plVault::kAvatarClosetFolder, 1);
+    return nullptr;
 }
 
 //============================================================================
-RelVaultNode * VaultGetChronicleFolderIncRef () {
-    if (RelVaultNode * rvn = GetPlayerNode())
-        return rvn->GetChildFolderNodeIncRef(plVault::kChronicleFolder, 1);
-    return nil;
+hsRef<RelVaultNode> VaultGetChronicleFolder () {
+    if (hsRef<RelVaultNode> rvn = GetPlayerNode())
+        return rvn->GetChildFolderNode(plVault::kChronicleFolder, 1);
+    return nullptr;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAgesIOwnFolderIncRef () {
-    if (RelVaultNode * rvn = GetPlayerNode())
-        return rvn->GetChildAgeInfoListNodeIncRef(plVault::kAgesIOwnFolder, 1);
-    return nil;
+hsRef<RelVaultNode> VaultGetAgesIOwnFolder () {
+    if (hsRef<RelVaultNode> rvn = GetPlayerNode())
+        return rvn->GetChildAgeInfoListNode(plVault::kAgesIOwnFolder, 1);
+    return nullptr;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAgesICanVisitFolderIncRef () {
-    if (RelVaultNode * rvn = GetPlayerNode())
-        return rvn->GetChildAgeInfoListNodeIncRef(plVault::kAgesICanVisitFolder, 1);
-    return nil;
+hsRef<RelVaultNode> VaultGetAgesICanVisitFolder () {
+    if (hsRef<RelVaultNode> rvn = GetPlayerNode())
+        return rvn->GetChildAgeInfoListNode(plVault::kAgesICanVisitFolder, 1);
+    return nullptr;
 }
 
 //============================================================================
-RelVaultNode * VaultGetPlayerInboxFolderIncRef () {
-    if (RelVaultNode * rvn = GetPlayerNode())
-        return rvn->GetChildFolderNodeIncRef(plVault::kInboxFolder, 1);
-    return nil;
+hsRef<RelVaultNode> VaultGetPlayerInboxFolder () {
+    if (hsRef<RelVaultNode> rvn = GetPlayerNode())
+        return rvn->GetChildFolderNode(plVault::kInboxFolder, 1);
+    return nullptr;
 }
 
 //============================================================================
 bool VaultGetLinkToMyNeighborhood (plAgeLinkStruct * link) {
-    RelVaultNode * rvnFldr = VaultGetAgesIOwnFolderIncRef();
+    hsRef<RelVaultNode> rvnFldr = VaultGetAgesIOwnFolder();
     if (!rvnFldr)
         return false;
 
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     
     templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
     VaultAgeInfoNode ageInfo(templateNode);
-    wchar_t str[MAX_PATH];
-    StrToUnicode(str, kNeighborhoodAgeFilename, arrsize(str));
-    ageInfo.SetAgeFilename(str);
+    ageInfo.SetAgeFilename(kNeighborhoodAgeFilename);
 
-    RelVaultNode * node;
-    if (nil != (node = rvnFldr->GetChildNodeIncRef(templateNode, 2))) {
+    hsRef<RelVaultNode> node;
+    if (node = rvnFldr->GetChildNode(templateNode, 2)) {
         VaultAgeInfoNode info(node);
         info.CopyTo(link->GetAgeInfo());
-        node->DecRef();
     }
-    templateNode->DecRef();
-    rvnFldr->DecRef();
 
     return node != nil;
 }
 
 //============================================================================
 bool VaultGetLinkToMyPersonalAge (plAgeLinkStruct * link) {
-    RelVaultNode * rvnFldr = VaultGetAgesIOwnFolderIncRef();
+    hsRef<RelVaultNode> rvnFldr = VaultGetAgesIOwnFolder();
     if (!rvnFldr)
         return false;
 
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
 
     templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
     VaultAgeInfoNode ageInfo(templateNode);
-    wchar_t str[MAX_PATH];
-    StrToUnicode(str, kPersonalAgeFilename, arrsize(str));
-    ageInfo.SetAgeFilename(str);
+    ageInfo.SetAgeFilename(kPersonalAgeFilename);
 
-    RelVaultNode * node;
-    if (nil != (node = rvnFldr->GetChildNodeIncRef(templateNode, 2))) {
+    hsRef<RelVaultNode> node;
+    if (node = rvnFldr->GetChildNode(templateNode, 2)) {
         VaultAgeInfoNode info(node);
         info.CopyTo(link->GetAgeInfo());
-        node->DecRef();
     }
-    templateNode->DecRef();
-    rvnFldr->DecRef();
 
     return node != nil;
 }
 
 //============================================================================
 bool VaultGetLinkToCity (plAgeLinkStruct * link) {
-    RelVaultNode * rvnFldr = VaultGetAgesIOwnFolderIncRef();
+    hsRef<RelVaultNode> rvnFldr = VaultGetAgesIOwnFolder();
     if (!rvnFldr)
         return false;
 
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
 
     VaultAgeInfoNode ageInfo(templateNode);
-    wchar_t str[MAX_PATH];
-    StrToUnicode(str, kCityAgeFilename, arrsize(str));
-    ageInfo.SetAgeFilename(str);
+    ageInfo.SetAgeFilename(kCityAgeFilename);
 
-    RelVaultNode * node;
-    if (nil != (node = rvnFldr->GetChildNodeIncRef(templateNode, 2))) {
+    hsRef<RelVaultNode> node;
+    if (node = rvnFldr->GetChildNode(templateNode, 2)) {
         VaultAgeInfoNode info(node);
         info.CopyTo(link->GetAgeInfo());
-        node->DecRef();
     }
-    templateNode->DecRef();
-    rvnFldr->DecRef();
 
     return node != nil;
 }
 
 //============================================================================
-RelVaultNode * VaultGetOwnedAgeLinkIncRef (const plAgeInfoStruct * info) {
+hsRef<RelVaultNode> VaultGetOwnedAgeLink (const plAgeInfoStruct * info) {
     
-    RelVaultNode * rvnLink = nil;
+    hsRef<RelVaultNode> rvnLink;
     
-    if (RelVaultNode * rvnFldr = VaultGetAgesIOwnFolderIncRef()) {
+    if (hsRef<RelVaultNode> rvnFldr = VaultGetAgesIOwnFolder()) {
 
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
 
         VaultAgeInfoNode ageInfo(templateNode);
         if (info->HasAgeFilename()) {
-            wchar_t str[MAX_PATH];
-            StrToUnicode(str, info->GetAgeFilename(), arrsize(str));
-            ageInfo.SetAgeFilename(str);
+            ageInfo.SetAgeFilename(info->GetAgeFilename());
         }
         if (info->HasAgeInstanceGuid()) {
             ageInfo.SetAgeInstanceGuid(*info->GetAgeInstanceGuid());
         }
 
-        if (RelVaultNode * rvnInfo = rvnFldr->GetChildNodeIncRef(templateNode, 2)) {
-            templateNode->ClearFieldFlags();
+        if (hsRef<RelVaultNode> rvnInfo = rvnFldr->GetChildNode(templateNode, 2)) {
+            templateNode->Clear();
             templateNode->SetNodeType(plVault::kNodeType_AgeLink);
-            rvnLink = rvnInfo->GetParentNodeIncRef(templateNode, 1);
-            rvnInfo->DecRef();
+            rvnLink = rvnInfo->GetParentNode(templateNode, 1);
         }
-
-        templateNode->DecRef();
-        rvnFldr->DecRef();
     }
     
     return rvnLink;
 }
 
 //============================================================================
-RelVaultNode * VaultGetOwnedAgeInfoIncRef (const plAgeInfoStruct * info) {
+hsRef<RelVaultNode> VaultGetOwnedAgeInfo (const plAgeInfoStruct * info) {
     
-    RelVaultNode * rvnInfo = nil;
-    
-    if (RelVaultNode * rvnFldr = VaultGetAgesIOwnFolderIncRef()) {
+    hsRef<RelVaultNode> rvnInfo;
+    if (hsRef<RelVaultNode> rvnFldr = VaultGetAgesIOwnFolder()) {
 
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
 
         VaultAgeInfoNode ageInfo(templateNode);
         if (info->HasAgeFilename()) {
-            wchar_t str[MAX_PATH];
-            StrToUnicode(str, info->GetAgeFilename(), arrsize(str));
-            ageInfo.SetAgeFilename(str);
+            ageInfo.SetAgeFilename(info->GetAgeFilename());
         }
         if (info->HasAgeInstanceGuid()) {
             ageInfo.SetAgeInstanceGuid(*info->GetAgeInstanceGuid());
         }
 
-        rvnInfo = rvnFldr->GetChildNodeIncRef(templateNode, 2);
-
-        templateNode->DecRef();
-        rvnFldr->DecRef();
+        rvnInfo = rvnFldr->GetChildNode(templateNode, 2);
     }
-    
     return rvnInfo;
 }
 
 //============================================================================
 bool VaultGetOwnedAgeLink (const plAgeInfoStruct * info, plAgeLinkStruct * link) {
     bool result = false;
-    if (RelVaultNode * rvnLink = VaultGetOwnedAgeLinkIncRef(info)) {
-        if (RelVaultNode * rvnInfo = rvnLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
+    if (hsRef<RelVaultNode> rvnLink = VaultGetOwnedAgeLink(info)) {
+        if (hsRef<RelVaultNode> rvnInfo = rvnLink->GetChildNode(plVault::kNodeType_AgeInfo, 1)) {
             VaultAgeInfoNode ageInfo(rvnInfo);
             ageInfo.CopyTo(link->GetAgeInfo());
-            rvnInfo->DecRef();
             result = true;
         }
-
-        rvnLink->DecRef();
     }
     
     return result;
@@ -2559,109 +2316,93 @@ bool VaultFindOrCreateChildAgeLinkAndWait (const wchar_t ownedAgeName[], const p
 //============================================================================
 bool VaultAddOwnedAgeSpawnPoint (const plUUID& ageInstId, const plSpawnPointInfo & spawnPt) {
     
-    RelVaultNode * fldr = nil;
-    RelVaultNode * link = nil;
+    hsRef<RelVaultNode> fldr, link;
     
     for (;;) {
-        if (spawnPt.GetName().IsEmpty())
+        if (spawnPt.GetName().empty())
             break;
-        if (spawnPt.GetTitle().IsEmpty())
+        if (spawnPt.GetTitle().empty())
             break;
 
-        fldr = VaultGetAgesIOwnFolderIncRef();
+        fldr = VaultGetAgesIOwnFolder();
         if (!fldr)
             break;
 
         ARRAY(unsigned) nodeIds;
         fldr->GetChildNodeIds(&nodeIds, 1);
         
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
         VaultAgeInfoNode access(templateNode);
         access.SetAgeInstanceGuid(ageInstId);
         
         for (unsigned i = 0; i < nodeIds.Count(); ++i) {
-            link = VaultGetNodeIncRef(nodeIds[i]);
+            link = VaultGetNode(nodeIds[i]);
             if (!link)
                 continue;
-            if (RelVaultNode * info = link->GetChildNodeIncRef(templateNode, 1)) {
+            if (link->GetChildNode(templateNode, 1)) {
                 VaultAgeLinkNode access(link);
                 access.AddSpawnPoint(spawnPt);
-                info->DecRef();
-                link->DecRef();
-                link = nil;
+                link = nullptr;
                 break;
             }
         }
-        templateNode->DecRef();
 
         break;  
     }       
 
-    if (fldr)       
-        fldr->DecRef();
-    if (link)
-        link->DecRef();
-        
     return true;
 }
 
 //============================================================================
 bool VaultSetOwnedAgePublicAndWait (const plAgeInfoStruct * info, bool publicOrNot) {
-    if (RelVaultNode * rvnLink = VaultGetOwnedAgeLinkIncRef(info)) {
-        if (RelVaultNode * rvnInfo = rvnLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
-            NetCliAuthSetAgePublic(rvnInfo->GetNodeId(), publicOrNot);
-
-            VaultAgeInfoNode access(rvnInfo);
-            char ageName[MAX_PATH];
-            StrToAnsi(ageName, access.GetAgeFilename(), arrsize(ageName));
-            
-            plVaultNotifyMsg * msg = new plVaultNotifyMsg;
-            if (publicOrNot)
-                msg->SetType(plVaultNotifyMsg::kPublicAgeCreated);
-            else
-                msg->SetType(plVaultNotifyMsg::kPublicAgeRemoved);
-            msg->SetResultCode(true);
-            msg->GetArgs()->AddString(plNetCommon::VaultTaskArgs::kAgeFilename, ageName);
-            msg->Send();
-            
-            rvnInfo->DecRef();
+    if (hsRef<RelVaultNode> rvnLink = VaultGetOwnedAgeLink(info)) {
+        if (hsRef<RelVaultNode> rvnInfo = rvnLink->GetChildNode(plVault::kNodeType_AgeInfo, 1)) {
+            VaultSetAgePublicAndWait(rvnInfo, publicOrNot);
         }
-        rvnLink->DecRef();
     }
     return true;
 }
 
 //============================================================================
-RelVaultNode * VaultGetVisitAgeLinkIncRef (const plAgeInfoStruct * info) {
-    RelVaultNode * rvnLink = nil;
-    
-    if (RelVaultNode * rvnFldr = VaultGetAgesICanVisitFolderIncRef()) {
+bool VaultSetAgePublicAndWait (NetVaultNode * ageInfoNode, bool publicOrNot) {
+    NetCliAuthSetAgePublic(ageInfoNode->GetNodeId(), publicOrNot);
 
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+    VaultAgeInfoNode access(ageInfoNode);
+
+    plVaultNotifyMsg * msg = new plVaultNotifyMsg;
+    if (publicOrNot)
+        msg->SetType(plVaultNotifyMsg::kPublicAgeCreated);
+    else
+        msg->SetType(plVaultNotifyMsg::kPublicAgeRemoved);
+    msg->SetResultCode(true);
+    msg->GetArgs()->AddString(plNetCommon::VaultTaskArgs::kAgeFilename, access.GetAgeFilename().c_str());
+    msg->Send();
+    return true;
+}
+
+//============================================================================
+hsRef<RelVaultNode> VaultGetVisitAgeLink (const plAgeInfoStruct * info) {
+    hsRef<RelVaultNode> rvnLink;
+    
+    if (hsRef<RelVaultNode> rvnFldr = VaultGetAgesICanVisitFolder()) {
+
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
 
         VaultAgeInfoNode ageInfo(templateNode);
         if (info->HasAgeFilename()) {
-            wchar_t str[MAX_PATH];
-            StrToUnicode(str, info->GetAgeFilename(), arrsize(str));
-            ageInfo.SetAgeFilename(str);
+            ageInfo.SetAgeFilename(info->GetAgeFilename());
         }
         if (info->HasAgeInstanceGuid()) {
             ageInfo.SetAgeInstanceGuid(*info->GetAgeInstanceGuid());
         }
 
-        if (RelVaultNode * rvnInfo = rvnFldr->GetChildNodeIncRef(templateNode, 2)) {
-            templateNode->ClearFieldFlags();
-            templateNode->SetNodeType(plVault::kNodeType_AgeLink);  
-            rvnLink = rvnInfo->GetParentNodeIncRef(templateNode, 1);
-            rvnInfo->DecRef();
+        if (hsRef<RelVaultNode> rvnInfo = rvnFldr->GetChildNode(templateNode, 2)) {
+            templateNode->Clear();
+            templateNode->SetNodeType(plVault::kNodeType_AgeLink);
+            rvnLink = rvnInfo->GetParentNode(templateNode, 1);
         }
-
-        templateNode->DecRef();
-        rvnFldr->DecRef();
     }
     
     return rvnLink;
@@ -2669,14 +2410,12 @@ RelVaultNode * VaultGetVisitAgeLinkIncRef (const plAgeInfoStruct * info) {
 
 //============================================================================
 bool VaultGetVisitAgeLink (const plAgeInfoStruct * info, class plAgeLinkStruct * link) {
-    RelVaultNode * rvn = VaultGetVisitAgeLinkIncRef(info);
+    hsRef<RelVaultNode> rvn = VaultGetVisitAgeLink(info);
     if (!rvn)
         return false;
         
     VaultAgeLinkNode ageLink(rvn);
     ageLink.CopyTo(link);
-        
-    rvn->DecRef();
     return true;
 }
 
@@ -2755,10 +2494,8 @@ bool VaultRegisterOwnedAgeAndWait (const plAgeLinkStruct * link) {
     bool result = false;
     
     for (;;) {
-        if (RelVaultNode * rvn = VaultGetAgesIOwnFolderIncRef()) {
+        if (hsRef<RelVaultNode> rvn = VaultGetAgesIOwnFolder())
             agesIOwnId = rvn->GetNodeId();
-            rvn->DecRef();
-        }
         else {
             LogMsg(kLogError, L"RegisterOwnedAge: Failed to get player's AgesIOwnFolder");
             break;
@@ -2790,7 +2527,7 @@ bool VaultRegisterOwnedAgeAndWait (const plAgeLinkStruct * link) {
             }
             
             if (IS_NET_ERROR(param.result)) {
-                LogMsg(kLogError, L"RegisterOwnedAge: Failed to init age %S", link->GetAgeInfo()->GetAgeFilename());
+                LogMsg(kLogError, "RegisterOwnedAge: Failed to init age %s", link->GetAgeInfo()->GetAgeFilename().c_str());
                 break;
             }
                 
@@ -2827,7 +2564,7 @@ bool VaultRegisterOwnedAgeAndWait (const plAgeLinkStruct * link) {
             memset(&param, 0, sizeof(param));
             
             VaultDownload(
-                L"RegisterOwnedAge",
+                "RegisterOwnedAge",
                 ageInfoId,
                 _FetchVaultCallback,
                 &param,
@@ -2859,19 +2596,14 @@ bool VaultRegisterOwnedAgeAndWait (const plAgeLinkStruct * link) {
             memset(&param3, 0, sizeof(param3));
 
             unsigned ageOwnersId = 0;       
-            if (RelVaultNode * rvnAgeInfo = VaultGetNodeIncRef(ageInfoId)) {
-                if (RelVaultNode * rvnAgeOwners = rvnAgeInfo->GetChildPlayerInfoListNodeIncRef(plVault::kAgeOwnersFolder, 1)) {
+            if (hsRef<RelVaultNode> rvnAgeInfo = VaultGetNode(ageInfoId)) {
+                if (hsRef<RelVaultNode> rvnAgeOwners = rvnAgeInfo->GetChildPlayerInfoListNode(plVault::kAgeOwnersFolder, 1))
                     ageOwnersId = rvnAgeOwners->GetNodeId();
-                    rvnAgeOwners->DecRef();
-                }
-                rvnAgeInfo->DecRef();
             }
             
             unsigned playerInfoId = 0;
-            if (RelVaultNode * rvnPlayerInfo = VaultGetPlayerInfoNodeIncRef()) {
+            if (hsRef<RelVaultNode> rvnPlayerInfo = VaultGetPlayerInfoNode())
                 playerInfoId = rvnPlayerInfo->GetNodeId();
-                rvnPlayerInfo->DecRef();
-            }
 
             VaultAddChildNode(
                 agesIOwnId,
@@ -2918,10 +2650,9 @@ bool VaultRegisterOwnedAgeAndWait (const plAgeLinkStruct * link) {
         }
 
         // Copy the link spawn point to the link node       
-        if (RelVaultNode * node = VaultGetNodeIncRef(ageLinkId)) {
+        if (hsRef<RelVaultNode> node = VaultGetNode(ageLinkId)) {
             VaultAgeLinkNode access(node);
             access.AddSpawnPoint(link->SpawnPoint());
-            node->DecRef();
         }
         
         result = true;
@@ -2978,19 +2709,15 @@ namespace _VaultRegisterOwnedAge {
         aln.AddSpawnPoint(*(p->fSpawn));
 
         // Make some refs
-        RelVaultNode* agesIOwn = VaultGetAgesIOwnFolderIncRef();
-        RelVaultNode* plyrInfo = VaultGetPlayerInfoNodeIncRef();
+        hsRef<RelVaultNode> agesIOwn = VaultGetAgesIOwnFolder();
+        hsRef<RelVaultNode> plyrInfo = VaultGetPlayerInfoNode();
         VaultAddChildNode(agesIOwn->GetNodeId(), node->GetNodeId(), 0, (FVaultAddChildNodeCallback)_AddAgeLinkNode, nil); 
         VaultAddChildNode(node->GetNodeId(), (uint32_t)((uintptr_t)p->fAgeInfoId), 0, (FVaultAddChildNodeCallback)_AddAgeInfoNode, nil);
 
         // Add our PlayerInfo to important places
-        if (RelVaultNode* rvnAgeInfo = VaultGetNodeIncRef((uint32_t)((uintptr_t)p->fAgeInfoId))) {
-            if (RelVaultNode* rvnAgeOwners = rvnAgeInfo->GetChildPlayerInfoListNodeIncRef(plVault::kAgeOwnersFolder, 1)) {
+        if (hsRef<RelVaultNode> rvnAgeInfo = VaultGetNode((uint32_t)((uintptr_t)p->fAgeInfoId))) {
+            if (hsRef<RelVaultNode> rvnAgeOwners = rvnAgeInfo->GetChildPlayerInfoListNode(plVault::kAgeOwnersFolder, 1))
                 VaultAddChildNode(rvnAgeOwners->GetNodeId(), plyrInfo->GetNodeId(), 0, (FVaultAddChildNodeCallback)_AddPlayerInfoNode, nil);
-                rvnAgeOwners->DecRef();
-            }
-
-            rvnAgeInfo->DecRef();
         }
 
         // Fire off vault callbacks
@@ -3001,8 +2728,6 @@ namespace _VaultRegisterOwnedAge {
         msg->Send();
 
         // Don't leak memory
-        agesIOwn->DecRef();
-        plyrInfo->DecRef();
         delete p;
     }
 
@@ -3017,11 +2742,11 @@ namespace _VaultRegisterOwnedAge {
     void _InitAgeCallback(ENetError result, void* state, void* param, uint32_t ageVaultId, uint32_t ageInfoVaultId) {
         if (IS_NET_SUCCESS(result)) {
             _Params* p = new _Params();
-            p->fAgeInfoId = (void*)ageInfoVaultId;
+            p->fAgeInfoId = (void*)(uintptr_t)ageInfoVaultId;
             p->fSpawn = (plSpawnPointInfo*)param;
 
             VaultDownload(
-                L"RegisterOwnedAge",
+                "RegisterOwnedAge",
                 ageInfoVaultId,
                 (FVaultDownloadCallback)_DownloadCallback,
                 p,
@@ -3035,7 +2760,7 @@ namespace _VaultRegisterOwnedAge {
 void VaultRegisterOwnedAge(const plAgeLinkStruct* link) {
     using namespace _VaultRegisterOwnedAge;
 
-    RelVaultNode* agesIOwn = VaultGetAgesIOwnFolderIncRef();
+    hsRef<RelVaultNode> agesIOwn = VaultGetAgesIOwnFolder();
     if (agesIOwn == nil) {
         LogMsg(kLogError, "VaultRegisterOwnedAge: Couldn't find the stupid AgesIOwnfolder!");
         return;
@@ -3128,10 +2853,8 @@ bool VaultRegisterVisitAgeAndWait (const plAgeLinkStruct * link) {
     
     bool result = false;
     for (;;) {
-        if (RelVaultNode * rvn = VaultGetAgesICanVisitFolderIncRef()) {
+        if (hsRef<RelVaultNode> rvn = VaultGetAgesICanVisitFolder())
             agesICanVisitId = rvn->GetNodeId();
-            rvn->DecRef();
-        }
         else {
             LogMsg(kLogError, L"RegisterVisitAge: Failed to get player's AgesICanVisitFolder");
             break;
@@ -3164,7 +2887,7 @@ bool VaultRegisterVisitAgeAndWait (const plAgeLinkStruct * link) {
             }
             
             if (IS_NET_ERROR(param.result)) {
-                LogMsg(kLogError, L"RegisterVisitAge: Failed to init age %S", link->GetAgeInfo()->GetAgeFilename());
+                LogMsg(kLogError, "RegisterVisitAge: Failed to init age %s", link->GetAgeInfo()->GetAgeFilename().c_str());
                 break;
             }
                 
@@ -3201,7 +2924,7 @@ bool VaultRegisterVisitAgeAndWait (const plAgeLinkStruct * link) {
             memset(&param, 0, sizeof(param));
             
             VaultDownload(
-                L"RegisterVisitAge",
+                "RegisterVisitAge",
                 ageInfoId,
                 _FetchVaultCallback,
                 &param,
@@ -3232,19 +2955,14 @@ bool VaultRegisterVisitAgeAndWait (const plAgeLinkStruct * link) {
             memset(&param3, 0, sizeof(param3));
 
             unsigned ageVisitorsId = 0;     
-            if (RelVaultNode * rvnAgeInfo = VaultGetNodeIncRef(ageInfoId)) {
-                if (RelVaultNode * rvnAgeVisitors = rvnAgeInfo->GetChildPlayerInfoListNodeIncRef(plVault::kCanVisitFolder, 1)) {
+            if (hsRef<RelVaultNode> rvnAgeInfo = VaultGetNode(ageInfoId)) {
+                if (hsRef<RelVaultNode> rvnAgeVisitors = rvnAgeInfo->GetChildPlayerInfoListNode(plVault::kCanVisitFolder, 1))
                     ageVisitorsId = rvnAgeVisitors->GetNodeId();
-                    rvnAgeVisitors->DecRef();
-                }
-                rvnAgeInfo->DecRef();
             }
             
             unsigned playerInfoId = 0;
-            if (RelVaultNode * rvnPlayerInfo = VaultGetPlayerInfoNodeIncRef()) {
+            if (hsRef<RelVaultNode> rvnPlayerInfo = VaultGetPlayerInfoNode())
                 playerInfoId = rvnPlayerInfo->GetNodeId();
-                rvnPlayerInfo->DecRef();
-            }
 
             VaultAddChildNode(
                 agesICanVisitId,
@@ -3291,10 +3009,9 @@ bool VaultRegisterVisitAgeAndWait (const plAgeLinkStruct * link) {
         }
 
         // Copy the link spawn point to the link node       
-        if (RelVaultNode * node = VaultGetNodeIncRef(ageLinkId)) {
+        if (hsRef<RelVaultNode> node = VaultGetNode(ageLinkId)) {
             VaultAgeLinkNode access(node);
             access.AddSpawnPoint(link->SpawnPoint());
-            node->DecRef();
         }
 
         result = true;
@@ -3330,20 +3047,16 @@ namespace _VaultRegisterVisitAge {
         }
 
         _Params* p = (_Params*)param;
-        RelVaultNode* ageInfo = VaultGetNodeIncRef((uint32_t)((uintptr_t)p->fAgeInfoId));
+        hsRef<RelVaultNode> ageInfo = VaultGetNode((uint32_t)((uintptr_t)p->fAgeInfoId));
 
         // Add ourselves to the Can Visit folder of the age
-        if (RelVaultNode * playerInfo = VaultGetPlayerInfoNodeIncRef()) {
-            if (RelVaultNode* canVisit = ageInfo->GetChildPlayerInfoListNodeIncRef(plVault::kCanVisitFolder, 1)) {
+        if (hsRef<RelVaultNode> playerInfo = VaultGetPlayerInfoNode()) {
+            if (hsRef<RelVaultNode> canVisit = ageInfo->GetChildPlayerInfoListNode(plVault::kCanVisitFolder, 1))
                 VaultAddChildNode(canVisit->GetNodeId(), playerInfo->GetNodeId(), 0, nil, nil);
-                canVisit->DecRef();
-            }
-
-            playerInfo->DecRef();
         }
 
         // Get our AgesICanVisit folder
-        if (RelVaultNode* iCanVisit = VaultGetAgesICanVisitFolderIncRef()) {
+        if (hsRef<RelVaultNode> iCanVisit = VaultGetAgesICanVisitFolder()) {
             VaultAddChildNode(node->GetNodeId(), ageInfo->GetNodeId(), 0, nil, nil);
             VaultAddChildNode(iCanVisit->GetNodeId(), node->GetNodeId(), 0, nil, nil);
         }
@@ -3383,9 +3096,9 @@ namespace _VaultRegisterVisitAge {
 
         // Save the AgeInfo nodeID, then download the age vault
         _Params* p = (_Params*)param;
-        p->fAgeInfoId = (void*)ageInfoId;
+        p->fAgeInfoId = (void*)(uintptr_t)ageInfoId;
         
-        VaultDownload(L"RegisterVisitAge",
+        VaultDownload("RegisterVisitAge",
                       ageInfoId,
                       (FVaultDownloadCallback)_DownloadCallback,
                       param,
@@ -3425,16 +3138,14 @@ bool VaultUnregisterOwnedAgeAndWait (const plAgeInfoStruct * info) {
 
     bool result = false;
     for (;;) {  
-        RelVaultNode * rvnLink = VaultGetOwnedAgeLinkIncRef(info);
+        hsRef<RelVaultNode> rvnLink = VaultGetOwnedAgeLink(info);
         if (!rvnLink) {
             result = true;
             break;  // we aren't an owner of the age, just return true
         }
 
-        if (RelVaultNode * rvn = VaultGetAgesIOwnFolderIncRef()) {
+        if (hsRef<RelVaultNode> rvn = VaultGetAgesIOwnFolder())
             agesIOwnId = rvn->GetNodeId();
-            rvn->DecRef();
-        }
         else {
             LogMsg(kLogError, L"UnregisterOwnedAge: Failed to get player's AgesIOwnFolder");
             break;  // something's wrong with the player vault, it doesn't have a required folder node
@@ -3443,21 +3154,14 @@ bool VaultUnregisterOwnedAgeAndWait (const plAgeInfoStruct * info) {
         ageLinkId = rvnLink->GetNodeId();
 
         unsigned ageOwnersId = 0;
-        if (RelVaultNode * rvnAgeInfo = rvnLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
-            if (RelVaultNode * rvnAgeOwners = rvnAgeInfo->GetChildPlayerInfoListNodeIncRef(plVault::kAgeOwnersFolder, 1)) {
+        if (hsRef<RelVaultNode> rvnAgeInfo = rvnLink->GetChildNode(plVault::kNodeType_AgeInfo, 1)) {
+            if (hsRef<RelVaultNode> rvnAgeOwners = rvnAgeInfo->GetChildPlayerInfoListNode(plVault::kAgeOwnersFolder, 1))
                 ageOwnersId = rvnAgeOwners->GetNodeId();
-                rvnAgeOwners->DecRef();
-            }
-            rvnAgeInfo->DecRef();
         }
 
         unsigned playerInfoId = 0;
-        if (RelVaultNode * rvnPlayerInfo = VaultGetPlayerInfoNodeIncRef()) {
+        if (hsRef<RelVaultNode> rvnPlayerInfo = VaultGetPlayerInfoNode())
             playerInfoId = rvnPlayerInfo->GetNodeId();
-            rvnPlayerInfo->DecRef();
-        }
-
-        rvnLink->DecRef();
 
         // remove our playerInfo from the ageOwners folder
         VaultRemoveChildNode(ageOwnersId, playerInfoId, nil, nil);
@@ -3489,16 +3193,14 @@ bool VaultUnregisterVisitAgeAndWait (const plAgeInfoStruct * info) {
     
     bool result = false;
     for (;;) {
-        RelVaultNode * rvnLink = VaultGetVisitAgeLinkIncRef(info);
+        hsRef<RelVaultNode> rvnLink = VaultGetVisitAgeLink(info);
         if (!rvnLink) {
             result = true;
             break;  // we aren't an owner of the age, just return true
         }
 
-        if (RelVaultNode * rvn = VaultGetAgesICanVisitFolderIncRef()) {
+        if (hsRef<RelVaultNode> rvn = VaultGetAgesICanVisitFolder())
             agesICanVisitId = rvn->GetNodeId();
-            rvn->DecRef();
-        }
         else {
             LogMsg(kLogError, L"UnregisterOwnedAge: Failed to get player's AgesICanVisitFolder");
             break;  // something's wrong with the player vault, it doesn't have a required folder node
@@ -3507,21 +3209,14 @@ bool VaultUnregisterVisitAgeAndWait (const plAgeInfoStruct * info) {
         ageLinkId = rvnLink->GetNodeId();
 
         unsigned ageVisitorsId = 0;
-        if (RelVaultNode * rvnAgeInfo = rvnLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
-            if (RelVaultNode * rvnAgeVisitors = rvnAgeInfo->GetChildPlayerInfoListNodeIncRef(plVault::kCanVisitFolder, 1)) {
+        if (hsRef<RelVaultNode> rvnAgeInfo = rvnLink->GetChildNode(plVault::kNodeType_AgeInfo, 1)) {
+            if (hsRef<RelVaultNode> rvnAgeVisitors = rvnAgeInfo->GetChildPlayerInfoListNode(plVault::kCanVisitFolder, 1))
                 ageVisitorsId = rvnAgeVisitors->GetNodeId();
-                rvnAgeVisitors->DecRef();
-            }
-            rvnAgeInfo->DecRef();
         }
         
         unsigned playerInfoId = 0;
-        if (RelVaultNode * rvnPlayerInfo = VaultGetPlayerInfoNodeIncRef()) {
+        if (hsRef<RelVaultNode> rvnPlayerInfo = VaultGetPlayerInfoNode())
             playerInfoId = rvnPlayerInfo->GetNodeId();
-            rvnPlayerInfo->DecRef();
-        }
-
-        rvnLink->DecRef();
 
         // remove our playerInfo from the ageVisitors folder
         VaultRemoveChildNode(ageVisitorsId, playerInfoId, nil, nil);
@@ -3546,79 +3241,63 @@ bool VaultUnregisterVisitAgeAndWait (const plAgeInfoStruct * info) {
 }
 
 //============================================================================
-RelVaultNode * VaultFindChronicleEntryIncRef (const wchar_t entryName[], int entryType) {
+hsRef<RelVaultNode> VaultFindChronicleEntry (const ST::string& entryName, int entryType) {
 
-    RelVaultNode * result = nil;
-    if (RelVaultNode * rvnFldr = GetChildFolderNode(GetPlayerNode(), plVault::kChronicleFolder, 1)) {
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+    hsRef<RelVaultNode> result;
+    if (hsRef<RelVaultNode> rvnFldr = GetChildFolderNode(GetPlayerNode(), plVault::kChronicleFolder, 1)) {
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_Chronicle);
         VaultChronicleNode chrn(templateNode);
         chrn.SetEntryName(entryName);
         if (entryType >= 0)
             chrn.SetEntryType(entryType);
-        if (RelVaultNode * rvnChrn = rvnFldr->GetChildNodeIncRef(templateNode, 255))
+        if (hsRef<RelVaultNode> rvnChrn = rvnFldr->GetChildNode(templateNode, 255))
             result = rvnChrn;
-        templateNode->DecRef();
-    }       
+    }
     return result;
 }
 
 //============================================================================
-bool VaultHasChronicleEntry (const wchar_t entryName[], int entryType) {
-    if (RelVaultNode * rvn = VaultFindChronicleEntryIncRef(entryName, entryType)) {
-        rvn->DecRef();
+bool VaultHasChronicleEntry (const ST::string& entryName, int entryType) {
+    if (VaultFindChronicleEntry(entryName, entryType))
         return true;
-    }
     return false;
 }
 
 //============================================================================
 void VaultAddChronicleEntryAndWait (
-    const wchar_t entryName[],
-    int         entryType,
-    const wchar_t entryValue[]
+    const ST::string& entryName,
+    int               entryType,
+    const ST::string& entryValue
 ) {
-    if (RelVaultNode * rvnChrn = VaultFindChronicleEntryIncRef(entryName, entryType)) {
+    if (hsRef<RelVaultNode> rvnChrn = VaultFindChronicleEntry(entryName, entryType)) {
         VaultChronicleNode chrnNode(rvnChrn);
         chrnNode.SetEntryValue(entryValue);
     }
-    else if (RelVaultNode * rvnFldr = GetChildFolderNode(GetPlayerNode(), plVault::kChronicleFolder, 1)) {
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+    else if (hsRef<RelVaultNode> rvnFldr = GetChildFolderNode(GetPlayerNode(), plVault::kChronicleFolder, 1)) {
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_Chronicle);
         VaultChronicleNode chrnNode(templateNode);
         chrnNode.SetEntryName(entryName);
         chrnNode.SetEntryType(entryType);
         chrnNode.SetEntryValue(entryValue);
         ENetError result;
-        if (RelVaultNode * rvnChrn = VaultCreateNodeAndWaitIncRef(templateNode, &result)) {
+        if (hsRef<RelVaultNode> rvnChrn = VaultCreateNodeAndWait(templateNode, &result))
             VaultAddChildNode(rvnFldr->GetNodeId(), rvnChrn->GetNodeId(), 0, nil, nil);
-            rvnChrn->DecRef();
-        }
-        templateNode->DecRef();
     }
 }
 
 //============================================================================
 bool VaultAmIgnoringPlayer (unsigned playerId) {
     bool retval = false;
-    if (RelVaultNode * rvnFldr = GetChildPlayerInfoListNode(GetPlayerNode(), plVault::kIgnoreListFolder, 1)) {
-        rvnFldr->IncRef();
-
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+    if (hsRef<RelVaultNode> rvnFldr = GetChildPlayerInfoListNode(GetPlayerNode(), plVault::kIgnoreListFolder, 1)) {
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_PlayerInfo);
         VaultPlayerInfoNode pinfoNode(templateNode);
         pinfoNode.SetPlayerId(playerId);
 
-        if (RelVaultNode * rvnPlayerInfo = rvnFldr->GetChildNodeIncRef(templateNode, 1)) {
+        if (rvnFldr->GetChildNode(templateNode, 1))
             retval = true;
-            rvnPlayerInfo->DecRef();
-        }
-
-        templateNode->DecRef();
-        rvnFldr->DecRef();
     }
 
     return retval;
@@ -3633,11 +3312,9 @@ unsigned VaultGetKILevel () {
 //============================================================================
 bool VaultGetCCRStatus () {
     bool retval = false;
-    if (RelVaultNode * rvnSystem = VaultGetSystemNodeIncRef()) {
+    if (hsRef<RelVaultNode> rvnSystem = VaultGetSystemNode()) {
         VaultSystemNode sysNode(rvnSystem);
         retval = (sysNode.GetCCRStatus() != 0);
-
-        rvnSystem->DecRef();
     }
 
     return retval;
@@ -3646,11 +3323,10 @@ bool VaultGetCCRStatus () {
 //============================================================================
 bool VaultSetCCRStatus (bool online) {
     bool retval = false;
-    if (RelVaultNode * rvnSystem = VaultGetSystemNodeIncRef()) {
+    if (hsRef<RelVaultNode> rvnSystem = VaultGetSystemNode()) {
         VaultSystemNode sysNode(rvnSystem);
         sysNode.SetCCRStatus(online ? 1 : 0);
 
-        rvnSystem->DecRef();
         retval = true;
     }
 
@@ -3658,18 +3334,13 @@ bool VaultSetCCRStatus (bool online) {
 }
 
 //============================================================================
-void VaultDump (const wchar_t tag[], unsigned vaultId, FStateDump dumpProc) {
-    LogMsg(kLogDebug, L"<---- ID:%u, Begin Vault%*s%s ---->", vaultId, tag ? 1 : 0, L" ", tag);
+void VaultDump (const ST::string& tag, unsigned vaultId) {
+    plStatusLog::AddLineS("VaultClient.log", ST::format("<---- ID:{}, Begin Vault {} ---->", vaultId, tag).c_str());
 
-    if (RelVaultNode * rvn = GetNode(vaultId))
-        rvn->PrintTree(dumpProc, 0);
+    if (hsRef<RelVaultNode> rvn = VaultGetNode(vaultId))
+        rvn->PrintTree(0);
 
-    LogMsg(kLogDebug, L"<---- ID:%u, End Vault%*s%s ---->", vaultId, tag ? 1 : 0, L" ", tag);
-}
-
-//============================================================================
-void VaultDump (const wchar_t tag[], unsigned vaultId) {
-    VaultDump (tag, vaultId, LogDumpProc);
+    plStatusLog::AddLineS("VaultClient.log", ST::format("<---- ID:{}, End Vault {} ---->", vaultId, tag).c_str());
 }
 
 //============================================================================
@@ -3679,23 +3350,17 @@ bool VaultAmInMyPersonalAge () {
     plAgeInfoStruct info;
     info.SetAgeFilename(kPersonalAgeFilename);
 
-    if (RelVaultNode * rvnLink = VaultGetOwnedAgeLinkIncRef(&info)) {
-        if (RelVaultNode * rvnInfo = rvnLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
+    if (hsRef<RelVaultNode> rvnLink = VaultGetOwnedAgeLink(&info)) {
+        if (hsRef<RelVaultNode> rvnInfo = rvnLink->GetChildNode(plVault::kNodeType_AgeInfo, 1)) {
             VaultAgeInfoNode ageInfo(rvnInfo);
 
-            if (RelVaultNode* currentAgeInfoNode = VaultGetAgeInfoNodeIncRef()) {
+            if (hsRef<RelVaultNode> currentAgeInfoNode = VaultGetAgeInfoNode()) {
                 VaultAgeInfoNode curAgeInfo(currentAgeInfoNode);
 
                 if (ageInfo.GetAgeInstanceGuid() == curAgeInfo.GetAgeInstanceGuid())
                     result = true;
-
-                currentAgeInfoNode->DecRef();
             }
-
-            rvnInfo->DecRef();
         }
-
-        rvnLink->DecRef();
     }
 
     return result;
@@ -3708,23 +3373,17 @@ bool VaultAmInMyNeighborhoodAge () {
     plAgeInfoStruct info;
     info.SetAgeFilename(kNeighborhoodAgeFilename);
 
-    if (RelVaultNode * rvnLink = VaultGetOwnedAgeLinkIncRef(&info)) {
-        if (RelVaultNode * rvnInfo = rvnLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
+    if (hsRef<RelVaultNode> rvnLink = VaultGetOwnedAgeLink(&info)) {
+        if (hsRef<RelVaultNode> rvnInfo = rvnLink->GetChildNode(plVault::kNodeType_AgeInfo, 1)) {
             VaultAgeInfoNode ageInfo(rvnInfo);
 
-            if (RelVaultNode* currentAgeInfoNode = VaultGetAgeInfoNodeIncRef()) {
+            if (hsRef<RelVaultNode> currentAgeInfoNode = VaultGetAgeInfoNode()) {
                 VaultAgeInfoNode curAgeInfo(currentAgeInfoNode);
 
                 if (ageInfo.GetAgeInstanceGuid() == curAgeInfo.GetAgeInstanceGuid())
                     result = true;
-
-                currentAgeInfoNode->DecRef();
             }
-
-            rvnInfo->DecRef();
         }
-
-        rvnLink->DecRef();
     }
 
     return result;
@@ -3734,31 +3393,21 @@ bool VaultAmInMyNeighborhoodAge () {
 bool VaultAmOwnerOfCurrentAge () {
     bool result = false;
 
-    if (RelVaultNode* currentAgeInfoNode = VaultGetAgeInfoNodeIncRef()) {
+    if (hsRef<RelVaultNode> currentAgeInfoNode = VaultGetAgeInfoNode()) {
         VaultAgeInfoNode curAgeInfo(currentAgeInfoNode);
 
-        char* ageFilename = StrDupToAnsi(curAgeInfo.GetAgeFilename());
-
         plAgeInfoStruct info;
-        info.SetAgeFilename(ageFilename);
+        info.SetAgeFilename(curAgeInfo.GetAgeFilename());
 
-        free(ageFilename);
+        if (hsRef<RelVaultNode> rvnLink = VaultGetOwnedAgeLink(&info)) {
 
-        if (RelVaultNode * rvnLink = VaultGetOwnedAgeLinkIncRef(&info)) {
-
-            if (RelVaultNode * rvnInfo = rvnLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
+            if (hsRef<RelVaultNode> rvnInfo = rvnLink->GetChildNode(plVault::kNodeType_AgeInfo, 1)) {
                 VaultAgeInfoNode ageInfo(rvnInfo);
 
                 if (ageInfo.GetAgeInstanceGuid() == curAgeInfo.GetAgeInstanceGuid())
                     result = true;
-
-                rvnInfo->DecRef();
             }
-
-            rvnLink->DecRef();
         }
-
-        currentAgeInfoNode->DecRef();
     }
 
     return result;
@@ -3784,18 +3433,14 @@ bool VaultAmCzarOfAge (const plUUID& ageInstId) {
 
 //============================================================================
 bool VaultRegisterMTStationAndWait (
-    const wchar_t stationName[],
-    const wchar_t linkBackSpawnPtObjName[]
+    const ST::string& stationName,
+    const ST::string& linkBackSpawnPtObjName
 ) {
     plAgeInfoStruct info;
     info.SetAgeFilename(kCityAgeFilename);
-    if (RelVaultNode * rvn = VaultGetOwnedAgeLinkIncRef(&info)) {
-        char title[MAX_PATH], spawnPt[MAX_PATH];
-        StrToAnsi(title, stationName, arrsize(title));
-        StrToAnsi(spawnPt, linkBackSpawnPtObjName, arrsize(spawnPt));
+    if (hsRef<RelVaultNode> rvn = VaultGetOwnedAgeLink(&info)) {
         VaultAgeLinkNode link(rvn);
-        link.AddSpawnPoint(plSpawnPointInfo(title, spawnPt));
-        rvn->DecRef();
+        link.AddSpawnPoint({ stationName, linkBackSpawnPtObjName });
         return true;
     }
     return false;
@@ -3803,9 +3448,7 @@ bool VaultRegisterMTStationAndWait (
 
 //============================================================================
 void VaultProcessVisitNote(RelVaultNode * rvnVisit) {
-    if (RelVaultNode * rvnInbox = VaultGetPlayerInboxFolderIncRef()) {
-        rvnVisit->IncRef();
-
+    if (hsRef<RelVaultNode> rvnInbox = VaultGetPlayerInboxFolder()) {
         VaultTextNoteNode visitAcc(rvnVisit);
         plAgeLinkStruct link;
         if (visitAcc.GetVisitInfo(link.GetAgeInfo())) {
@@ -3814,16 +3457,12 @@ void VaultProcessVisitNote(RelVaultNode * rvnVisit) {
         }
         // remove it from the inbox
         VaultRemoveChildNode(rvnInbox->GetNodeId(), rvnVisit->GetNodeId(), nil, nil);
-        rvnVisit->DecRef();
-
-        rvnInbox->DecRef();
     }
 }
 
 //============================================================================
 void VaultProcessUnvisitNote(RelVaultNode * rvnUnVisit) {
-    if (RelVaultNode * rvnInbox = VaultGetPlayerInboxFolderIncRef()) {
-        rvnUnVisit->IncRef();
+    if (hsRef<RelVaultNode> rvnInbox = VaultGetPlayerInboxFolder()) {
         VaultTextNoteNode unvisitAcc(rvnUnVisit);
         plAgeInfoStruct info;
         if (unvisitAcc.GetVisitInfo(&info)) {
@@ -3832,27 +3471,21 @@ void VaultProcessUnvisitNote(RelVaultNode * rvnUnVisit) {
         }
         // remove it from the inbox
         VaultRemoveChildNode(rvnInbox->GetNodeId(), rvnUnVisit->GetNodeId(), nil, nil);
-        rvnUnVisit->DecRef();
-
-        rvnInbox->DecRef();
     }
 }
 
 //============================================================================
 void VaultProcessPlayerInbox () {
-    if (RelVaultNode * rvnInbox = VaultGetPlayerInboxFolderIncRef()) {
+    if (hsRef<RelVaultNode> rvnInbox = VaultGetPlayerInboxFolder()) {
         {   // Process new visit requests
-            ARRAY(RelVaultNode*) visits;
-            RelVaultNode * templateNode = new RelVaultNode;
-            templateNode->IncRef();
+            RelVaultNode::RefList visits;
+            hsRef<RelVaultNode> templateNode = new RelVaultNode;
             templateNode->SetNodeType(plVault::kNodeType_TextNote);
             VaultTextNoteNode tmpAcc(templateNode);
             tmpAcc.SetNoteType(plVault::kNoteType_Visit);
-            rvnInbox->GetChildNodesIncRef(templateNode, 1, &visits);
-            templateNode->DecRef();
+            rvnInbox->GetChildNodes(templateNode, 1, &visits);
 
-            for (unsigned i = 0; i < visits.Count(); ++i) {
-                RelVaultNode * rvnVisit = visits[i];
+            for (const hsRef<RelVaultNode> &rvnVisit : visits) {
                 VaultTextNoteNode visitAcc(rvnVisit);
                 plAgeLinkStruct link;
                 if (visitAcc.GetVisitInfo(link.GetAgeInfo())) {
@@ -3861,21 +3494,17 @@ void VaultProcessPlayerInbox () {
                 }
                 // remove it from the inbox
                 VaultRemoveChildNode(rvnInbox->GetNodeId(), rvnVisit->GetNodeId(), nil, nil);
-                rvnVisit->DecRef();
             }
         }
         {   // Process new unvisit requests
-            ARRAY(RelVaultNode*) unvisits;
-            RelVaultNode * templateNode = new RelVaultNode;
-            templateNode->IncRef();
+            RelVaultNode::RefList unvisits;
+            hsRef<RelVaultNode> templateNode = new RelVaultNode;
             templateNode->SetNodeType(plVault::kNodeType_TextNote);
             VaultTextNoteNode tmpAcc(templateNode);
             tmpAcc.SetNoteType(plVault::kNoteType_UnVisit);
-            rvnInbox->GetChildNodesIncRef(templateNode, 1, &unvisits);
-            templateNode->DecRef();
+            rvnInbox->GetChildNodes(templateNode, 1, &unvisits);
 
-            for (unsigned i = 0; i < unvisits.Count(); ++i) {
-                RelVaultNode * rvnUnVisit = unvisits[i];
+            for (const hsRef<RelVaultNode> &rvnUnVisit : unvisits) {
                 VaultTextNoteNode unvisitAcc(rvnUnVisit);
                 plAgeInfoStruct info;
                 if (unvisitAcc.GetVisitInfo(&info)) {
@@ -3884,11 +3513,8 @@ void VaultProcessPlayerInbox () {
                 }
                 // remove it from the inbox
                 VaultRemoveChildNode(rvnInbox->GetNodeId(), rvnUnVisit->GetNodeId(), nil, nil);
-                rvnUnVisit->DecRef();
             }
         }
-        
-        rvnInbox->DecRef();
     }
 }
 
@@ -3900,190 +3526,167 @@ void VaultProcessPlayerInbox () {
 ***/
 
 //============================================================================
-static RelVaultNode * GetAgeNode () {
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+static hsRef<RelVaultNode> GetAgeNode () {
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_VNodeMgrAge);
     if (NetCommGetAge())
         templateNode->SetNodeId(NetCommGetAge()->ageVaultId);
-    RelVaultNode * result = GetNode(templateNode);
-    templateNode->DecRef();
-    return result;
+    return VaultGetNode(templateNode);
 }
 
 //============================================================================
-RelVaultNode * VaultGetAgeNodeIncRef () {
-    RelVaultNode * result = nil;
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+hsRef<RelVaultNode> VaultGetAgeNode () {
+    hsRef<RelVaultNode> result;
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_VNodeMgrAge);
     if (NetCommGetAge())
         templateNode->SetNodeId(NetCommGetAge()->ageVaultId);
-    if (RelVaultNode * rvnAge = VaultGetNodeIncRef(templateNode))
+    if (hsRef<RelVaultNode> rvnAge = VaultGetNode(templateNode))
         result = rvnAge;
-    templateNode->DecRef();
     return result;
 }
 
 //============================================================================
-static RelVaultNode * GetAgeInfoNode () {
-    RelVaultNode * rvnAge = VaultGetAgeNodeIncRef();
+static hsRef<RelVaultNode> GetAgeInfoNode () {
+    hsRef<RelVaultNode> rvnAge = VaultGetAgeNode();
     if (!rvnAge)
-        return nil;
+        return nullptr;
 
-    RelVaultNode * result = nil;
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<RelVaultNode> result;
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     
     templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
     templateNode->SetCreatorId(rvnAge->GetNodeId());
             
-    if (RelVaultNode * rvnAgeInfo = rvnAge->GetChildNodeIncRef(templateNode, 1)) {
-        rvnAgeInfo->DecRef();
+    if (hsRef<RelVaultNode> rvnAgeInfo = rvnAge->GetChildNode(templateNode, 1))
         result = rvnAgeInfo;
-    }
-    
-    templateNode->DecRef();
-    rvnAge->DecRef();
     
     return result;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAgeInfoNodeIncRef () {
-    RelVaultNode * rvnAge = VaultGetAgeNodeIncRef();
+hsRef<RelVaultNode> VaultGetAgeInfoNode () {
+    hsRef<RelVaultNode> rvnAge = VaultGetAgeNode();
     if (!rvnAge)
-        return nil;
+        return nullptr;
 
-    RelVaultNode * result = nil;
-    NetVaultNode * templateNode = new NetVaultNode;
-    templateNode->IncRef();
+    hsRef<RelVaultNode> result;
+    hsRef<NetVaultNode> templateNode = new NetVaultNode;
     templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
     templateNode->SetCreatorId(rvnAge->GetNodeId());
             
-    if (RelVaultNode * rvnAgeInfo = rvnAge->GetChildNodeIncRef(templateNode, 1))
+    if (hsRef<RelVaultNode> rvnAgeInfo = rvnAge->GetChildNode(templateNode, 1))
         result = rvnAgeInfo;
-    
-    templateNode->DecRef();
-    rvnAge->DecRef();
 
     return result;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAgeChronicleFolderIncRef () {
-    if (RelVaultNode * rvn = GetAgeNode())
-        return rvn->GetChildFolderNodeIncRef(plVault::kChronicleFolder, 1);
+hsRef<RelVaultNode> VaultGetAgeChronicleFolder () {
+    if (hsRef<RelVaultNode> rvn = GetAgeNode())
+        return rvn->GetChildFolderNode(plVault::kChronicleFolder, 1);
     return nil;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAgeDevicesFolderIncRef () {
-    if (RelVaultNode * rvn = GetAgeNode())
-        return rvn->GetChildFolderNodeIncRef(plVault::kAgeDevicesFolder, 1);
+hsRef<RelVaultNode> VaultGetAgeDevicesFolder () {
+    if (hsRef<RelVaultNode> rvn = GetAgeNode())
+        return rvn->GetChildFolderNode(plVault::kAgeDevicesFolder, 1);
     return nil;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAgeAgeOwnersFolderIncRef () {
-    if (RelVaultNode * rvn = GetAgeInfoNode())
-        return rvn->GetChildPlayerInfoListNodeIncRef(plVault::kAgeOwnersFolder, 1);
+hsRef<RelVaultNode> VaultGetAgeAgeOwnersFolder () {
+    if (hsRef<RelVaultNode> rvn = GetAgeInfoNode())
+        return rvn->GetChildPlayerInfoListNode(plVault::kAgeOwnersFolder, 1);
     return nil;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAgeCanVisitFolderIncRef () {
-    if (RelVaultNode * rvn = GetAgeInfoNode())
-        return rvn->GetChildPlayerInfoListNodeIncRef(plVault::kCanVisitFolder, 1);
+hsRef<RelVaultNode> VaultGetAgeCanVisitFolder () {
+    if (hsRef<RelVaultNode> rvn = GetAgeInfoNode())
+        return rvn->GetChildPlayerInfoListNode(plVault::kCanVisitFolder, 1);
     return nil;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAgePeopleIKnowAboutFolderIncRef () {
-    if (RelVaultNode * rvn = GetAgeNode())
-        return rvn->GetChildPlayerInfoListNodeIncRef(plVault::kPeopleIKnowAboutFolder, 1);
+hsRef<RelVaultNode> VaultGetAgePeopleIKnowAboutFolder () {
+    if (hsRef<RelVaultNode> rvn = GetAgeNode())
+        return rvn->GetChildPlayerInfoListNode(plVault::kPeopleIKnowAboutFolder, 1);
     return nil;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAgeSubAgesFolderIncRef () {
-    if (RelVaultNode * rvn = GetAgeNode())
-        return rvn->GetChildAgeInfoListNodeIncRef(plVault::kSubAgesFolder, 1);
+hsRef<RelVaultNode> VaultGetAgeSubAgesFolder () {
+    if (hsRef<RelVaultNode> rvn = GetAgeNode())
+        return rvn->GetChildAgeInfoListNode(plVault::kSubAgesFolder, 1);
     return nil;
 }
 
 //============================================================================
-RelVaultNode * VaultGetAgePublicAgesFolderIncRef () {
+hsRef<RelVaultNode> VaultGetAgePublicAgesFolder () {
     hsAssert(false, "eric, implement me");
     return nil;
 }
 
 //============================================================================
-RelVaultNode * VaultAgeGetBookshelfFolderIncRef () {
-    if (RelVaultNode * rvn = GetAgeNode())
-        return rvn->GetChildAgeInfoListNodeIncRef(plVault::kAgesIOwnFolder, 1);
+hsRef<RelVaultNode> VaultAgeGetBookshelfFolder () {
+    if (hsRef<RelVaultNode> rvn = GetAgeNode())
+        return rvn->GetChildAgeInfoListNode(plVault::kAgesIOwnFolder, 1);
     return nil;
 }
 
 //============================================================================
-RelVaultNode * VaultFindAgeSubAgeLinkIncRef (const plAgeInfoStruct * info) {
-    RelVaultNode * rvnLink = nil;
+hsRef<RelVaultNode> VaultFindAgeSubAgeLink (const plAgeInfoStruct * info) {
+    hsRef<RelVaultNode> rvnLink;
     
-    if (RelVaultNode * rvnFldr = VaultGetAgeSubAgesFolderIncRef()) {
+    if (hsRef<RelVaultNode> rvnFldr = VaultGetAgeSubAgesFolder()) {
 
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
 
         VaultAgeInfoNode ageInfo(templateNode);
-        wchar_t str[MAX_PATH];
-        StrToUnicode(str, info->GetAgeFilename(), arrsize(str));
-        ageInfo.SetAgeFilename(str);
+        ageInfo.SetAgeFilename(info->GetAgeFilename());
 
-        if (RelVaultNode * rvnInfo = rvnFldr->GetChildNodeIncRef(templateNode, 2)) {
-            templateNode->ClearFieldFlags();
-            templateNode->SetNodeType(plVault::kNodeType_AgeLink);  
-            rvnLink = rvnInfo->GetParentNodeIncRef(templateNode, 1);
-            rvnInfo->DecRef();
+        if (hsRef<RelVaultNode> rvnInfo = rvnFldr->GetChildNode(templateNode, 2)) {
+            templateNode->Clear();
+            templateNode->SetNodeType(plVault::kNodeType_AgeLink);
+            rvnLink = rvnInfo->GetParentNode(templateNode, 1);
         }
-
-        templateNode->DecRef();
-        rvnFldr->DecRef();
     }
     
     return rvnLink;
 }
 
 //============================================================================
-RelVaultNode * VaultFindAgeChronicleEntryIncRef (const wchar_t entryName[], int entryType) {
+hsRef<RelVaultNode> VaultFindAgeChronicleEntry(const ST::string& entryName, int entryType) {
     hsAssert(false, "eric, implement me");
     return nil;
 }
 
 //============================================================================
 void VaultAddAgeChronicleEntry (
-    const wchar_t entryName[],
-    int         entryType,
-    const wchar_t entryValue[]
+    const ST::string& entryName,
+    int               entryType,
+    const ST::string& entryValue
 ) {
     hsAssert(false, "eric, implement me");
 }
 
 //============================================================================
-RelVaultNode * VaultAgeAddDeviceAndWaitIncRef (const wchar_t deviceName[]) {
-    if (RelVaultNode * existing = VaultAgeGetDeviceIncRef(deviceName))
+hsRef<RelVaultNode> VaultAgeAddDeviceAndWait (const ST::string& deviceName) {
+    if (hsRef<RelVaultNode> existing = VaultAgeGetDevice(deviceName))
         return existing;
         
-    RelVaultNode * device = nil;
-    RelVaultNode * folder = nil;
+    hsRef<RelVaultNode> device, folder;
     
     for (;;) {
-        folder = VaultGetAgeDevicesFolderIncRef();
+        folder = VaultGetAgeDevicesFolder();
         if (!folder)
             break;
 
         ENetError result;
-        device = VaultCreateNodeAndWaitIncRef(plVault::kNodeType_TextNote, &result);
+        device = VaultCreateNodeAndWait(plVault::kNodeType_TextNote, &result);
         if (!device)
             break;
 
@@ -4095,102 +3698,80 @@ RelVaultNode * VaultAgeAddDeviceAndWaitIncRef (const wchar_t deviceName[]) {
         break;
     }
 
-    if (folder)
-        folder->DecRef();
-        
     return device;
 }
 
 //============================================================================
-void VaultAgeRemoveDevice (const wchar_t deviceName[]) {
-    if (RelVaultNode * folder = VaultGetAgeDevicesFolderIncRef()) {
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+void VaultAgeRemoveDevice (const ST::string& deviceName) {
+    if (hsRef<RelVaultNode> folder = VaultGetAgeDevicesFolder()) {
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_TextNote);
         VaultTextNoteNode access(templateNode);
         access.SetNoteTitle(deviceName);
-        if (RelVaultNode * device = folder->GetChildNodeIncRef(templateNode, 1)) {
+        if (hsRef<RelVaultNode> device = folder->GetChildNode(templateNode, 1)) {
             VaultRemoveChildNode(folder->GetNodeId(), device->GetNodeId(), nil, nil);
-            device->DecRef();
 
-            if (DeviceInbox * deviceInbox = s_ageDeviceInboxes.Find(CHashKeyStr(deviceName)))
-                delete device;
+            auto it = s_ageDeviceInboxes.find(deviceName);
+            if (it != s_ageDeviceInboxes.end())
+                s_ageDeviceInboxes.erase(it);
         }
-        templateNode->DecRef();
-        folder->DecRef();
     }
 }
 
 //============================================================================
-bool VaultAgeHasDevice (const wchar_t deviceName[]) {
+bool VaultAgeHasDevice (const ST::string& deviceName) {
     bool found = false;
-    if (RelVaultNode * folder = VaultGetAgeDevicesFolderIncRef()) {
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+    if (hsRef<RelVaultNode> folder = VaultGetAgeDevicesFolder()) {
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_TextNote);
         VaultTextNoteNode access(templateNode);
         access.SetNoteTitle(deviceName);
-        if (RelVaultNode * device = folder->GetChildNodeIncRef(templateNode, 1)) {
+        if (folder->GetChildNode(templateNode, 1))
             found = true;
-            device->DecRef();
-        }
-        templateNode->DecRef();
-        folder->DecRef();
     }
     return found;
 }
 
 //============================================================================
-RelVaultNode * VaultAgeGetDeviceIncRef (const wchar_t deviceName[]) {
-    RelVaultNode * result = nil;
-    if (RelVaultNode * folder = VaultGetAgeDevicesFolderIncRef()) {
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+hsRef<RelVaultNode> VaultAgeGetDevice (const ST::string& deviceName) {
+    hsRef<RelVaultNode> result;
+    if (hsRef<RelVaultNode> folder = VaultGetAgeDevicesFolder()) {
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_TextNote);
         VaultTextNoteNode access(templateNode);
         access.SetNoteTitle(deviceName);
-        if (RelVaultNode * device = folder->GetChildNodeIncRef(templateNode, 1))
+        if (hsRef<RelVaultNode> device = folder->GetChildNode(templateNode, 1))
             result = device;
-        templateNode->DecRef();
-        folder->DecRef();
     }
     return result;
 }
 
 //============================================================================
-RelVaultNode * VaultAgeSetDeviceInboxAndWaitIncRef (const wchar_t deviceName[], const wchar_t inboxName[]) {
-    DeviceInbox * devInbox = s_ageDeviceInboxes.Find(CHashKeyStr(deviceName));
-    if (devInbox) {
-        StrCopy(devInbox->inboxName, inboxName, arrsize(devInbox->inboxName));
-    }
-    else {
-        devInbox = new DeviceInbox(deviceName, inboxName);
-        s_ageDeviceInboxes.Add(devInbox);
-    }
+hsRef<RelVaultNode> VaultAgeSetDeviceInboxAndWait (const ST::string& deviceName, const ST::string& inboxName) {
+    s_ageDeviceInboxes[deviceName] = inboxName;
 
     // if we found the inbox or its a global inbox then return here, otherwise if its the default inbox and
     // it wasn't found then continue on and create the inbox
-    RelVaultNode * existing = VaultAgeGetDeviceInboxIncRef(deviceName);
-    if (existing || StrCmp(inboxName, DEFAULT_DEVICE_INBOX) != 0)
+    hsRef<RelVaultNode> existing = VaultAgeGetDeviceInbox(deviceName);
+    if (existing || inboxName != DEFAULT_DEVICE_INBOX)
         return existing;
 
-    RelVaultNode * device = nil;
-    RelVaultNode * inbox  = nil;
-    
+    hsRef<RelVaultNode> device, inbox;
+
     for (;;) {
-        device = VaultAgeGetDeviceIncRef(deviceName);
+        device = VaultAgeGetDevice(deviceName);
         if (!device)
             break;
 
         ENetError result;
-        inbox = VaultCreateNodeAndWaitIncRef(plVault::kNodeType_Folder, &result);
+        inbox = VaultCreateNodeAndWait(plVault::kNodeType_Folder, &result);
         if (!inbox)
             break;
             
         VaultFolderNode access(inbox);
         access.SetFolderName(inboxName);
         access.SetFolderType(plVault::kDeviceInboxFolder);
-                    
+
         VaultAddChildNodeAndWait(device->GetNodeId(), inbox->GetNodeId(), 0);
         break;
     }
@@ -4199,32 +3780,27 @@ RelVaultNode * VaultAgeSetDeviceInboxAndWaitIncRef (const wchar_t deviceName[], 
 }
 
 //============================================================================
-RelVaultNode * VaultAgeGetDeviceInboxIncRef (const wchar_t deviceName[]) {
-    RelVaultNode * result = nil;
-    DeviceInbox * devInbox = s_ageDeviceInboxes.Find(CHashKeyStr(deviceName));
+hsRef<RelVaultNode> VaultAgeGetDeviceInbox (const ST::string& deviceName) {
+    hsRef<RelVaultNode> result;
+    auto it = s_ageDeviceInboxes.find(deviceName);
 
-    if (devInbox)
-    {
-        RelVaultNode * parentNode = nil;
+    if (it != s_ageDeviceInboxes.end()) {
+        hsRef<RelVaultNode> parentNode;
         const wchar_t * inboxName = nil;
 
-        if (StrCmp(devInbox->inboxName, DEFAULT_DEVICE_INBOX) == 0) {
-            parentNode = VaultAgeGetDeviceIncRef(deviceName);
-        }
-        else {
-            parentNode = VaultGetGlobalInboxIncRef();
-        }
+        //if (StrCmp(devInbox->inboxName, DEFAULT_DEVICE_INBOX) == 0) {
+        if (it->second == DEFAULT_DEVICE_INBOX)
+            parentNode = VaultAgeGetDevice(deviceName);
+        else
+            parentNode = VaultGetGlobalInbox();
 
         if (parentNode) {
-            NetVaultNode * templateNode = new NetVaultNode;
-            templateNode->IncRef();
+            hsRef<NetVaultNode> templateNode = new NetVaultNode;
             templateNode->SetNodeType(plVault::kNodeType_Folder);
             VaultFolderNode access(templateNode);
             access.SetFolderType(plVault::kDeviceInboxFolder);
-            access.SetFolderName(devInbox->inboxName);
-            result = parentNode->GetChildNodeIncRef(templateNode, 1);
-            templateNode->DecRef();
-            parentNode->DecRef();
+            access.SetFolderName(it->second);
+            result = parentNode->GetChildNode(templateNode, 1);
         }
     }
     return result;
@@ -4232,38 +3808,32 @@ RelVaultNode * VaultAgeGetDeviceInboxIncRef (const wchar_t deviceName[]) {
 
 //============================================================================
 void VaultClearDeviceInboxMap () {
-    while (DeviceInbox * inbox = s_ageDeviceInboxes.Head()) {
-        delete inbox;
-    }
+    s_ageDeviceInboxes.clear();
 }
 
 //============================================================================
 bool VaultAgeGetAgeSDL (plStateDataRecord * out) {
     bool result = false;
-    if (RelVaultNode * rvn = VaultGetAgeInfoNodeIncRef()) {
-        if (RelVaultNode * rvnSdl = rvn->GetChildNodeIncRef(plVault::kNodeType_SDL, 1)) {
+    if (hsRef<RelVaultNode> rvn = VaultGetAgeInfoNode()) {
+        if (hsRef<RelVaultNode> rvnSdl = rvn->GetChildNode(plVault::kNodeType_SDL, 1)) {
             VaultSDLNode sdl(rvnSdl);
             result = sdl.GetStateDataRecord(out, plSDL::kKeepDirty);
             if (!result) {
                 sdl.InitStateDataRecord(sdl.GetSDLName());
                 result = sdl.GetStateDataRecord(out, plSDL::kKeepDirty);
             }
-            rvnSdl->DecRef();
         }
-        rvn->DecRef();
     }
     return result;
 }
 
 //============================================================================
 void VaultAgeUpdateAgeSDL (const plStateDataRecord * rec) {
-    if (RelVaultNode * rvn = VaultGetAgeInfoNodeIncRef()) {
-        if (RelVaultNode * rvnSdl = rvn->GetChildNodeIncRef(plVault::kNodeType_SDL, 1)) {
+    if (hsRef<RelVaultNode> rvn = VaultGetAgeInfoNode()) {
+        if (hsRef<RelVaultNode> rvnSdl = rvn->GetChildNode(plVault::kNodeType_SDL, 1)) {
             VaultSDLNode sdl(rvnSdl);
             sdl.SetStateDataRecord(rec, plSDL::kDirtyOnly | plSDL::kTimeStampOnRead);
-            rvnSdl->DecRef();
         }
-        rvn->DecRef();
     }
 }
 
@@ -4274,30 +3844,23 @@ unsigned VaultAgeGetAgeTime () {
 }
 
 //============================================================================
-RelVaultNode * VaultGetSubAgeLinkIncRef (const plAgeInfoStruct * info) {
+hsRef<RelVaultNode> VaultGetSubAgeLink (const plAgeInfoStruct * info) {
     
-    RelVaultNode * rvnLink = nil;
+    hsRef<RelVaultNode> rvnLink;
     
-    if (RelVaultNode * rvnFldr = VaultGetAgeSubAgesFolderIncRef()) {
+    if (hsRef<RelVaultNode> rvnFldr = VaultGetAgeSubAgesFolder()) {
 
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
 
         VaultAgeInfoNode ageInfo(templateNode);
-        wchar_t str[MAX_PATH];
-        StrToUnicode(str, info->GetAgeFilename(), arrsize(str));
-        ageInfo.SetAgeFilename(str);
+        ageInfo.SetAgeFilename(info->GetAgeFilename());
 
-        if (RelVaultNode * rvnInfo = rvnFldr->GetChildNodeIncRef(templateNode, 2)) {
-            templateNode->ClearFieldFlags();
-            templateNode->SetNodeType(plVault::kNodeType_AgeLink);  
-            rvnLink = rvnInfo->GetParentNodeIncRef(templateNode, 1);
-            rvnInfo->DecRef();
+        if (hsRef<RelVaultNode> rvnInfo = rvnFldr->GetChildNode(templateNode, 2)) {
+            templateNode->Clear();
+            templateNode->SetNodeType(plVault::kNodeType_AgeLink);
+            rvnLink = rvnInfo->GetParentNode(templateNode, 1);
         }
-
-        templateNode->DecRef();
-        rvnFldr->DecRef();
     }
     
     return rvnLink;
@@ -4306,15 +3869,12 @@ RelVaultNode * VaultGetSubAgeLinkIncRef (const plAgeInfoStruct * info) {
 //============================================================================
 bool VaultAgeGetSubAgeLink (const plAgeInfoStruct * info, plAgeLinkStruct * link) {
     bool result = false;
-    if (RelVaultNode * rvnLink = VaultGetSubAgeLinkIncRef(info)) {
-        if (RelVaultNode * rvnInfo = rvnLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
+    if (hsRef<RelVaultNode> rvnLink = VaultGetSubAgeLink(info)) {
+        if (hsRef<RelVaultNode> rvnInfo = rvnLink->GetChildNode(plVault::kNodeType_AgeInfo, 1)) {
             VaultAgeInfoNode ageInfo(rvnInfo);
             ageInfo.CopyTo(link->GetAgeInfo());
-            rvnInfo->DecRef();
             result = true;
         }
-
-        rvnLink->DecRef();
     }
     
     return result;
@@ -4390,14 +3950,12 @@ bool VaultAgeFindOrCreateSubAgeLinkAndWait (
     plAgeLinkStruct *       link,
     const plUUID&           parentAgeInstId
 ) {
-    if (RelVaultNode * rvnLink = VaultFindAgeSubAgeLinkIncRef(info)) {
+    if (hsRef<RelVaultNode> rvnLink = VaultFindAgeSubAgeLink(info)) {
         VaultAgeLinkNode linkAcc(rvnLink);
         linkAcc.CopyTo(link);
-        if (RelVaultNode * rvnInfo = rvnLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
+        if (hsRef<RelVaultNode> rvnInfo = rvnLink->GetChildNode(plVault::kNodeType_AgeInfo, 1)) {
             VaultAgeInfoNode infoAcc(rvnInfo);
             infoAcc.CopyTo(link->GetAgeInfo());
-            rvnInfo->DecRef();
-            rvnLink->DecRef();
             return true;
         }
     }
@@ -4408,10 +3966,8 @@ bool VaultAgeFindOrCreateSubAgeLinkAndWait (
     unsigned ageInfoId;
     unsigned ageLinkId;
     
-    if (RelVaultNode * rvnSubAges = VaultGetAgeSubAgesFolderIncRef()) {
+    if (hsRef<RelVaultNode> rvnSubAges = VaultGetAgeSubAgesFolder())
         subAgesId = rvnSubAges->GetNodeId();
-        rvnSubAges->DecRef();
-    }
     else {
         LogMsg(kLogError, L"CreateSubAge: Failed to get ages's SubAges folder");
         return false;
@@ -4436,7 +3992,7 @@ bool VaultAgeFindOrCreateSubAgeLinkAndWait (
         }
         
         if (IS_NET_ERROR(param.result)) {
-            LogMsg(kLogError, L"CreateSubAge: Failed to init age %S", link->GetAgeInfo()->GetAgeFilename());
+            LogMsg(kLogError, "CreateSubAge: Failed to init age %s", link->GetAgeInfo()->GetAgeFilename().c_str());
             return false;
         }
             
@@ -4473,7 +4029,7 @@ bool VaultAgeFindOrCreateSubAgeLinkAndWait (
         memset(&param, 0, sizeof(param));
         
         VaultDownload(
-            L"CreateSubAge",
+            "CreateSubAge",
             ageInfoId,
             _FetchVaultCallback,
             &param,
@@ -4533,16 +4089,14 @@ bool VaultAgeFindOrCreateSubAgeLinkAndWait (
         }
     }
         
-    if (RelVaultNode * rvnLink = VaultGetNodeIncRef(ageLinkId)) {
+    if (hsRef<RelVaultNode> rvnLink = VaultGetNode(ageLinkId)) {
         VaultAgeLinkNode linkAcc(rvnLink);
         linkAcc.CopyTo(link);
-        rvnLink->DecRef();
     }
 
-    if (RelVaultNode * rvnInfo = VaultGetNodeIncRef(ageInfoId)) {
+    if (hsRef<RelVaultNode> rvnInfo = VaultGetNode(ageInfoId)) {
         VaultAgeInfoNode infoAcc(rvnInfo);
         infoAcc.CopyTo(link->GetAgeInfo());
-        rvnInfo->DecRef();
     }
 
     return true;
@@ -4558,10 +4112,9 @@ namespace _VaultCreateSubAge {
 
         // Add the children to the right places
         VaultAddChildNode(node->GetNodeId(), (uint32_t)((uintptr_t)param), 0, nil, nil);
-        if (RelVaultNode* saFldr = VaultGetAgeSubAgesFolderIncRef()) {
+        if (hsRef<RelVaultNode> saFldr = VaultGetAgeSubAgesFolder())
             VaultAddChildNode(saFldr->GetNodeId(), node->GetNodeId(), 0, nil, nil);
-            saFldr->DecRef();
-        } else
+        else
             LogMsg(kLogError, "CreateSubAge: Couldn't find SubAges folder (async)");
 
         // Send the VaultNotify that the plNetLinkingMgr wants...
@@ -4593,10 +4146,10 @@ namespace _VaultCreateSubAge {
         }
 
         // Download age vault
-        VaultDownload(L"CreateSubAge",
+        VaultDownload("CreateSubAge",
                       ageInfoId,
                       (FVaultDownloadCallback)_DownloadCallback,
-                      (void*)ageInfoId,
+                      (void*)(uintptr_t)ageInfoId,
                       nil,
                       nil
         );
@@ -4607,17 +4160,15 @@ bool VaultAgeFindOrCreateSubAgeLink(const plAgeInfoStruct* info, plAgeLinkStruct
     using namespace _VaultCreateSubAge;
 
     // First, try to find an already existing subage
-    if (RelVaultNode* rvnLink = VaultGetSubAgeLinkIncRef(info)) {
+    if (hsRef<RelVaultNode> rvnLink = VaultGetSubAgeLink(info)) {
         VaultAgeLinkNode accLink(rvnLink);
         accLink.CopyTo(link);
 
-        if (RelVaultNode* rvnInfo = rvnLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
+        if (hsRef<RelVaultNode> rvnInfo = rvnLink->GetChildNode(plVault::kNodeType_AgeInfo, 1)) {
             VaultAgeInfoNode accInfo(rvnInfo);
             accInfo.CopyTo(link->GetAgeInfo());
-            rvnInfo->DecRef();
         }
 
-        rvnLink->DecRef();
         return true;
     }
     
@@ -4697,7 +4248,7 @@ static void _AddChildNodeCallback (
 
 //============================================================================
 bool VaultAgeFindOrCreateChildAgeLinkAndWait (
-    const wchar_t             parentAgeName[],
+    const ST::string&       parentAgeName,
     const plAgeInfoStruct * info,
     plAgeLinkStruct *       link
 ) {
@@ -4708,19 +4259,14 @@ bool VaultAgeFindOrCreateChildAgeLinkAndWait (
     unsigned ageLinkId;
 
     {   // Get id of child ages folder
-        RelVaultNode * rvnAgeInfo = nil;
-        if (parentAgeName) {
-            char ansi[MAX_PATH];
-            StrToAnsi(ansi, parentAgeName, arrsize(ansi));
+        hsRef<RelVaultNode> rvnAgeInfo;
+        if (!parentAgeName.empty()) {
             plAgeInfoStruct pinfo;
-            pinfo.SetAgeFilename(ansi);
-            if (RelVaultNode * rvnAgeLink = VaultGetOwnedAgeLinkIncRef(&pinfo)) {
-                rvnAgeInfo = rvnAgeLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1);
-                rvnAgeLink->DecRef();
-            }
-        }
-        else {
-            rvnAgeInfo = VaultGetAgeInfoNodeIncRef();
+            pinfo.SetAgeFilename(parentAgeName);
+            if (hsRef<RelVaultNode> rvnAgeLink = VaultGetOwnedAgeLink(&pinfo))
+                rvnAgeInfo = rvnAgeLink->GetChildNode(plVault::kNodeType_AgeInfo, 1);
+        } else {
+            rvnAgeInfo = VaultGetAgeInfoNode();
         }
         
         if (!rvnAgeInfo) {
@@ -4728,42 +4274,32 @@ bool VaultAgeFindOrCreateChildAgeLinkAndWait (
             return false;
         }
 
-        RelVaultNode * rvnChildAges;
-        if (nil != (rvnChildAges = rvnAgeInfo->GetChildAgeInfoListNodeIncRef(plVault::kChildAgesFolder, 1))) {
+        hsRef<RelVaultNode> rvnChildAges;
+        if (rvnChildAges = rvnAgeInfo->GetChildAgeInfoListNode(plVault::kChildAgesFolder, 1)) {
             childAgesId = rvnChildAges->GetNodeId();
         }       
         else {
-            rvnAgeInfo->DecRef();
             LogMsg(kLogError, L"CreateChildAge: Failed to get ages's ChildAges folder");
             return false;
         }
-        rvnAgeInfo->DecRef();
         
         // Check for existing child age in folder
-        RelVaultNode * rvnLink = nil;
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+        hsRef<RelVaultNode> rvnLink;
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_AgeInfo);
 
         VaultAgeInfoNode ageInfo(templateNode);
-        wchar_t str[MAX_PATH];
-        StrToUnicode(str, info->GetAgeFilename(), arrsize(str));
-        ageInfo.SetAgeFilename(str);
+        ageInfo.SetAgeFilename(info->GetAgeFilename());
 
-        if (RelVaultNode * rvnInfo = rvnChildAges->GetChildNodeIncRef(templateNode, 2)) {
-            templateNode->ClearFieldFlags();
-            templateNode->SetNodeType(plVault::kNodeType_AgeLink);  
-            rvnLink = rvnInfo->GetParentNodeIncRef(templateNode, 1);
-            rvnInfo->DecRef();
+        if (hsRef<RelVaultNode> rvnInfo = rvnChildAges->GetChildNode(templateNode, 2)) {
+            templateNode->Clear();
+            templateNode->SetNodeType(plVault::kNodeType_AgeLink);
+            rvnLink = rvnInfo->GetParentNode(templateNode, 1);
         }
 
-        templateNode->DecRef();
-        rvnChildAges->DecRef();
-        
         if (rvnLink) {
             VaultAgeLinkNode access(rvnLink);
             access.CopyTo(link);
-            rvnLink->DecRef();
             return true;
         }
     }   
@@ -4773,10 +4309,9 @@ bool VaultAgeFindOrCreateChildAgeLinkAndWait (
         memset(&param, 0, sizeof(param));
 
         plUUID parentAgeInstId;
-        if (RelVaultNode * rvnAge = VaultGetAgeNodeIncRef()) {
+        if (hsRef<RelVaultNode> rvnAge = VaultGetAgeNode()) {
             VaultAgeNode access(rvnAge);
             parentAgeInstId = access.GetAgeInstanceGuid();
-            rvnAge->DecRef();
         }
         
         VaultInitAge(
@@ -4794,7 +4329,7 @@ bool VaultAgeFindOrCreateChildAgeLinkAndWait (
         }
         
         if (IS_NET_ERROR(param.result)) {
-            LogMsg(kLogError, L"CreateChildAge: Failed to init age %S", link->GetAgeInfo()->GetAgeFilename());
+            LogMsg(kLogError, "CreateChildAge: Failed to init age %s", link->GetAgeInfo()->GetAgeFilename().c_str());
             return false;
         }
             
@@ -4831,7 +4366,7 @@ bool VaultAgeFindOrCreateChildAgeLinkAndWait (
         memset(&param, 0, sizeof(param));
         
         VaultDownload(
-            L"CreateChildAge",
+            "CreateChildAge",
             ageInfoId,
             _FetchVaultCallback,
             &param,
@@ -4891,16 +4426,14 @@ bool VaultAgeFindOrCreateChildAgeLinkAndWait (
         }
     }
         
-    if (RelVaultNode * rvnLink = VaultGetNodeIncRef(ageLinkId)) {
+    if (hsRef<RelVaultNode> rvnLink = VaultGetNode(ageLinkId)) {
         VaultAgeLinkNode linkAcc(rvnLink);
         linkAcc.CopyTo(link);
-        rvnLink->DecRef();
     }
 
-    if (RelVaultNode * rvnInfo = VaultGetNodeIncRef(ageInfoId)) {
+    if (hsRef<RelVaultNode> rvnInfo = VaultGetNode(ageInfoId)) {
         VaultAgeInfoNode infoAcc(rvnInfo);
         infoAcc.CopyTo(link->GetAgeInfo());
-        rvnInfo->DecRef();
     }
 
     return true;
@@ -4959,10 +4492,10 @@ namespace _VaultCreateChildAge {
         }
 
         _Params* p = (_Params*)param;
-        p->fAgeInfoId = (void*)ageInfoId;
+        p->fAgeInfoId = (void*)(uintptr_t)ageInfoId;
 
         // Download age vault
-        VaultDownload(L"CreateChildAge",
+        VaultDownload("CreateChildAge",
                       ageInfoId,
                       (FVaultDownloadCallback)_DownloadCallback,
                       param,
@@ -4973,24 +4506,21 @@ namespace _VaultCreateChildAge {
 }; // namespace _VaultCreateAge
 
 uint8_t VaultAgeFindOrCreateChildAgeLink(
-    const wchar_t            parentAgeName[], 
+    const ST::string&      parentAgeName,
     const plAgeInfoStruct* info,
     plAgeLinkStruct*       link) 
 {
     using namespace _VaultCreateChildAge;
 
     // First, try to find an already existing ChildAge
-    char name[MAX_PATH];
-    StrToAnsi(name, parentAgeName, arrsize(name));
     plAgeInfoStruct search;
-    search.SetAgeFilename(name);
+    search.SetAgeFilename(parentAgeName);
 
-    RelVaultNode* rvnParentInfo = nil;
-    if (RelVaultNode* rvnParentLink = VaultGetOwnedAgeLinkIncRef(&search)) {
-        rvnParentInfo = rvnParentLink->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1);
-        rvnParentLink->DecRef();
-    } else // Fallback to current age
-        rvnParentInfo = VaultGetAgeInfoNodeIncRef();
+    hsRef<RelVaultNode> rvnParentInfo;
+    if (hsRef<RelVaultNode> rvnParentLink = VaultGetOwnedAgeLink(&search))
+        rvnParentInfo = rvnParentLink->GetChildNode(plVault::kNodeType_AgeInfo, 1);
+    else // Fallback to current age
+        rvnParentInfo = VaultGetAgeInfoNode();
 
     // Test to make sure nothing went horribly wrong...
     if (rvnParentInfo == nil) {
@@ -5000,32 +4530,25 @@ uint8_t VaultAgeFindOrCreateChildAgeLink(
 
     // Still here? Try to find the Child Ages folder
     uint8_t retval = hsFail;
-    if (RelVaultNode* rvnChildAges = rvnParentInfo->GetChildAgeInfoListNodeIncRef(plVault::kChildAgesFolder, 1)) {
-        const char* ageName = info->GetAgeFilename();
-        wchar_t hack[MAX_PATH];
-        StrToUnicode(hack, ageName, arrsize(hack));
-
+    if (hsRef<RelVaultNode> rvnChildAges = rvnParentInfo->GetChildAgeInfoListNode(plVault::kChildAgesFolder, 1)) {
         // Search for our age
-        NetVaultNode* temp = new NetVaultNode;
+        hsRef<NetVaultNode> temp = new NetVaultNode;
         temp->SetNodeType(plVault::kNodeType_AgeInfo);
         VaultAgeInfoNode theAge(temp);
-        theAge.SetAgeFilename(hack);
+        theAge.SetAgeFilename(info->GetAgeFilename());
 
-        if (RelVaultNode* rvnAgeInfo = rvnChildAges->GetChildNodeIncRef(temp, 2)) {
-            RelVaultNode* rvnAgeLink = rvnAgeInfo->GetParentAgeLinkIncRef();
+        if (hsRef<RelVaultNode> rvnAgeInfo = rvnChildAges->GetChildNode(temp, 2)) {
+            hsRef<RelVaultNode> rvnAgeLink = rvnAgeInfo->GetParentAgeLink();
 
             VaultAgeLinkNode accAgeLink(rvnAgeLink);
             accAgeLink.CopyTo(link);
             VaultAgeInfoNode accAgeInfo(rvnAgeInfo);
             accAgeInfo.CopyTo(link->GetAgeInfo());
 
-            rvnAgeLink->DecRef();
-            rvnAgeInfo->DecRef();
-
             retval = true;
         } else {
             _Params* p = new _Params;
-            p->fChildAgesFldr = (void*)rvnChildAges->GetNodeId();
+            p->fChildAgesFldr = (void*)(uintptr_t)rvnChildAges->GetNodeId();
 
             VaultAgeInfoNode accParentInfo(rvnParentInfo);
             VaultInitAge(info,
@@ -5036,12 +4559,8 @@ uint8_t VaultAgeFindOrCreateChildAgeLink(
             );
             retval = false;
         }
-
-        temp->DecRef();
-        rvnChildAges->DecRef();
     }
 
-    rvnParentInfo->DecRef();
     return retval;
 }
 
@@ -5066,7 +4585,7 @@ void VaultCCRDumpPlayers() {
 
 //============================================================================
 void VaultDownload (
-    const wchar_t                 tag[],
+    const ST::string&           tag,
     unsigned                    vaultId,
     FVaultDownloadCallback      callback,
     void *                      cbParam,
@@ -5098,7 +4617,7 @@ static void _DownloadVaultCallback (
 }
 
 void VaultDownloadAndWait (
-    const wchar_t                 tag[],
+    const ST::string&           tag,
     unsigned                    vaultId,
     FVaultProgressCallback      progressCallback,
     void *                      cbProgressParam
@@ -5163,33 +4682,27 @@ void VaultCull (unsigned vaultId) {
 ***/
 
 //============================================================================
-RelVaultNode * VaultGetSystemNodeIncRef () {
-    RelVaultNode * result = nil;
-    if (RelVaultNode * player = VaultGetPlayerNodeIncRef()) {
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+hsRef<RelVaultNode> VaultGetSystemNode () {
+    hsRef<RelVaultNode> result;
+    if (hsRef<RelVaultNode> player = VaultGetPlayerNode()) {
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_System);
-        if (RelVaultNode * systemNode = player->GetChildNodeIncRef(templateNode, 1))
+        if (hsRef<RelVaultNode> systemNode = player->GetChildNode(templateNode, 1))
             result = systemNode;
-        templateNode->DecRef();
-        player->DecRef();
     }
     return result;
 }
 
 //============================================================================
-RelVaultNode * VaultGetGlobalInboxIncRef () {
-    RelVaultNode * result = nil;
-    if (RelVaultNode * system = VaultGetSystemNodeIncRef()) {
-        NetVaultNode * templateNode = new NetVaultNode;
-        templateNode->IncRef();
+hsRef<RelVaultNode> VaultGetGlobalInbox () {
+    hsRef<RelVaultNode> result;
+    if (hsRef<RelVaultNode> system = VaultGetSystemNode()) {
+        hsRef<NetVaultNode> templateNode = new NetVaultNode;
         templateNode->SetNodeType(plVault::kNodeType_Folder);
         VaultFolderNode folder(templateNode);
         folder.SetFolderType(plVault::kGlobalInboxFolder);
-        if (RelVaultNode * inbox = system->GetChildNodeIncRef(templateNode, 1))
+        if (hsRef<RelVaultNode> inbox = system->GetChildNode(templateNode, 1))
             result = inbox;
-        templateNode->DecRef();
-        system->DecRef();
     }
     return result;
 }

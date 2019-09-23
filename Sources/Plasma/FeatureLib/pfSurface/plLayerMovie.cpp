@@ -44,11 +44,10 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plLayerMovie.h"
 #include "hsStream.h"
 #include "hsResMgr.h"
-
+#include "hsGDeviceRef.h"
 
 #include "plMessage/plAnimCmdMsg.h"
 #include "plGImage/plMipmap.h"
-#include "plPipeline/hsGDeviceRef.h"
 
 plLayerMovie::plLayerMovie()
 :   fCurrentFrame(-1),
@@ -112,7 +111,7 @@ bool plLayerMovie::ISetupBitmap()
         memset(b->GetImage(), 0x10, b->GetHeight() * b->GetRowBytes() );
         b->SetFlags( b->GetFlags() | plMipmap::kDontThrowAwayImage );
 
-        plString name = plString::Format( "%s_BMap", fMovieName.AsString().c_str() );
+        ST::string name = ST::format("{}_BMap", fMovieName);
         hsgResMgr::ResMgr()->NewKey( name, b, plLocation::kGlobalFixedLoc );
 
         *fTexture = (plBitmap *)b;
@@ -183,11 +182,10 @@ void plLayerMovie::Read(hsStream* s, hsResMgr* mgr)
     int len = s->ReadLE32();
     if( len )
     {
-        plStringBuffer<char> movieName;
-        char *buf = movieName.CreateWritableBuffer(len);
-        s->Read(len, buf);
-        buf[len] = 0;
-        fMovieName = plString(movieName);
+        ST::char_buffer movieName;
+        movieName.allocate(len);
+        s->Read(len, movieName.data());
+        fMovieName = ST::string(movieName);
     }
     else
     {

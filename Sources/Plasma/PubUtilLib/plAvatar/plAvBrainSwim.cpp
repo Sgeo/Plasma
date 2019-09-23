@@ -55,9 +55,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plArmatureMod.h"
 #include "plAvBehaviors.h"
 #include "plAvBrainHuman.h"
-#include "plAGAnim.h"
+#include "plAnimation/plAGAnim.h"
 #include "plAvBrainDrive.h"
-#include "plMatrixChannel.h"
+#include "plAnimation/plMatrixChannel.h"
 #include "plSwimRegion.h"
 #include "plAvatarTasks.h"
 #include "plArmatureEffects.h"
@@ -179,7 +179,7 @@ public:
 
         float oldSpeed = fabs(fSwimBrain->fSwimStrategy->GetTurnStrength());
         float thisInc = elapsed * incPerSec;
-        float newSpeed = min(oldSpeed + thisInc, maxTurnSpeed);
+        float newSpeed = std::min(oldSpeed + thisInc, maxTurnSpeed);
         fSwimBrain->fSwimStrategy->SetTurnStrength(newSpeed * fAvMod->GetKeyTurnStrength() + fAvMod->GetAnalogTurnStrength());
         // the turn is actually applied during PhysicsUpdate
     }
@@ -232,9 +232,10 @@ public:
 const float plAvBrainSwim::kMinSwimDepth = 4.0f;
 
 plAvBrainSwim::plAvBrainSwim() : 
-    fSwimStrategy(nil),
+    fSwimStrategy(nullptr),
     fMode(kWalking),
-    fSurfaceDistance(0.f)
+    fSurfaceDistance(0.f),
+    fCurrentRegion(nullptr)
 {
     fSurfaceProbeMsg = new plLOSRequestMsg();
     fSurfaceProbeMsg->SetReportType(plLOSRequestMsg::kReportHitOrMiss);
@@ -594,42 +595,38 @@ bool plAvBrainSwim::IHandleControlMsg(plControlEventMsg* msg)
 }
 
 
-void plAvBrainSwim::DumpToDebugDisplay(int &x, int &y, int lineHeight, char *strBuf, plDebugText &debugTxt)
+void plAvBrainSwim::DumpToDebugDisplay(int &x, int &y, int lineHeight, plDebugText &debugTxt)
 {
-    sprintf(strBuf, "Brain type: Swim");
-    debugTxt.DrawString(x, y, strBuf, 0, 255, 255);
+    debugTxt.DrawString(x, y, "Brain type: Swim", 0, 255, 255);
     y += lineHeight;
     
     switch(fMode) {
         case kWading:
-            sprintf(strBuf, "Mode: Wading");
+            debugTxt.DrawString(x, y, "Mode: Wading");
             break;
         case kSwimming2D:
-            sprintf(strBuf, "Mode: Swimming2D");
+            debugTxt.DrawString(x, y, "Mode: Swimming2D");
             break;
         case kSwimming3D:
-            sprintf(strBuf, "Mode: Swimming3D");
+            debugTxt.DrawString(x, y, "Mode: Swimming3D");
             break;
         case kAbort:
-            sprintf(strBuf, "Mode: Abort (you should never see this)");
+            debugTxt.DrawString(x, y, "Mode: Abort (you should never see this)");
             break;
         default:
             break;
     }
-    debugTxt.DrawString(x, y, strBuf);
     y += lineHeight;
 
     float buoy = fSwimStrategy ? fSwimStrategy->GetBuoyancy() : 0.0f;
-    sprintf(strBuf, "Distance to surface: %f Buoyancy: %f", fSurfaceDistance, buoy);
-    debugTxt.DrawString(x, y, strBuf);
+    debugTxt.DrawString(x, y, ST::format("Distance to surface: {f} Buoyancy: {f}", fSurfaceDistance, buoy));
     y += lineHeight;
 
     hsVector3 linV = fAvMod->GetController()->GetAchievedLinearVelocity();
-    sprintf(strBuf, "Linear Velocity: (%5.2f, %5.2f, %5.2f)", linV.fX, linV.fY, linV.fZ);
-    debugTxt.DrawString(x, y, strBuf);
+    debugTxt.DrawString(x, y, ST::format("Linear Velocity: ({5.2f}, {5.2f}, {5.2f})", linV.fX, linV.fY, linV.fZ));
     y += lineHeight;
     
     int i;
     for (i = 0; i < fBehaviors.GetCount(); i++)
-        fBehaviors[i]->DumpDebug(x, y, lineHeight, strBuf, debugTxt);
+        fBehaviors[i]->DumpDebug(x, y, lineHeight, debugTxt);
 }

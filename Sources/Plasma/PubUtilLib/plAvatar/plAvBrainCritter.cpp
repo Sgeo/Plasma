@@ -40,13 +40,15 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 *==LICENSE==*/
 
+#include <string_theory/formatter>
+
 #include "plPhysicalControllerCore.h"
 #include "plAvBrainCritter.h"
 #include "plAvBrainHuman.h"
 #include "plArmatureMod.h"
 #include "plAvBehaviors.h"
-#include "plAGAnim.h"
-#include "plAGAnimInstance.h"
+#include "plAnimation/plAGAnim.h"
+#include "plAnimation/plAGAnimInstance.h"
 #include "plAvatarMgr.h"
 
 #include "plgDispatch.h"
@@ -95,7 +97,7 @@ public:
     void SetAnimTime(float time) {fAnim->SetCurrentTime(time, true);}
 
     std::string Name() const {return fName;}
-    plString AnimName() const {return fAnimName;}
+    ST::string AnimName() const {return fAnimName;}
     bool RandomStartPoint() const {return fRandomStartPoint;}
     float FadeInLength() const {return fFadeInLength;}
     float FadeOutLength() const {return fFadeOutLength;}
@@ -117,7 +119,7 @@ protected:
     plAvBrainCritter *fCritterBrain;
 
     std::string fName; // user-created name for this behavior, also used as the index into the brain's behavior map
-    plString fAnimName; // physical animation's name, for reference
+    ST::string fAnimName; // physical animation's name, for reference
     bool fRandomStartPoint; // do we want this behavior to start at a random frame every time we start it?
     float fFadeInLength; // how long to fade in this behavior
     float fFadeOutLength; // how long to fade out this behavior
@@ -297,10 +299,10 @@ std::string plAvBrainCritter::BehaviorName(int behavior) const
     return ((CritterBehavior*)fBehaviors[behavior])->Name();
 }
 
-plString plAvBrainCritter::AnimationName(int behavior) const
+ST::string plAvBrainCritter::AnimationName(int behavior) const
 {
     if ((behavior >= fBehaviors.Count()) || (behavior < 0))
-        return "";
+        return ST::null;
     return ((CritterBehavior*)fBehaviors[behavior])->AnimName();
 }
 
@@ -435,23 +437,21 @@ void plAvBrainCritter::RemoveReceiver(const plKey key)
     return; // not found, do nothing
 }
 
-void plAvBrainCritter::DumpToDebugDisplay(int& x, int& y, int lineHeight, char* strBuf, plDebugText& debugTxt)
+void plAvBrainCritter::DumpToDebugDisplay(int& x, int& y, int lineHeight, plDebugText& debugTxt)
 {
-    sprintf(strBuf, "Brain type: Critter");
-    debugTxt.DrawString(x, y, strBuf, 0, 255, 255);
+    debugTxt.DrawString(x, y, "Brain type: Critter", 0, 255, 255);
     y += lineHeight;
 
     // extract the name from the behavior running
+    ST::string mode = ST_LITERAL("Mode: Unknown");
     if (fBehaviors[fCurMode])
-        sprintf(strBuf, "Mode: %s", ((CritterBehavior*)(fBehaviors[fCurMode]))->Name().c_str());
-    else
-        sprintf(strBuf, "Mode: Unknown");
+        mode = ST::format("Mode: {}", ((CritterBehavior*)(fBehaviors[fCurMode]))->Name());
     
     // draw it
-    debugTxt.DrawString(x, y, strBuf);
+    debugTxt.DrawString(x, y, mode);
     y += lineHeight;
     for (int i = 0; i < fBehaviors.GetCount(); ++i)
-        fBehaviors[i]->DumpDebug(x, y, lineHeight, strBuf, debugTxt);
+        fBehaviors[i]->DumpDebug(x, y, lineHeight, debugTxt);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -49,7 +49,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //////////////////////////////////////////////////////////////////////
 #include "HeadSpin.h"
 #include "pyGlueHelpers.h"
-#include <string>
 #include "pyVaultNode.h"
 
 class pyAgeInfoStruct;
@@ -101,10 +100,10 @@ public:
     PyObject *FindChronicleEntry(const char *entryName); // returns pyVaultChronicleNode
 
     void SetPlayerName(const char *value);
-    std::string GetPlayerName();
+    ST::string GetPlayerName() const;
 
     void SetAvatarShapeName(const char *value);
-    std::string GetAvatarShapeName();
+    ST::string GetAvatarShapeName() const;
 
     void SetDisabled(bool value);
     bool IsDisabled();

@@ -243,11 +243,11 @@ public:
     void InitReplyFieldsFrom(plNetMessage * msg);
 
     // debug
-    virtual plString AsString() const
+    virtual ST::string AsString() const
     {
         const char* delim = "";
 
-        plStringStream ss;
+        ST::string_stream ss;
         if ( GetHasPlayerID() )
         {
             ss << delim << "p:" << GetPlayerID();
@@ -269,7 +269,7 @@ public:
             delim = ",";
         }
 
-        return ss.GetString();
+        return ss.to_string();
     }
 };
 
@@ -328,9 +328,9 @@ public:
     void WriteVersion(hsStream* s, hsResMgr* mgr);
 
     // debug
-    plString AsString() const
+    ST::string AsString() const HS_OVERRIDE
     {
-        return plString::Format("object=%s, %s",fObjectHelper.GetUoid().StringIze().c_str(), plNetMessage::AsString().c_str());
+        return ST::format("object={}, {}",fObjectHelper.GetUoid(), plNetMessage::AsString());
     }
 
 };
@@ -403,7 +403,7 @@ public:
     void SetIsAvatarState(bool b) { fIsAvatarState = b; }
     
     // debug
-    plString AsString() const;
+    ST::string AsString() const HS_OVERRIDE;
     bool IsInitialState() const {return fIsInitialState!=0; }
     void SetIsInitialState( bool v ) { fIsInitialState=v; }
 
@@ -450,7 +450,7 @@ class plNetMsgRoomsList : public plNetMessage
 {
 protected:
     std::vector<plLocation> fRooms; 
-    std::vector<plString> fRoomNames;      // for debug usage only
+    std::vector<ST::string> fRoomNames;    // for debug usage only
 
     int IPokeBuffer(hsStream* stream, uint32_t peekOptions=0);
     int IPeekBuffer(hsStream* stream, uint32_t peekOptions=0);
@@ -462,12 +462,12 @@ public:
     GETINTERFACE_ANY( plNetMsgRoomsList, plNetMessage );
 
     void AddRoom(plKey rmKey);
-    void AddRoomLocation(plLocation loc, const plString& rmName);
+    void AddRoomLocation(plLocation loc, const ST::string& rmName);
     int FindRoomLocation(plLocation loc);
 
     int GetNumRooms() const { return fRooms.size(); }
     plLocation GetRoomLoc(int i) const { return fRooms[i]; }
-    plString GetRoomName(int i) const { return fRoomNames[i]; }      // debug
+    ST::string GetRoomName(int i) const { return fRoomNames[i]; }      // debug
 };
 
 //
@@ -503,10 +503,10 @@ public:
     void WriteVersion(hsStream* s, hsResMgr* mgr);
 
     // debug
-    plString AsString() const
+    ST::string AsString() const HS_OVERRIDE
     {
         const char* noc=plFactory::GetTheFactory()->GetNameOfClass(StreamInfo()->GetStreamType());
-        return plString::Format("%s %s",plNetMsgStream::AsString().c_str(), noc ? noc : "?");
+        return ST::format("{} {}", plNetMsgStream::AsString(), noc ? noc : "?");
     }
 };
 
@@ -554,10 +554,10 @@ public:
 
 
     // debug
-    plString AsString() const
+    ST::string AsString() const HS_OVERRIDE
     {
-        return plString::Format("object=%s initial=%d, %s",fObjectHelper.GetUoid().StringIze().c_str(), fIsInitialState,
-            plNetMsgGameMessage::AsString().c_str());
+        return ST::format("object={} initial={}, {}",fObjectHelper.GetUoid(), fIsInitialState,
+            plNetMsgGameMessage::AsString());
     }
 };
 
@@ -645,9 +645,9 @@ public:
     bool GetRequestingState() const { return (fPageFlags & kRequestState) != 0; } 
 
     // debug
-    plString AsString() const
+    ST::string AsString() const HS_OVERRIDE
     {
-        return plString::Format("pageFlags:%02X, paging %s, requestingState:%s, resetting=%d",
+        return ST::format("pageFlags:{02X}, paging {}, requestingState:{}, resetting={}",
             fPageFlags, (fPageFlags&kPagingOut)?"out":"in",
             (fPageFlags&kRequestState)?"yes":"no", (fPageFlags & kResetList)!=0);
     }
@@ -739,7 +739,7 @@ public:
     void SetNumFrames(uint8_t f) { fNumFrames = f; }
     uint8_t GetNumFrames() const { return fNumFrames; }
     
-    void SetVoiceData(char *data, int len );
+    void SetVoiceData(const void* data, size_t len );
     int GetVoiceDataLen() const { return fVoiceData.length(); }
     const char *GetVoiceData() const;
     
@@ -752,9 +752,9 @@ public:
     void WriteVersion(hsStream* s, hsResMgr* mgr);
 
     // debug
-    plString AsString() const
+    ST::string AsString() const HS_OVERRIDE
     {
-        return plString::Format("len=%d",fVoiceData.size());
+        return ST::format("len={}",fVoiceData.size());
     }
 };
 
@@ -790,9 +790,9 @@ public:
     void WriteVersion(hsStream* s, hsResMgr* mgr);
 
     // debug
-    plString AsString() const
+    ST::string AsString() const HS_OVERRIDE
     {
-        return plString::Format("lockReq=%d, %s",fLockRequest, plNetMsgStreamedObject::AsString().c_str());
+        return ST::format("lockReq={}, {}",fLockRequest, plNetMsgStreamedObject::AsString());
     }
 };
 
@@ -974,16 +974,16 @@ public:
     const hsBitVector& GetRegionsICareAbout() const { return fRegionsICareAbout;    }
     const hsBitVector& GetRegionsImIn() const       { return fRegionsImIn;  }
 
-    plString AsString() const
+    ST::string AsString() const HS_OVERRIDE
     {
-        plString b1, b2;
+        ST::string b1, b2;
         int i;
         for(i=0;i<fRegionsImIn.GetNumBitVectors(); i++)
-            b1 += plString::Format("0x%x ", fRegionsImIn.GetBitVector(i));
+            b1 += ST::format("{#x} ", fRegionsImIn.GetBitVector(i));
         for(i=0;i<fRegionsICareAbout.GetNumBitVectors(); i++)
-            b2 += plString::Format("0x%x ", fRegionsICareAbout.GetBitVector(i));
-        return plString::Format("rgnsImIn:%s, rgnsICareAbout:%s, %s",
-            b1.c_str(), b2.c_str(), plNetMessage::AsString().c_str() );
+            b2 += ST::format("{#x} ", fRegionsICareAbout.GetBitVector(i));
+        return ST::format("rgnsImIn:{}, rgnsICareAbout:{}, {}",
+            b1, b2, plNetMessage::AsString());
     }
 };
 

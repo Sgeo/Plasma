@@ -147,6 +147,7 @@ void plNotifyMsg::AddEvent( proEventData* ed )
                 proCoopEventData *evt = (proCoopEventData *)ed;
                 AddCoopEvent( evt->fID, evt->fSerial);
             }
+            break;
 
         case proEventData::kControlKey:
             {
@@ -200,16 +201,19 @@ void plNotifyMsg::AddEvent( proEventData* ed )
                 proOfferLinkingBookEventData* evt = (proOfferLinkingBookEventData*)ed;
                 AddOfferBookEvent(evt->offerer, evt->targetAge, evt->offeree);
             }
+            break;
         case proEventData::kBook:
             {
                 proBookEventData* evt = (proBookEventData*)ed;
                 AddBookEvent( evt->fEvent, evt->fLinkID );
             }
+            break;
         case proEventData::kClimbingBlockerHit:
             {
                 proClimbingBlockerHitEventData* evt = (proClimbingBlockerHitEventData*)ed;
                 AddHitClimbingBlockerEvent(evt->fBlockerKey);
             }
+            break;
     }
 }
 
@@ -589,11 +593,11 @@ void plNotifyMsg::AddControlKeyEvent( int32_t key, bool down )
 //
 //  PURPOSE    : Add a variable event record to this notify message
 //
-void plNotifyMsg::AddVariableEvent( const char* name, float number )
+void plNotifyMsg::AddVariableEvent(const ST::string& name, float number)
 {
     // create the control key event record
     proVariableEventData* pED = new proVariableEventData;
-    pED->fName = hsStrcpy(nil,name);
+    pED->fName = name;
     pED->fDataType = proEventData::kFloat;
     pED->fNumber.f = number;
     fEvents.Append(pED);    // then add it to the list of event records
@@ -607,11 +611,11 @@ void plNotifyMsg::AddVariableEvent( const char* name, float number )
 //
 //  PURPOSE    : Add a variable event record to this notify message
 //
-void plNotifyMsg::AddVariableEvent( const char* name, int32_t number )
+void plNotifyMsg::AddVariableEvent(const ST::string& name, int32_t number)
 {
     // create the control key event record
     proVariableEventData* pED = new proVariableEventData;
-    pED->fName = hsStrcpy(nil,name);
+    pED->fName = name;
     pED->fDataType = proEventData::kInt;
     pED->fNumber.i = number;
     fEvents.Append(pED);    // then add it to the list of event records
@@ -624,11 +628,11 @@ void plNotifyMsg::AddVariableEvent( const char* name, int32_t number )
 //
 //  PURPOSE    : Add a variable event record to this notify message
 //
-void plNotifyMsg::AddVariableEvent( const char* name)
+void plNotifyMsg::AddVariableEvent(const ST::string& name)
 {
     // create the control key event record
     proVariableEventData* pED = new proVariableEventData;
-    pED->fName = hsStrcpy(nil,name);
+    pED->fName = name;
     pED->fDataType = proEventData::kNull;
     fEvents.Append(pED);    // then add it to the list of event records
 }
@@ -641,12 +645,11 @@ void plNotifyMsg::AddVariableEvent( const char* name)
 //
 //  PURPOSE    : Add a variable event record to this notify message
 //
-void plNotifyMsg::AddVariableEvent( const char* name, const plKey &key )
+void plNotifyMsg::AddVariableEvent(const ST::string& name, const plKey &key)
 {
     // create the control key event record
     proVariableEventData* pED = new proVariableEventData;
-    pED->fName = hsStrcpy(nil,name);
-//  pED->fName = (char*)name;
+    pED->fName = name;
     pED->fDataType = proEventData::kKey;
     pED->fKey = key;
     fEvents.Append(pED);    // then add it to the list of event records
@@ -1312,13 +1315,12 @@ void proControlKeyEventData::IWriteVersion(hsStream* s, hsResMgr* mgr)
 
 void proVariableEventData::IInit()
 {
-    fName = nil;
+    fName = ST::null;
 }
+
 void proVariableEventData::IDestruct()
 {
-    if ( fName != nil )
-        delete [] fName;
-    fName = nil;
+    fName = ST::null;
 }
 
 void proVariableEventData::IReadNumber(hsStream * stream) {

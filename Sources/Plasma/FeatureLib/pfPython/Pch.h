@@ -50,6 +50,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 // Standard Library Includes
 #include <algorithm>
+#include <array>
 #include <exception>
 #include <locale>
 #include <string>
@@ -58,6 +59,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include <ctime>
 #include <sys/types.h>
 #include <sys/stat.h>
+
+#include <string_theory/string>
 
 // Python Library Includes
 #include <Python.h>
@@ -77,7 +80,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plgDispatch.h"
 #include "plPhysical.h"
 #include "plPipeline.h"
-#include "plString.h"
 #include "pnKeyedObject/plKey.h"
 
 // pfPython Components

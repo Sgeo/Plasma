@@ -83,8 +83,11 @@ static const float kMaxHeight = 10.f;
 //  overall rnd     - overall probability that a candidate seed point (passing all other criteria) will be used
 //
 
-static inline hsPoint3& hsP3(const Point3& p) { return *(hsPoint3*)&p; }
-static inline hsVector3& hsV3(const Point3& p) { return *(hsVector3*)&p; }
+
+static inline const hsPoint3& hsP3(const Point3& p) { return reinterpret_cast<const hsPoint3&>(p); }
+static inline const hsVector3& hsV3(const Point3& p) { return reinterpret_cast<const hsVector3&>(p); }
+static inline hsPoint3& hsP3(Point3& p) { return reinterpret_cast<hsPoint3&>(p); }
+static inline hsVector3& hsV3(Point3& p) { return reinterpret_cast<hsVector3&>(p); }
 static inline Matrix3 Transpose(const Matrix3& m)
 {
     return Matrix3(m.GetColumn3(0), m.GetColumn3(1), m.GetColumn3(2), Point3(0,0,0));
@@ -498,16 +501,16 @@ bool plDistributor::IFailsProbBitmap(int iFace, const Point3& bary) const
         break;
     case kMax:
     case kMaxColor:
-        frac = hsMaximum(evCol.r, hsMaximum(evCol.g, evCol.b));
+        frac = std::max({ evCol.r, evCol.g, evCol.b });
         break;
     case kMaxColorTimesAlpha:
-        frac = hsMaximum(evCol.r, hsMaximum(evCol.g, evCol.b)) * evCol.a;
+        frac = std::max({ evCol.r, evCol.g, evCol.b }) * evCol.a;
         break;
     case kMaxRedGreen:
-        frac = hsMaximum(evCol.r, evCol.g);
+        frac = std::max(evCol.r, evCol.g);
         break;
     case kMaxRedGreenTimesAlpha:
-        frac = hsMaximum(evCol.r, evCol.g) * evCol.a;
+        frac = std::max(evCol.r, evCol.g) * evCol.a;
         break;
     }
 
@@ -1010,9 +1013,9 @@ BOOL plDistributor::IProjectVertex(const Point3& pt, const Point3& dir, float ma
     for( i = 0; i < faces.Count(); i++ )
     {
         int iFace = faces[i];
-        const hsPoint3& p0 = hsP3(fSurfMesh->getVert(fSurfMesh->faces[iFace].getVert(0)) * fSurfToWorld);
-        const hsPoint3& p1 = hsP3(fSurfMesh->getVert(fSurfMesh->faces[iFace].getVert(1)) * fSurfToWorld);
-        const hsPoint3& p2 = hsP3(fSurfMesh->getVert(fSurfMesh->faces[iFace].getVert(2)) * fSurfToWorld);
+        hsPoint3 p0 = hsP3(fSurfMesh->getVert(fSurfMesh->faces[iFace].getVert(0)) * fSurfToWorld);
+        hsPoint3 p1 = hsP3(fSurfMesh->getVert(fSurfMesh->faces[iFace].getVert(1)) * fSurfToWorld);
+        hsPoint3 p2 = hsP3(fSurfMesh->getVert(fSurfMesh->faces[iFace].getVert(2)) * fSurfToWorld);
 
         Point3 plnPt = pt;
         if( triUtil.ProjectOntoPlaneAlongVector(p0, p1, p2, hsV3(dir), hsP3(plnPt)) )

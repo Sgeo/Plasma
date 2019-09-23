@@ -109,15 +109,15 @@ void plProfileManagerFull::ShowGroup(const char* groupName)
 
 void plProfileManagerFull::ShowNextGroup()
 {
-    plString curGroup;
+    ST::string curGroup;
     if (fShowGroups.begin() != fShowGroups.end())
         curGroup = *(fShowGroups.begin());
 
     GroupSet groups;
     GetGroups(groups);
 
-    plString nextGroup;
-    if (!curGroup.IsNull())
+    ST::string nextGroup;
+    if (!curGroup.empty())
     {
         CreateStandardGraphs(curGroup.c_str(), false);
 
@@ -135,7 +135,7 @@ void plProfileManagerFull::ShowNextGroup()
     }
 
     fShowGroups.clear();
-    if (!nextGroup.IsNull())
+    if (!nextGroup.empty())
     {
         ISetActive(nextGroup.c_str(), true);
         CreateStandardGraphs(nextGroup.c_str(), true);
@@ -189,7 +189,7 @@ static void PrintColumn(ProfileGroup& group, const char* groupName, int column, 
     height = 0;
     width = 0;
 
-    width = hsMaximum(width, txt.CalcStringWidth(groupName) + 1);
+    width = std::max(width, static_cast<int>(txt.CalcStringWidth(groupName) + 1));
     txt.DrawString(x, y+height, groupName, 255, 255, 255, 255, plDebugText::kStyleBold);
     height += yInc;
 
@@ -209,7 +209,7 @@ static void PrintColumn(ProfileGroup& group, const char* groupName, int column, 
             // 1 sample the width of the column will jump around.  So we calculate the
             // width based on the stat name plus the width of the widest sample we should
             // get
-            width = hsMaximum(width, txt.CalcStringWidth(str) + samplesWidth + 1);
+            width = std::max(width, static_cast<int>(txt.CalcStringWidth(str) + samplesWidth + 1));
 
             // Now add on the samples text, if we have any
             if (group[i]->GetTimerSamples())
@@ -235,12 +235,12 @@ static void PrintColumn(ProfileGroup& group, const char* groupName, int column, 
 
         txt.DrawString(x, y+height, str);
         if (column != kColName)
-            width = hsMaximum(width, txt.CalcStringWidth(str) + 1);
+            width = std::max(width, static_cast<int>(txt.CalcStringWidth(str) + 1));
         height += yInc;
     }
 
     // So the columns don't jump around as much as values change, pad them out to a certain width
-    width = hsMaximum(width, txt.CalcStringWidth("000.0 ms") + 1);
+    width = std::max(width, static_cast<int>(txt.CalcStringWidth("000.0 ms") + 1));
 }
 
 static void PrintGroup(ProfileGroup& group, const char* groupName, int& x, int& y)
@@ -304,18 +304,18 @@ void plProfileManagerFull::Update()
     GroupSet::iterator it;
     for (it = fShowGroups.begin(); it != fShowGroups.end(); it++)
     {
-        plString groupName = *it;
+        ST::string groupName = *it;
 
         std::vector<plProfileBase*> group;
 
         for (int i = 0; i < fVars.size(); i++)
-            if (groupName.Compare(fVars[i]->GetGroup()) == 0)
+            if (groupName.compare(fVars[i]->GetGroup()) == 0)
                 group.push_back(fVars[i]);
 
         int x = 10;
         PrintGroup(group, groupName.c_str(), x, y);
 
-        maxX = hsMaximum(maxX, x);
+        maxX = std::max(maxX, x);
         y += 10;
     }
 
@@ -417,7 +417,7 @@ void plProfileManagerFull::IPrintGroup(hsStream* s, const char* groupName, bool 
     }
 }
 
-void plProfileManagerFull::LogStats(const plString& ageName, const plString& spawnName)
+void plProfileManagerFull::LogStats(const ST::string& ageName, const ST::string& spawnName)
 {
     fLogStats = true;
     fLogAgeName = ageName;
@@ -433,10 +433,10 @@ plFileName plProfileManagerFull::GetProfilePath()
         plUnifiedTime curTime = plUnifiedTime::GetCurrent(plUnifiedTime::kLocal);
 
         profilePath = plFileName::Join(plFileSystem::GetUserDataPath(), "Profile",
-            plString::Format("%02d-%02d-%04d_%02d-%02d",
-                             curTime.GetMonth(), curTime.GetDay(),
-                             curTime.GetYear(), curTime.GetHour(),
-                             curTime.GetMinute()));
+            ST::format("{02}-{02}-{04}_{02}-{02}",
+                       curTime.GetMonth(), curTime.GetDay(),
+                       curTime.GetYear(), curTime.GetHour(),
+                       curTime.GetMinute()));
 
         plFileSystem::CreateDir(profilePath, true);
     }
@@ -466,19 +466,19 @@ void plProfileManagerFull::ILogStats()
 
             for (it = groups.begin(); it != groups.end(); it++)
             {
-                plString groupName = *it;
+                ST::string groupName = *it;
                 IPrintGroup(&s, groupName.c_str(), true);
             }
             s.WriteByte('\r');
             s.WriteByte('\n');
         }
 
-        s.Write(fLogSpawnName.GetSize(), fLogSpawnName.c_str());
+        s.Write(fLogSpawnName.size(), fLogSpawnName.c_str());
         s.WriteByte(',');
 
         for (it = groups.begin(); it != groups.end(); it++)
         {
-            plString groupName = *it;
+            ST::string groupName = *it;
             IPrintGroup(&s, groupName.c_str());
         }
         s.WriteByte('\r');

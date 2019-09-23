@@ -83,7 +83,8 @@ PYTHON_METHOD_DEFINITION(ptVaultPlayerInfoListNode, playerlistAddPlayer, args)
         PyErr_SetString(PyExc_TypeError, "playerlistAddPlayer expects an unsigned long");
         PYTHON_RETURN_ERROR;
     }
-    PYTHON_RETURN_BOOL(self->fThis->AddPlayer(playerID));
+    self->fThis->AddPlayer(playerID);
+    PYTHON_RETURN_NONE;
 }
 
 PYTHON_METHOD_DEFINITION(ptVaultPlayerInfoListNode, playerlistRemovePlayer, args)
@@ -128,7 +129,8 @@ PYTHON_METHOD_DEFINITION(ptVaultPlayerInfoListNode, addPlayer, args)
         PyErr_SetString(PyExc_TypeError, "addPlayer expects an unsigned long");
         PYTHON_RETURN_ERROR;
     }
-    PYTHON_RETURN_BOOL(self->fThis->AddPlayer(playerID));
+    self->fThis->AddPlayer(playerID);
+    PYTHON_RETURN_NONE;
 }
 
 PYTHON_METHOD_DEFINITION(ptVaultPlayerInfoListNode, removePlayer, args)
@@ -177,11 +179,7 @@ PLASMA_DEFAULT_TYPE_WBASE(ptVaultPlayerInfoListNode, pyVaultFolderNode, "Params:
 PyObject *pyVaultPlayerInfoListNode::New(RelVaultNode* nfsNode)
 {
     ptVaultPlayerInfoListNode *newObj = (ptVaultPlayerInfoListNode*)ptVaultPlayerInfoListNode_type.tp_new(&ptVaultPlayerInfoListNode_type, NULL, NULL);
-    if (newObj->fThis->fNode)
-        newObj->fThis->fNode->DecRef();
     newObj->fThis->fNode = nfsNode;
-    if (newObj->fThis->fNode)
-        newObj->fThis->fNode->IncRef();
     return (PyObject*)newObj;
 }
 

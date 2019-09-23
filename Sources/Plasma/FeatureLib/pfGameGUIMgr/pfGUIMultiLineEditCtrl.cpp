@@ -56,12 +56,11 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnMessage/plRefMsg.h"
 #include "pfMessage/pfGameGUIMsg.h"
 #include "plMessage/plAnimCmdMsg.h"
-#include "plAvatar/plAGModifier.h"
+#include "plAnimation/plAGModifier.h"
 #include "plGImage/plDynamicTextMap.h"
 #include "plgDispatch.h"
 #include "hsResMgr.h"
 #include "plClipboard/plClipboard.h"
-#include "plString.h"
 
 //// Tiny Helper Class ///////////////////////////////////////////////////////
 
@@ -174,6 +173,7 @@ pfGUIMultiLineEditCtrl::pfGUIMultiLineEditCtrl()
     fFontSize = 0;
     fFontStyle = 0;
     fFontFlagsSet = 0;
+    fCanUpdate = true;
 }
 
 pfGUIMultiLineEditCtrl::~pfGUIMultiLineEditCtrl()
@@ -349,7 +349,7 @@ void    pfGUIMultiLineEditCtrl::IPostSetUpDynTextMap( void )
         fFontFlagsSet |= kFontStyleSet;
     }
 
-    fDynTextMap->SetFont( fFontFace.c_str(), fFontSize, fFontStyle, 
+    fDynTextMap->SetFont( fFontFace, fFontSize, fFontStyle,
                             HasFlag( kXparentBgnd ) ? false : true );
 
     // Calculate a height for each line
@@ -383,7 +383,7 @@ void    pfGUIMultiLineEditCtrl::IUpdate( int32_t startLine, int32_t endLine )
     int32_t       numVisibleLines, lastVisibleLine;
 
 
-    if( !fReadyToRender )
+    if (!fReadyToRender || !fCanUpdate)
         return;
 
     // Detect whether we need to recalc all of our dimensions entirely
@@ -572,7 +572,7 @@ uint32_t  pfGUIMultiLineEditCtrl::IRenderLine( uint16_t x, uint16_t y, int32_t s
     IFindLastStyleCode( start, currStyle );
 
     fDynTextMap->SetTextColor( currColor, HasFlag( kXparentBgnd ) ? true : false );
-    fDynTextMap->SetFont( fFontFace.c_str(), fFontSize, GetColorScheme()->fFontFlags | currStyle, 
+    fDynTextMap->SetFont( fFontFace, fFontSize, GetColorScheme()->fFontFlags | currStyle,
                             HasFlag( kXparentBgnd ) ? false : true );
     
     // Now, start from our start and go to the end and keep eating up as many chunks
@@ -609,7 +609,7 @@ uint32_t  pfGUIMultiLineEditCtrl::IRenderLine( uint16_t x, uint16_t y, int32_t s
                 // Read style and switch to that one
                 IReadStyleCode( pos, currStyle );
                 if( !dontRender )
-                    fDynTextMap->SetFont( fFontFace.c_str(), fFontSize  , GetColorScheme()->fFontFlags | currStyle, 
+                    fDynTextMap->SetFont( fFontFace, fFontSize  , GetColorScheme()->fFontFlags | currStyle,
                                             HasFlag( kXparentBgnd ) ? false : true );
             }
             else if( buffer[ pos ] == L'\n' )
@@ -1121,12 +1121,12 @@ bool    pfGUIMultiLineEditCtrl::HandleKeyEvent( pfGameGUIMgr::EventType event, p
             // Too lazy to worry about that...
             if (key == KEY_C) 
             {
-                plClipboard::GetInstance().SetClipboardText(plString::FromWchar(fBuffer.AcquireArray()));
+                plClipboard::GetInstance().SetClipboardText(ST::string::from_wchar(fBuffer.AcquireArray()));
             }
             else if (key == KEY_V)
             {
-                plString contents = plClipboard::GetInstance().GetClipboardText();
-                InsertString(contents.ToWchar().GetData());
+                ST::string contents = plClipboard::GetInstance().GetClipboardText();
+                InsertString(contents.to_wchar().data());
             }
         } 
         else if( key == KEY_ESCAPE )
@@ -1836,11 +1836,11 @@ void pfGUIMultiLineEditCtrl::IHitBeginningOfControlList(int32_t cursorPos)
     }
 }
 
-void pfGUIMultiLineEditCtrl::SetFontFace(std::string fontFace)
+void pfGUIMultiLineEditCtrl::SetFontFace(const ST::string &fontFace)
 {
     fFontFace = fontFace;
     fFontFlagsSet |= kFontFaceSet;
-    fDynTextMap->SetFont( fFontFace.c_str(), fFontSize, fFontStyle, 
+    fDynTextMap->SetFont( fFontFace, fFontSize, fFontStyle,
                             HasFlag( kXparentBgnd ) ? false : true );
     fDynTextMap->CalcStringWidth( "The quick brown fox jumped over the lazy dog.", &fLineHeight );
 }
@@ -1850,7 +1850,7 @@ void pfGUIMultiLineEditCtrl::SetFontSize(uint8_t fontSize)
     fFontSize = fontSize;
     fFontFlagsSet |= kFontSizeSet;
     fCalcedFontSize = fontSize;
-    fDynTextMap->SetFont( fFontFace.c_str(), fFontSize, fFontStyle, 
+    fDynTextMap->SetFont( fFontFace, fFontSize, fFontStyle,
                             HasFlag( kXparentBgnd ) ? false : true );
     fDynTextMap->CalcStringWidth( "The quick brown fox jumped over the lazy dog.", &fLineHeight );
 }

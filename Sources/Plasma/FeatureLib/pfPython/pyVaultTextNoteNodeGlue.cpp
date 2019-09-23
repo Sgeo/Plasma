@@ -71,7 +71,7 @@ PYTHON_METHOD_DEFINITION(ptVaultTextNoteNode, noteSetTitle, args)
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptVaultTextNoteNode, noteGetTitle)
 {
-    return PyString_FromString(self->fThis->Note_GetTitle().c_str());
+    return PyString_FromSTString(self->fThis->Note_GetTitle());
 }
 
 PYTHON_METHOD_DEFINITION(ptVaultTextNoteNode, noteSetText, args)
@@ -88,7 +88,7 @@ PYTHON_METHOD_DEFINITION(ptVaultTextNoteNode, noteSetText, args)
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptVaultTextNoteNode, noteGetText)
 {
-    return PyString_FromString(self->fThis->Note_GetText().c_str());
+    return PyString_FromSTString(self->fThis->Note_GetText());
 }
 
 PYTHON_METHOD_DEFINITION(ptVaultTextNoteNode, noteSetType, args)
@@ -168,13 +168,12 @@ PYTHON_METHOD_DEFINITION(ptVaultTextNoteNode, setTitleW, args)
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptVaultTextNoteNode, getTitle)
 {
-    return PyString_FromString(self->fThis->Note_GetTitle().c_str());
+    return PyString_FromSTString(self->fThis->Note_GetTitle());
 }
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptVaultTextNoteNode, getTitleW)
 {
-    std::wstring retVal = self->fThis->Note_GetTitleW();
-    return PyUnicode_FromWideChar(retVal.c_str(), retVal.length());
+    return PyUnicode_FromSTString(self->fThis->Note_GetTitle());
 }
 
 PYTHON_METHOD_DEFINITION(ptVaultTextNoteNode, setText, args)
@@ -220,13 +219,12 @@ PYTHON_METHOD_DEFINITION(ptVaultTextNoteNode, setTextW, args)
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptVaultTextNoteNode, getText)
 {
-    return PyString_FromString(self->fThis->Note_GetText().c_str());
+    return PyString_FromSTString(self->fThis->Note_GetText());
 }
 
 PYTHON_METHOD_DEFINITION_NOARGS(ptVaultTextNoteNode, getTextW)
 {
-    std::wstring retVal = self->fThis->Note_GetTextW();
-    return PyUnicode_FromWideChar(retVal.c_str(), retVal.length());
+    return PyUnicode_FromSTString(self->fThis->Note_GetText());
 }
 
 PYTHON_METHOD_DEFINITION(ptVaultTextNoteNode, setType, args)
@@ -318,11 +316,7 @@ PYTHON_CLASS_NEW_IMPL(ptVaultTextNoteNode, pyVaultTextNoteNode)
 PyObject *pyVaultTextNoteNode::New(RelVaultNode* nfsNode)
 {
     ptVaultTextNoteNode *newObj = (ptVaultTextNoteNode*)ptVaultTextNoteNode_type.tp_new(&ptVaultTextNoteNode_type, NULL, NULL);
-    if (newObj->fThis->fNode)
-        newObj->fThis->fNode->DecRef();
     newObj->fThis->fNode = nfsNode;
-    if (newObj->fThis->fNode)
-        newObj->fThis->fNode->IncRef();
     return (PyObject*)newObj;
 }
 

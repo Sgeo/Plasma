@@ -110,6 +110,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "resource.h"
 
+#include <string_theory/format>
+
 // Useful Stuff from MaxMain
 // Changing any of this would likely cause a rebuild, regardless of it being here.
 #include "MaxMain/MaxCompat.h"

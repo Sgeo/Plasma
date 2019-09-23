@@ -60,12 +60,17 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plVault/plVault.h"
 #include "plMessage/plAccountUpdateMsg.h"
 #include "plNetClient/plNetClientMgr.h"
+#include "plFile/plStreamSource.h"
 
 #include "pfMessage/pfKIMsg.h"
 
 #include "hsResMgr.h"
 
+#ifdef HS_BUILD_FOR_OSX
+#include <malloc/malloc.h>
+#else
 #include <malloc.h>
+#endif
 
 extern  bool    gDataServerLocal;
 
@@ -101,7 +106,7 @@ struct NetCommParam {
 static bool                 s_shutdown;
 
 static NetCommAccount       s_account;
-static ARRAY(NetCommPlayer) s_players;
+static std::vector<NetCommPlayer> s_players;
 static NetCommPlayer *      s_player;
 static NetCommAge           s_age;
 static NetCommAge           s_startupAge;
@@ -110,20 +115,17 @@ static bool                 s_loginComplete = false;
 static bool                 s_hasAuthSrvIpAddress = false;
 static bool                 s_hasFileSrvIpAddress = false;
 static ENetError            s_authResult = kNetErrAuthenticationFailed;
-static char                s_authSrvAddr[256];
-static char                s_fileSrvAddr[256];
+static ST::string           s_authSrvAddr;
+static ST::string           s_fileSrvAddr;
 
-static char                s_iniServerAddr[256];
-static char                s_iniFileServerAddr[256];
-static wchar_t                s_iniAccountUsername[kMaxAccountNameLength];
-static ShaDigest            s_namePassHash;
-static wchar_t                s_iniAuthToken[kMaxPublisherAuthKeyLength];
-static wchar_t                s_iniOS[kMaxGTOSIdLength];
-static bool                 s_iniReadAccountInfo = true;
-static wchar_t                s_iniStartupAgeName[kMaxAgeNameLength];
-static plUUID               s_iniStartupAgeInstId;
-static wchar_t                s_iniStartupPlayerName[kMaxPlayerNameLength];
-static bool                 s_netError = false;
+static ST::string          s_iniAccountUsername;
+static ShaDigest           s_namePassHash;
+static wchar_t             s_iniAuthToken[kMaxPublisherAuthKeyLength];
+static wchar_t             s_iniOS[kMaxGTOSIdLength];
+static ST::string          s_iniStartupAgeName = ST_LITERAL("StartUp");
+static plUUID              s_iniStartupAgeInstId;
+static unsigned            s_iniStartupPlayerId = 0;
+static bool                s_netError = false;
 
 
 struct NetCommMsgHandler : THashKeyVal<unsigned> {
@@ -274,10 +276,9 @@ static void PlayerInitCallback (
         // Ensure the city link has the required spawn points
         plAgeInfoStruct info;
         info.SetAgeFilename(kCityAgeFilename);
-        if (RelVaultNode * rvn = VaultGetOwnedAgeLinkIncRef(&info)) {
+        if (hsRef<RelVaultNode> rvn = VaultGetOwnedAgeLink(&info)) {
             VaultAgeLinkNode acc(rvn);
             acc.AddSpawnPoint(plSpawnPointInfo(kCityFerryTerminalLinkTitle, kCityFerryTerminalLinkSpawnPtName));
-            rvn->DecRef();
         }
         
         VaultProcessPlayerInbox();
@@ -311,7 +312,7 @@ static void INetCliAuthSetPlayerRequestCallback (
         s_needAvatarLoad = true;
 
         VaultDownload(
-            L"SetActivePlayer",
+            "SetActivePlayer",
             s_player->playerInt,
             PlayerInitCallback,
             param,
@@ -367,7 +368,7 @@ static void INetCliAuthLoginSetPlayerRequestCallback (
     }
     else {
         VaultDownload(
-            L"SetActivePlayer",
+            "SetActivePlayer",
             s_player->playerInt,
             LoginPlayerInitCallback,
             param,
@@ -390,12 +391,10 @@ static void INetCliAuthLoginRequestCallback (
     s_authResult = result;
 
     s_player = nil;
-    s_players.Clear();
+    s_players.clear();
     
-    bool wantsStartUpAge = (
-        !StrLen(s_startupAge.ageDatasetName) ||
-        0 == StrCmpI(s_startupAge.ageDatasetName, "StartUp")
-    );
+    bool wantsStartUpAge = (s_startupAge.ageDatasetName.empty() ||
+                            s_startupAge.ageDatasetName.compare_i("StartUp") == 0);
 
     s_loginComplete = true;
 
@@ -403,17 +402,19 @@ static void INetCliAuthLoginRequestCallback (
         s_account.accountUuid   = accountUuid;
         s_account.accountFlags  = accountFlags;
         s_account.billingType   = billingType;
-        s_players.GrowToCount(playerCount, true);
+        s_players.resize(playerCount);
         for (unsigned i = 0; i < playerCount; ++i) {
-            LogMsg(kLogDebug, L"Player %u: %s explorer: %u", playerInfoArr[i].playerInt, playerInfoArr[i].playerName, playerInfoArr[i].explorer);
-            s_players[i].playerInt  = playerInfoArr[i].playerInt;
-            s_players[i].explorer   = playerInfoArr[i].explorer;
-            StrCopy(s_players[i].playerName, playerInfoArr[i].playerName, arrsize(s_players[i].playerName));
-            StrToAnsi(s_players[i].playerNameAnsi, playerInfoArr[i].playerName, arrsize(s_players[i].playerNameAnsi));
-            StrToAnsi(s_players[i].avatarDatasetName, playerInfoArr[i].avatarShape, arrsize(s_players[i].avatarDatasetName));
-            if (!wantsStartUpAge && 0 == StrCmpI(s_players[i].playerName, s_iniStartupPlayerName, (unsigned)-1))
+            LogMsg(kLogDebug, L"Player %u: %S explorer: %u", playerInfoArr[i].playerInt, playerInfoArr[i].playerName.c_str(), playerInfoArr[i].explorer);
+            s_players[i].playerInt         = playerInfoArr[i].playerInt;
+            s_players[i].explorer          = playerInfoArr[i].explorer;
+            s_players[i].playerName        = playerInfoArr[i].playerName;
+            s_players[i].avatarDatasetName = playerInfoArr[i].avatarShape;
+            if (!wantsStartUpAge && s_players[i].playerInt == s_iniStartupPlayerId)
                 s_player = &s_players[i];
         }
+
+        // store this server's encryption key for posterity
+        NetCliAuthGetEncryptionKey(plStreamSource::GetInstance()->GetEncryptionKey(), 4);
     }
     else
         s_account.accountUuid = kNilUuid;
@@ -421,7 +422,7 @@ static void INetCliAuthLoginRequestCallback (
     // If they specified an alternate age, but we couldn't find the player, force
     // the StartUp age to load so that they may select/create a player first.    
     if (!wantsStartUpAge && !s_player)
-        StrCopy(s_startupAge.ageDatasetName, "StartUp", arrsize(s_startupAge.ageDatasetName));
+        s_startupAge.ageDatasetName = "StartUp";
 
     // If they specified an alternate age, and we found the player, set the active player now
     // so that the link operation will be successful once the client is finished initializing.
@@ -444,23 +445,18 @@ static void INetCliAuthCreatePlayerRequestCallback (
         LogMsg(kLogDebug, L"Create player failed: %s", NetErrorToString(result));
     }
     else {
-        LogMsg(kLogDebug, L"Created player %s: %u", playerInfo.playerName, playerInfo.playerInt);
+        LogMsg(kLogDebug, L"Created player %S: %u", playerInfo.playerName.c_str(), playerInfo.playerInt);
 
-        unsigned currPlayer = s_player ? s_player->playerInt : 0;       
-        NetCommPlayer * newPlayer = s_players.New();
+        unsigned currPlayer = s_player ? s_player->playerInt : 0;
+        s_players.emplace_back(playerInfo.playerInt, playerInfo.playerName,
+                               playerInfo.avatarShape, playerInfo.explorer);
 
-        newPlayer->playerInt    = playerInfo.playerInt;
-        newPlayer->explorer     = playerInfo.explorer;
-        StrCopy(newPlayer->playerName, playerInfo.playerName, arrsize(newPlayer->playerName));
-        StrToAnsi(newPlayer->playerNameAnsi, playerInfo.playerName, arrsize(newPlayer->playerNameAnsi));
-        StrToAnsi(newPlayer->avatarDatasetName, playerInfo.avatarShape, arrsize(newPlayer->avatarDatasetName));
-
-        { for (unsigned i = 0; i < s_players.Count(); ++i) {
-            if (s_players[i].playerInt == currPlayer) {
-                s_player = &s_players[i];
+        for (NetCommPlayer& player : s_players) {
+            if (player.playerInt == currPlayer) {
+                s_player = &player;
                 break;
             }
-        }}
+        }
     }
 
     plAccountUpdateMsg* updateMsg = new plAccountUpdateMsg(plAccountUpdateMsg::kCreatePlayer);
@@ -483,21 +479,21 @@ static void INetCliAuthDeletePlayerCallback (
     else {
         LogMsg(kLogDebug, L"Player deleted: %d", playerInt);
 
-        uint32_t currPlayer = s_player ? s_player->playerInt : 0;       
+        uint32_t currPlayer = s_player ? s_player->playerInt : 0;
 
-        {for (uint32_t i = 0; i < s_players.Count(); ++i) {
-            if (s_players[i].playerInt == playerInt) {
-                s_players.DeleteUnordered(i);
+        for (auto it = s_players.begin(); it != s_players.end(); ++it) {
+            if (it->playerInt == playerInt) {
+                s_players.erase(it);
                 break;
             }
-        }}
+        }
 
-        {for (uint32_t i = 0; i < s_players.Count(); ++i) {
-            if (s_players[i].playerInt == currPlayer) {
-                s_player = &s_players[i];
+        for (NetCommPlayer& player : s_players) {
+            if (player.playerInt == currPlayer) {
+                s_player = &player;
                 break;
             }
-        }}
+        }
     }
 
     plAccountUpdateMsg* updateMsg = new plAccountUpdateMsg(plAccountUpdateMsg::kDeletePlayer);
@@ -559,20 +555,6 @@ static void INetAuthFileListRequestCallback (
 }
 
 //============================================================================
-static void INetCliAuthFileRequestCallback (
-    ENetError       result,
-    void *          param,
-    const wchar_t     filename[],
-    hsStream *      writer
-) {
-    plNetCommFileDownloadMsg * msg = new plNetCommFileDownloadMsg;
-    msg->result = result;
-    msg->writer = writer;
-    StrCopy(msg->filename, filename, arrsize(filename));
-    msg->Send();
-}
-
-//============================================================================
 static void INetCliGameJoinAgeRequestCallback (
     ENetError       result,
     void *          param
@@ -596,8 +578,8 @@ static void INetCliAuthAgeRequestCallback (
         s_age.ageInstId = ageInstId;
         s_age.ageVaultId = ageVaultId;
 
-        plString gameAddrStr = gameAddr.GetHostString();
-        plString ageInstIdStr = ageInstId.AsString();
+        ST::string gameAddrStr = gameAddr.GetHostString();
+        ST::string ageInstIdStr = ageInstId.AsString();
 
         LogMsg(
             kLogPerf,
@@ -637,12 +619,12 @@ static void INetCliAuthUpgradeVisitorRequestCallback (
     else {
         LogMsg(kLogDebug, L"Upgrade visitor succeeded: %d", playerInt);
 
-        {for (uint32_t i = 0; i < s_players.Count(); ++i) {
-            if (s_players[i].playerInt == playerInt) {
-                s_players[i].explorer = true;
+        for (NetCommPlayer& player : s_players) {
+            if (player.playerInt == playerInt) {
+                player.explorer = true;
                 break;
             }
-        }}
+        }
     }
 
     plAccountUpdateMsg* updateMsg = new plAccountUpdateMsg(plAccountUpdateMsg::kUpgradePlayer);
@@ -666,9 +648,9 @@ static void INetCliAuthSendFriendInviteCallback (
 static void AuthSrvIpAddressCallback (
     ENetError       result,
     void *          param,
-    const wchar_t     addr[]
+    const ST::string& addr
 ) {
-    StrToAnsi(s_authSrvAddr, addr, arrsize(s_authSrvAddr)); 
+    s_authSrvAddr = addr;
     s_hasAuthSrvIpAddress = true;
 }
 
@@ -676,9 +658,9 @@ static void AuthSrvIpAddressCallback (
 static void FileSrvIpAddressCallback (
     ENetError       result,
     void *          param,
-    const wchar_t     addr[]
+    const ST::string& addr
 ) {
-    StrToAnsi(s_fileSrvAddr, addr, arrsize(s_fileSrvAddr)); 
+    s_fileSrvAddr = addr;
     s_hasFileSrvIpAddress = true;
 }
 
@@ -696,13 +678,13 @@ const NetCommPlayer * NetCommGetPlayer () {
 }
 
 //============================================================================
-const ARRAY(NetCommPlayer)& NetCommGetPlayerList () {
+const std::vector<NetCommPlayer>& NetCommGetPlayerList () {
     return s_players;
 }
 
 //============================================================================
 unsigned NetCommGetPlayerCount () {
-    return s_players.Count();
+    return s_players.size();
 }
 
 //============================================================================
@@ -713,6 +695,16 @@ const NetCommAccount * NetCommGetAccount () {
 //============================================================================
 bool NetCommIsLoginComplete() {
     return s_loginComplete;
+}
+
+//============================================================================
+void NetCommSetIniPlayerId(unsigned playerId) {
+    s_iniStartupPlayerId = playerId;
+}
+
+//============================================================================
+void NetCommSetIniStartUpAge(const ST::string& ageName) {
+    s_iniStartupAgeName = ageName;
 }
 
 //============================================================================
@@ -736,9 +728,7 @@ void NetCommSetAvatarLoaded (bool loaded /* = true */) {
 }
 
 //============================================================================
-void NetCommChangeMyPassword (
-    const wchar_t password[]
-) {
+void NetCommChangeMyPassword (const ST::string& password) {
     NetCliAuthAccountChangePasswordRequest(s_account.accountName, password, INetCliAuthChangePasswordCallback, nil);
 }
 
@@ -751,16 +741,10 @@ void NetCommStartup () {
 
     NetClientInitialize();
     NetClientSetErrorHandler(IPreInitNetErrorCallback);
-    NetCliGameSetRecvBufferHandler(INetBufferCallback);
-//    NetCliAuthSetRecvBufferHandler(INetBufferCallback);
-    NetCliAuthSetNotifyNewBuildHandler(INotifyNewBuildCallback);
-    NetCliAuthSetConnectCallback(INotifyAuthConnectedCallback);
 
     // Set startup age info
     memset(&s_startupAge, 0, sizeof(s_startupAge));
-
-    StrCopy(s_iniStartupAgeName, L"StartUp", arrsize(s_iniStartupAgeName));
-    StrCopy(s_startupAge.ageDatasetName, "StartUp", arrsize(s_startupAge.ageDatasetName));
+    s_startupAge.ageDatasetName = s_iniStartupAgeName;
 
     s_startupAge.ageInstId = s_iniStartupAgeInstId;
     StrCopy(s_startupAge.spawnPtName, "LinkInPointDefault", arrsize(s_startupAge.spawnPtName));
@@ -792,15 +776,10 @@ void NetCommEnableNet (
     bool            enabled,
     bool            wait
 ) {
-    if (enabled) {
+    if (enabled)
         NetClientInitialize();
-        NetClientSetErrorHandler(INetErrorCallback);
-        NetCliGameSetRecvBufferHandler(INetBufferCallback);
-//      NetCliAuthSetRecvBufferHandler(INetBufferCallback);
-    }
-    else {
+    else
         NetClientDestroy(wait);
-    }
 }
 
 //============================================================================
@@ -809,30 +788,39 @@ void NetCommActivatePostInitErrorHandler () {
 }
 
 //============================================================================
+void NetCommActivateMsgDispatchers() {
+    NetClientSetErrorHandler(INetErrorCallback);
+    NetCliGameSetRecvBufferHandler(INetBufferCallback);
+//  NetCliAuthSetRecvBufferHandler(INetBufferCallback);
+    NetCliAuthSetNotifyNewBuildHandler(INotifyNewBuildCallback);
+    NetCliAuthSetConnectCallback(INotifyAuthConnectedCallback);
+}
+
+//============================================================================
 void NetCommUpdate () {
     // plClient likes to recursively call us on occasion; debounce that crap.
-    static long s_updating;
-    if (0 == AtomicSet(&s_updating, 1)) {
+    static std::atomic_flag s_updating = ATOMIC_FLAG_INIT;
+    if (!s_updating.test_and_set()) {
         NetClientUpdate();
-        AtomicSet(&s_updating, 0);
+        s_updating.clear();
     }
 }
 
 //============================================================================
 void NetCommConnect () {
 
-    const char** addrs;
+    const ST::string* addrs;
     unsigned count;
     bool connectedToKeeper = false;
 
     // if a console override was specified for a authserv, connect directly to the authserver rather than going through the gatekeeper
-    if((count = GetAuthSrvHostnames(&addrs)) && strlen(addrs[0]))
+    if((count = GetAuthSrvHostnames(addrs)) && !addrs[0].empty())
     {
         NetCliAuthStartConnect(addrs, count);
     }
     else
     {
-        count = GetGateKeeperSrvHostnames(&addrs);
+        count = GetGateKeeperSrvHostnames(addrs);
         NetCliGateKeeperStartConnect(addrs, count);
         connectedToKeeper = true;
 
@@ -844,7 +832,7 @@ void NetCommConnect () {
             AsyncSleep(10);
         }
             
-        const char* authSrv[] = {
+        const ST::string authSrv[] = {
             s_authSrvAddr
         };
         NetCliAuthStartConnect(authSrv, 1);
@@ -853,14 +841,14 @@ void NetCommConnect () {
     if (!gDataServerLocal) {
 
         // if a console override was specified for a filesrv, connect directly to the fileserver rather than going through the gatekeeper
-        if((count = GetFileSrvHostnames(&addrs)) && strlen(addrs[0]))
+        if((count = GetFileSrvHostnames(addrs)) && !addrs[0].empty())
         {
             NetCliFileStartConnect(addrs, count);
         }
         else
         {
             if (!connectedToKeeper) {
-                count = GetGateKeeperSrvHostnames(&addrs);
+                count = GetGateKeeperSrvHostnames(addrs);
                 NetCliGateKeeperStartConnect(addrs, count);
                 connectedToKeeper = true;
             }
@@ -873,7 +861,7 @@ void NetCommConnect () {
                 AsyncSleep(10);
             }
             
-            const char* fileSrv[] = {
+            const ST::string fileSrv[] = {
                 s_fileSrvAddr
             };
             NetCliFileStartConnect(fileSrv, 1);
@@ -1022,13 +1010,11 @@ void NetCommSetMsgPreHandler (
 
 //============================================================================
 void NetCommSetAccountUsernamePassword (
-    const wchar_t       username[],
+    const ST::string&   username,
     const ShaDigest &   namePassHash
 ) {
-    StrCopy(s_iniAccountUsername, username, arrsize(s_iniAccountUsername));
+    s_iniAccountUsername = username;
     memcpy(s_namePassHash, namePassHash, sizeof(ShaDigest));
-
-    s_iniReadAccountInfo = false;
 }
 
 //============================================================================
@@ -1048,26 +1034,12 @@ ENetError NetCommGetAuthResult () {
 }
 
 //============================================================================
-void NetCommSetReadIniAccountInfo(bool readFromIni) {
-    s_iniReadAccountInfo = readFromIni;
-}
-
-//============================================================================
 void NetCommAuthenticate (
     void *          param
 ) {
     s_loginComplete = false;
 
-    StrCopy(
-        s_account.accountName,
-        s_iniAccountUsername,
-        arrsize(s_account.accountName)
-    );
-    StrToAnsi(
-        s_account.accountNameAnsi,
-        s_iniAccountUsername,
-        arrsize(s_account.accountNameAnsi)
-    );
+    s_account.accountName = s_iniAccountUsername;
     memcpy(s_account.accountNamePassHash, s_namePassHash, sizeof(ShaDigest));
 
     NetCliAuthLoginRequest(
@@ -1096,11 +1068,8 @@ void NetCommLinkToAge (     // --> plNetCommLinkToAgeMsg
         return;
     }
 
-    wchar_t wAgeName[kMaxAgeNameLength];
-    StrToUnicode(wAgeName, s_age.ageDatasetName, arrsize(wAgeName));
-    
     NetCliAuthAgeRequest(
-        wAgeName,
+        s_age.ageDatasetName,
         s_age.ageInstId,
         INetCliAuthAgeRequestCallback,
         param
@@ -1115,14 +1084,11 @@ void NetCommSetActivePlayer (//--> plNetCommActivePlayerMsg
     unsigned playerInt = 0;
 
     if (s_player) {
-        if (RelVaultNode* rvn = VaultGetPlayerInfoNodeIncRef()) {
+        if (hsRef<RelVaultNode> rvn = VaultGetPlayerInfoNode()) {
             VaultPlayerInfoNode pInfo(rvn);
-            pInfo.SetAgeInstName(nil);
             pInfo.SetAgeInstUuid(kNilUuid);
             pInfo.SetOnline(false);
             NetCliAuthVaultNodeSave(rvn, nil, nil);
-
-            rvn->DecRef();
         }
 
         VaultCull(s_player->playerInt);
@@ -1131,15 +1097,11 @@ void NetCommSetActivePlayer (//--> plNetCommActivePlayerMsg
     if (desiredPlayerInt == 0)
         s_player = nil;
     else {
-        for (unsigned i = 0; i < s_players.Count(); ++i) {
-            if (s_players[i].playerInt == desiredPlayerInt) {
+        for (NetCommPlayer& player : s_players) {
+            if (player.playerInt == desiredPlayerInt) {
                 playerInt = desiredPlayerInt;
-                s_player = &s_players[i];
+                s_player = &player;
                 break;
-            }
-            else if (0 == StrCmpI(s_players[i].playerName, s_iniStartupPlayerName, arrsize(s_players[i].playerName))) {
-                playerInt = s_players[i].playerInt;
-                s_player = &s_players[i];
             }
         }
         ASSERT(s_player);
@@ -1154,41 +1116,16 @@ void NetCommSetActivePlayer (//--> plNetCommActivePlayerMsg
 
 //============================================================================
 void NetCommCreatePlayer (  // --> plNetCommCreatePlayerMsg
-    const char              playerName[],
-    const char              avatarShape[],
-    const char              friendInvite[],
-    unsigned                createFlags,
-    void *                  param
-) {
-    wchar_t wplayerName[kMaxPlayerNameLength];
-    wchar_t wavatarShape[MAX_PATH];
-    wchar_t wfriendInvite[MAX_PATH];
-
-    StrToUnicode(wplayerName, playerName, arrsize(wplayerName));
-    StrToUnicode(wavatarShape, avatarShape, arrsize(wavatarShape));
-    StrToUnicode(wfriendInvite, friendInvite, arrsize(wfriendInvite));
-
-    NetCliAuthPlayerCreateRequest(
-            wplayerName,
-            wavatarShape,
-            (friendInvite != NULL) ? wfriendInvite : NULL,
-            INetCliAuthCreatePlayerRequestCallback,
-            param
-        );
-}
-
-//============================================================================
-void NetCommCreatePlayer (  // --> plNetCommCreatePlayerMsg
-    const wchar_t             playerName[],
-    const wchar_t             avatarShape[],
-    const wchar_t             friendInvite[],
+    const ST::string&       playerName,
+    const ST::string&       avatarShape,
+    const ST::string&       friendInvite,
     unsigned                createFlags,
     void *                  param
 ) {
     NetCliAuthPlayerCreateRequest(
         playerName,
         avatarShape,
-        (friendInvite != NULL) ? friendInvite : NULL,
+        friendInvite,
         INetCliAuthCreatePlayerRequestCallback,
         param
     );
@@ -1205,24 +1142,22 @@ void NetCommDeletePlayer (  // --> plNetCommDeletePlayerMsg
     NetCliAuthPlayerDeleteRequest(
         playerInt,
         INetCliAuthDeletePlayerCallback,
-        (void*)playerInt
+        (void*)(uintptr_t)playerInt
     );
 }
 
 //============================================================================
 void NetCommGetPublicAgeList (//-> plNetCommPublicAgeListMsg
-    const char                      ageName[],
+    const ST::string&               ageName,
     void *                          param,
     plNetCommReplyMsg::EParamType   ptype
 ) {
     NetCommParam * cp = new NetCommParam;
     cp->param   = param;
     cp->type    = ptype;
-    
-    wchar_t wStr[MAX_PATH];
-    StrToUnicode(wStr, ageName, arrsize(wStr));
+
     NetCliAuthGetPublicAgeList(
-        wStr,
+        ageName,
         INetCliAuthGetPublicAgeListCallback,
         cp
     );
@@ -1309,7 +1244,7 @@ void NetCommUpgradeVisitorToExplorer (
     NetCliAuthUpgradeVisitorRequest(
         playerInt,
         INetCliAuthUpgradeVisitorRequestCallback,
-        (void*)playerInt
+        (void*)(uintptr_t)playerInt
     );
 }
 
@@ -1317,10 +1252,9 @@ void NetCommUpgradeVisitorToExplorer (
 void NetCommSetCCRLevel (
     unsigned                ccrLevel
 ) {
-    if (RelVaultNode * rvnInfo = VaultGetPlayerInfoNodeIncRef()) {
+    if (hsRef<RelVaultNode> rvnInfo = VaultGetPlayerInfoNode()) {
         VaultPlayerInfoNode pInfo(rvnInfo);
         pInfo.SetCCRLevel(ccrLevel);
-        rvnInfo->DecRef();
     }
 
     NetCliAuthSetCCRLevel(ccrLevel);
@@ -1328,9 +1262,9 @@ void NetCommSetCCRLevel (
 
 //============================================================================
 void NetCommSendFriendInvite (
-    const wchar_t     emailAddress[],
-    const wchar_t     toName[],
-    const plUUID&   inviteUuid
+    const ST::string& emailAddress,
+    const ST::string& toName,
+    const plUUID&     inviteUuid
 ) {
     NetCliAuthSendFriendInvite(
         emailAddress,

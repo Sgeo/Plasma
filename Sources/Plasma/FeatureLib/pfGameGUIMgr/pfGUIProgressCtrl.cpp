@@ -55,14 +55,14 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pfMessage/pfGameGUIMsg.h"
 #include "plMessage/plAnimCmdMsg.h"
 #include "plMessage/plTimerCallbackMsg.h"
-// #include "plAvatar/plAGModifier.h"
-#include "plAvatar/plAGMasterMod.h"
-#include "plAvatar/plAGAnimInstance.h"
+// #include "plAnimation/plAGModifier.h"
+#include "plAnimation/plAGMasterMod.h"
+#include "plAnimation/plAGAnimInstance.h"
 #include "plSurface/plLayerAnimation.h"
 
 #include "pnSceneObject/plSceneObject.h"
 #include "pnSceneObject/plCoordinateInterface.h"
-#include "pnTimer/plTimerCallbackManager.h"
+#include "plTimerCallbackManager.h"
 
 #include "plgDispatch.h"
 #include "hsResMgr.h"
@@ -108,7 +108,7 @@ void    pfGUIProgressCtrl::Read( hsStream *s, hsResMgr *mgr )
     uint32_t i, count = s->ReadLE32();
     for( i = 0; i < count; i++ )
         fAnimationKeys.Append( mgr->ReadKey( s ) );
-    fAnimName = s->ReadSafeString_TEMP();
+    fAnimName = s->ReadSafeString();
 
     fAnimTimesCalced = false;
 }
@@ -135,7 +135,7 @@ void    pfGUIProgressCtrl::UpdateBounds( hsMatrix44 *invXformMatrix, bool force 
 
 //// SetAnimationKeys ////////////////////////////////////////////////////////
 
-void    pfGUIProgressCtrl::SetAnimationKeys( hsTArray<plKey> &keys, const plString &name )
+void    pfGUIProgressCtrl::SetAnimationKeys( hsTArray<plKey> &keys, const ST::string &name )
 {
     fAnimationKeys = keys;
     fAnimName = name;

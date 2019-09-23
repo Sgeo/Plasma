@@ -44,72 +44,37 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "hsThread.h"
 
+#ifdef USE_VLD
+#include <vld.h>
+#endif
 
-
-//////////////////////////////////////////////////////////////////////////////
-hsReaderWriterLock::hsReaderWriterLock( const char * name, Callback * cb )
-: fReaderCount( 0 )
-, fWriterSema( 1 )
-, fCallback( cb )
-, fName( nil )
+void hsThread::Start()
 {
-    fName = hsStrcpy( name );
+    if (!fThread.joinable()) {
+        fThread = std::thread([this]() {
+#ifdef USE_VLD
+            // Needs to be enabled for each thread except the WinMain
+            VLDEnable();
+#endif
+            Run();
+            OnQuit();
+        });
+    } else
+        hsDebugMessage("Calling hsThread::Start() more than once", 0);
 }
 
-hsReaderWriterLock::~hsReaderWriterLock()
+void hsThread::Stop()
 {
-    delete [] fName;
+    fQuit = true;
+    if (fThread.joinable())
+        fThread.join();
 }
 
-void hsReaderWriterLock::LockForReading()
+void hsThread::StartDetached()
 {
-    if ( fCallback )
-        fCallback->OnLockingForRead( this );
-    fReaderCountLock.Lock();
-    fReaderLock.Lock();
-    fReaderCount++;
-    if ( fReaderCount==1 )
-        fWriterSema.Wait();
-    fReaderLock.Unlock();
-    fReaderCountLock.Unlock();
-    if ( fCallback )
-        fCallback->OnLockedForRead( this );
+    Start();
+    if (fThread.joinable())
+        fThread.detach();
 }
-
-void hsReaderWriterLock::UnlockForReading()
-{
-    if ( fCallback )
-        fCallback->OnUnlockingForRead( this );
-    fReaderLock.Lock();
-    fReaderCount--;
-    if ( fReaderCount==0 )
-        fWriterSema.Signal();
-    fReaderLock.Unlock();
-    if ( fCallback )
-        fCallback->OnUnlockedForRead( this );
-}
-
-void hsReaderWriterLock::LockForWriting()
-{
-    if ( fCallback )
-        fCallback->OnLockingForWrite( this );
-    fReaderCountLock.Lock();
-    fWriterSema.Wait();
-    hsAssert( fReaderCount==0, "Locked for writing, but fReaderCount>0" );
-    if ( fCallback )
-        fCallback->OnLockedForWrite( this );
-}
-
-void hsReaderWriterLock::UnlockForWriting()
-{
-    if ( fCallback )
-        fCallback->OnUnlockingForWrite( this );
-    fWriterSema.Signal();
-    fReaderCountLock.Unlock();
-    if ( fCallback )
-        fCallback->OnUnlockedForWrite( this );
-}
-
-
 
 #endif // CoreLib_Thread

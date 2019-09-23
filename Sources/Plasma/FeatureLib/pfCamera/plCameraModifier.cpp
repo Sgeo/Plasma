@@ -65,6 +65,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plAvatar/plArmatureMod.h"
 #include "plAvatar/plPhysicalControllerCore.h"
 
+#include <cmath>
+
 // new stuff
 
 plCameraModifier1::plCameraModifier1() :
@@ -198,7 +200,7 @@ bool plCameraModifier1::MsgReceive(plMessage* msg)
     {
         double time = (double)fFOVInstructions[pEventMsg->fIndex]->GetConfig()->fAccel;
         double time2 = (double)pEventMsg->fEventTime;
-        time = hsABS(time - time2);
+        time = fabs(time - time2);
         float h = fFOVInstructions[pEventMsg->fIndex]->GetConfig()->fFOVh;
         float w = fFOVInstructions[pEventMsg->fIndex]->GetConfig()->fFOVw;
         if (GetBrain())

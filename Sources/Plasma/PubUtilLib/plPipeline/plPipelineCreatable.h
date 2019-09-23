@@ -45,15 +45,17 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "pnFactory/plCreator.h"
 
-#include <d3d9.h>
+#include "pl3DPipeline.h"
+REGISTER_NONCREATABLE(pl3DPipeline);
 
-#include "DX/plDXPipeline.h"
-
-REGISTER_NONCREATABLE( plDXPipeline );
-
-#include "hsFogControl.h"
-
-REGISTER_NONCREATABLE( hsFogControl );
+#if defined(PLASMA_PIPELINE_DX)
+    #include <d3d9.h>
+    #include "DX/plDXPipeline.h"
+    REGISTER_NONCREATABLE(plDXPipeline);
+#elif defined(PLASMA_PIPELINE_GL)
+    #include "GL/plGLPipeline.h"
+    REGISTER_NONCREATABLE(plGLPipeline);
+#endif
 
 #include "plFogEnvironment.h"
 

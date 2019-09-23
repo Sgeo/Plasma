@@ -559,7 +559,7 @@ void pyGUIControlMultiLineEdit::DeleteLinesFromTop( int lines )
     }
 }
 
-uint32_t pyGUIControlMultiLineEdit::GetFontSize()
+uint32_t pyGUIControlMultiLineEdit::GetFontSize() const
 {
     if (fGCkey)
     {
@@ -579,5 +579,23 @@ void pyGUIControlMultiLineEdit::SetFontSize( uint32_t fontsize )
         pfGUIMultiLineEditCtrl* pbmod = pfGUIMultiLineEditCtrl::ConvertNoRef(fGCkey->ObjectIsLoaded());
         if ( pbmod )
             pbmod->SetFontSize((uint8_t)fontsize);
+    }
+}
+
+void pyGUIControlMultiLineEdit::BeginUpdate()
+{
+    if (fGCkey) {
+        pfGUIMultiLineEditCtrl* pbmod = pfGUIMultiLineEditCtrl::ConvertNoRef(fGCkey->ObjectIsLoaded());
+        if (pbmod)
+            pbmod->BeginUpdate();
+    }
+}
+
+void pyGUIControlMultiLineEdit::EndUpdate(bool redraw)
+{
+    if (fGCkey) {
+        pfGUIMultiLineEditCtrl* pbmod = pfGUIMultiLineEditCtrl::ConvertNoRef(fGCkey->ObjectIsLoaded());
+        if (pbmod)
+            pbmod->EndUpdate(redraw);
     }
 }

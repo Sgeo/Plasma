@@ -111,8 +111,11 @@ public:
 
     virtual void    DeleteLinesFromTop( int lines );
 
-    virtual uint32_t  GetFontSize();
+    virtual uint32_t  GetFontSize() const;
     virtual void    SetFontSize( uint32_t fontsize );
+
+    void BeginUpdate();
+    void EndUpdate(bool redraw);
 };
 
 #endif // _pyGUIControlMultiLineEdit_h_

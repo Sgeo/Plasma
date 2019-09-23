@@ -13,7 +13,6 @@ endif(LibOVR_FOUND)
 
 set(pfConsole_SOURCES
     pfAvatarConsoleCommands.cpp
-    pfCCRConsoleCommands.cpp
     pfConsole.cpp
     pfConsoleCommands.cpp
     pfConsoleCommandsNet.cpp

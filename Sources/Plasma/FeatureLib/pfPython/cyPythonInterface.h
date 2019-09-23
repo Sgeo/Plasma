@@ -47,8 +47,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 //       only be one instance of this interface. 
 //
 #include "HeadSpin.h"
-#include "plString.h"
+#include <string_theory/string>
 #include <string>
+#include <vector>
 
 #if defined(HAVE_CYPYTHONIDE) && !defined(PLASMA_EXTERNAL_RELEASE)
 #include "../../Apps/CyPythonIDE/plCyDebug/plCyDebServer.h"
@@ -72,9 +73,6 @@ private:
     static PyObject* plasmaConstantsMod; // python object that holds the PlasmaConstants module
     static PyObject* plasmaNetConstantsMod; // python object that holds the PlasmaNetConstants module
     static PyObject* plasmaVaultConstantsMod; // python object that holds the PlasmaVaultConstants module
-    static PyMethodDef* plasmaGameMethods;
-    static PyObject* plasmaGameMod; // python object that holds the PlasmaGame module
-    static PyObject* plasmaGameConstantsMod; // python object that holds the PlasmaGameConstants module
     static PyObject* stdOut;    // python object of the stdout file
     static PyObject* stdErr;    // python object of the err file
 
@@ -111,13 +109,6 @@ public:
     // Initialize the PlasmaVaultConstants module;
     static void AddPlasmaVaultConstantsClasses();
 
-    // Initialize the PlasmaGame module
-    static void AddPlasmaGameMethods(std::vector<PyMethodDef> &methods);
-    static void AddPlasmaGameClasses();
-
-    // Initialize the PlasmaGameConstants module
-    static void AddPlasmaGameConstantsClasses();
-
     // Initialize the Python to Plasma 
     static void initDebugInterface();
 
@@ -150,12 +141,12 @@ public:
 
     // checks to see if a specific function is defined in this module
     // get an item (probably a function) from the Plasma module
-    static PyObject* GetPlasmaItem(char* item);
+    static PyObject* GetPlasmaItem(const char* item);
 
     // Determine if the module name is unique
-    static bool IsModuleNameUnique(char* module);
+    static bool IsModuleNameUnique(const ST::string& module);
     // get an item (probably a function) from a specific module
-    static PyObject* GetModuleItem(char* item, PyObject* module);
+    static PyObject* GetModuleItem(const char* item, PyObject* module);
 
     // check a specific module for the define funcitons
     static void CheckModuleForFunctions(PyObject* module, char** funcNames, PyObject** funcTable);

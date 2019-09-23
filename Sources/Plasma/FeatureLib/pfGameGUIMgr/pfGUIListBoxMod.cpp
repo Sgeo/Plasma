@@ -56,7 +56,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnMessage/plRefMsg.h"
 #include "pfMessage/pfGameGUIMsg.h"
 #include "plMessage/plAnimCmdMsg.h"
-#include "plAvatar/plAGModifier.h"
+#include "plAnimation/plAGModifier.h"
 #include "plGImage/plDynamicTextMap.h"
 #include "plInputCore/plInputInterface.h"
 #include "plgDispatch.h"
@@ -180,6 +180,10 @@ bool    pfGUIListBoxMod::MsgReceive( plMessage *msg )
 
 void    pfGUIListBoxMod::IPostSetUpDynTextMap( void )
 {
+    pfGUIColorScheme *scheme = GetColorScheme();
+    fDynTextMap->SetFont( scheme->fFontFace, scheme->fFontSize, scheme->fFontFlags, 
+                            !HasFlag( kXparentBgnd ));
+
     ICalcWrapStarts();
     ICalcScrollRange();
     fReadyToRoll = true;
@@ -1152,23 +1156,12 @@ void    pfGUIListBoxMod::ClearAllElements( void )
     HandleExtendedEvent( pfGUIListBoxMod::kListCleared );
 }
 
-uint16_t  pfGUIListBoxMod::AddString( const char *string )
+uint16_t  pfGUIListBoxMod::AddString( const ST::string &string )
 {
     return AddElement( new pfGUIListText( string ) );
 }
 
-uint16_t  pfGUIListBoxMod::AddString( const wchar_t *string )
-{
-    return AddElement( new pfGUIListText( string ) );
-}
-
-int16_t   pfGUIListBoxMod::FindString( const char *toCompareTo )
-{
-    pfGUIListText   text( toCompareTo );
-    return FindElement( &text );
-}
-
-int16_t   pfGUIListBoxMod::FindString( const wchar_t *toCompareTo )
+int16_t   pfGUIListBoxMod::FindString( const ST::string &toCompareTo )
 {
     pfGUIListText   text( toCompareTo );
     return FindElement( &text );

@@ -42,6 +42,9 @@ Mead, WA   99021
 
 #include "plClipboard.h"
 #include "hsWindows.h"
+#include <string_theory/string>
+
+#include <memory>
 
 plClipboard& plClipboard::GetInstance()
 {
@@ -58,43 +61,43 @@ bool plClipboard::IsTextInClipboard()
 #endif
 }
 
-plString plClipboard::GetClipboardText()
+ST::string plClipboard::GetClipboardText()
 {
     if (!IsTextInClipboard()) 
-        return plString::Null;
+        return ST::null;
 
 #ifdef HS_BUILD_FOR_WIN32
     if (!::OpenClipboard(NULL))
-        return plString::Null;
+        return ST::null;
 
     HANDLE clipboardData = ::GetClipboardData(CF_UNICODETEXT);
     size_t size = ::GlobalSize(clipboardData) / sizeof(wchar_t);
     wchar_t* clipboardDataPtr = (wchar_t*)::GlobalLock(clipboardData);
 
-    plString result = plString::FromWchar(clipboardDataPtr, size);
+    ST::string result = ST::string::from_wchar(clipboardDataPtr, size);
 
     ::GlobalUnlock(clipboardData);	
     ::CloseClipboard();
 
     return result;
 #else
-    return plString::Null;
+    return ST::null;
 #endif	
 }
 
-void plClipboard::SetClipboardText(const plString& text)
+void plClipboard::SetClipboardText(const ST::string& text)
 {
-    if (text.IsEmpty())
+    if (text.empty())
         return;
 #ifdef HS_BUILD_FOR_WIN32
-    plStringBuffer<wchar_t> buf = text.ToWchar();
-    size_t len = buf.GetSize();
+    ST::wchar_buffer buf = text.to_wchar();
+    size_t len = buf.size();
 
     if (len == 0) 
         return;
 
-    HGLOBAL copy = ::GlobalAlloc(GMEM_MOVEABLE, (len + 1) * sizeof(wchar_t));
-    if (copy == NULL) 
+    std::unique_ptr<void, HGLOBAL(WINAPI*)(HGLOBAL)> copy(::GlobalAlloc(GMEM_MOVEABLE, (len + 1) * sizeof(wchar_t)), ::GlobalFree);
+    if (!copy)
         return;
 
     if (!::OpenClipboard(NULL))
@@ -102,12 +105,12 @@ void plClipboard::SetClipboardText(const plString& text)
 
     ::EmptyClipboard();
 
-    wchar_t* target = (wchar_t*)::GlobalLock(copy);
-    memcpy(target, buf.GetData(), (len + 1) * sizeof(wchar_t));
+    wchar_t* target = (wchar_t*)::GlobalLock(copy.get());
+    memcpy(target, buf.data(), (len + 1) * sizeof(wchar_t));
     target[len] = '\0';
-    ::GlobalUnlock(copy); 
+    ::GlobalUnlock(copy.get());
 
-    ::SetClipboardData(CF_UNICODETEXT, copy);
+    ::SetClipboardData(CF_UNICODETEXT, copy.get());
     ::CloseClipboard();
 #endif
 }

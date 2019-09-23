@@ -49,11 +49,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "plMessage/plAccountUpdateMsg.h"
 
-PYTHON_GLOBAL_METHOD_DEFINITION_NOARGS(PtIsSubscriptionActive, "Returns true if the current player is a paying subscriber")
-{
-    PYTHON_RETURN_BOOL(cyAccountManagement::IsSubscriptionActive());
-}
-
 PYTHON_GLOBAL_METHOD_DEFINITION_NOARGS(PtGetAccountPlayerList, "Returns list of players associated with the current account")
 {
     return cyAccountManagement::GetPlayerList();
@@ -61,8 +56,7 @@ PYTHON_GLOBAL_METHOD_DEFINITION_NOARGS(PtGetAccountPlayerList, "Returns list of 
 
 PYTHON_GLOBAL_METHOD_DEFINITION_NOARGS(PtGetAccountName, "Returns the account name for the current account")
 {
-    std::wstring name = cyAccountManagement::GetAccountName();
-    return PyUnicode_FromWideChar(name.c_str(), name.length());
+    return PyUnicode_FromSTString(cyAccountManagement::GetAccountName());
 }
 
 PYTHON_GLOBAL_METHOD_DEFINITION(PtCreatePlayer, args, "Params: playerName, avatarShape, invitation\nCreates a new player")
@@ -197,19 +191,6 @@ PYTHON_GLOBAL_METHOD_DEFINITION_NOARGS(PtIsActivePlayerSet, "Returns whether or 
     PYTHON_RETURN_BOOL(cyAccountManagement::IsActivePlayerSet());
 }
 
-PYTHON_GLOBAL_METHOD_DEFINITION(PtUpgradeVisitorToExplorer, args, "Params: playerInt\nUpgrades the player to explorer status")
-{
-    unsigned playerInt = 0;
-    if (!PyArg_ParseTuple(args, "I", &playerInt))
-    {
-        PyErr_SetString(PyExc_TypeError, "PtUpgradeVisitorToExplorer expects a unsigned int");
-        PYTHON_RETURN_ERROR;
-    }
-
-    cyAccountManagement::UpgradeVisitorToExplorer(playerInt);
-    PYTHON_RETURN_NONE;
-}
-
 PYTHON_GLOBAL_METHOD_DEFINITION(PtChangePassword, args, "Params: password\nChanges the current account's password")
 {
     char* password = nil;
@@ -225,7 +206,6 @@ PYTHON_GLOBAL_METHOD_DEFINITION(PtChangePassword, args, "Params: password\nChang
 
 void cyAccountManagement::AddPlasmaMethods(std::vector<PyMethodDef> &methods)
 {
-    PYTHON_GLOBAL_METHOD_NOARGS(methods, PtIsSubscriptionActive);
     PYTHON_GLOBAL_METHOD_NOARGS(methods, PtGetAccountPlayerList);
     PYTHON_GLOBAL_METHOD_NOARGS(methods, PtGetAccountName);
     PYTHON_GLOBAL_METHOD(methods, PtCreatePlayer);
@@ -233,7 +213,6 @@ void cyAccountManagement::AddPlasmaMethods(std::vector<PyMethodDef> &methods)
     PYTHON_GLOBAL_METHOD(methods, PtDeletePlayer);
     PYTHON_GLOBAL_METHOD(methods, PtSetActivePlayer);
     PYTHON_GLOBAL_METHOD(methods, PtIsActivePlayerSet);
-    PYTHON_GLOBAL_METHOD(methods, PtUpgradeVisitorToExplorer);
     PYTHON_GLOBAL_METHOD(methods, PtChangePassword);
 }
 

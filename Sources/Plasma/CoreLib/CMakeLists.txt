@@ -1,5 +1,3 @@
-include_directories(${PCRE_INCLUDE_DIR})
-
 add_definitions(-D_LIB)
 
 add_definitions(-DPRODUCT_BRANCH_ID=${PRODUCT_BRANCH_ID})
@@ -10,33 +8,12 @@ add_definitions(-DPRODUCT_SHORT_NAME="${PRODUCT_SHORT_NAME}")
 add_definitions(-DPRODUCT_LONG_NAME="${PRODUCT_LONG_NAME}")
 add_definitions(-DPRODUCT_UUID="${PRODUCT_UUID}")
 
-if(NOT WCHAR_BYTES)
-    include(CheckTypeSize)
-
-    check_type_size("wchar_t" WCHAR_BYTES)
-    if(NOT WCHAR_BYTES)
-        message(FATAL_ERROR "Could not determine sizeof(wchar_t)")
-        set(WCHAR_BYTES 0)
-    endif(NOT WCHAR_BYTES)
-endif(NOT WCHAR_BYTES)
-add_definitions(-DWCHAR_BYTES=${WCHAR_BYTES})
-
-try_compile(HAVE_CPUID ${PROJECT_BINARY_DIR}
-            ${PROJECT_SOURCE_DIR}/cmake/check_cpuid.cpp
-            OUTPUT_VARIABLE OUTPUT)
-if(HAVE_CPUID)
-    add_definitions(-DHAVE_CPUID)
-    message("CPUID header found -- using hardware math acceleration when available")
-else()
-    message("CPUID header not found -- using software math")
-endif()
-
 set(CoreLib_SOURCES
     HeadSpin.cpp
     hsBitVector.cpp
     hsBounds.cpp
     hsCpuID.cpp
-    hsCritSect.cpp
+    hsExceptions.cpp
     hsExceptionStack.cpp
     hsFastMath.cpp
     hsGeometry3.cpp
@@ -45,7 +22,6 @@ set(CoreLib_SOURCES
     hsMemory.cpp
     hsQuat.cpp
     hsRefCnt.cpp
-    hsSafeRefCnt.cpp
     hsSTLStream.cpp
     hsStream.cpp
     hsStringTokenizer.cpp
@@ -53,11 +29,11 @@ set(CoreLib_SOURCES
     hsThread.cpp
     hsWide.cpp
     pcSmallRect.cpp
+    plCmdParser.cpp
     plFileSystem.cpp
     plGeneric.cpp
     plLoadMask.cpp
     plProduct.cpp
-    plString.cpp
     plViewTransform.cpp
 )
 
@@ -80,17 +56,17 @@ set(CoreLib_HEADERS
     hsBounds.h
     hsColorRGBA.h
     hsCpuID.h
-    hsCritSect.h
     hsExceptions.h
+    hsExceptionStack.h
     hsFastMath.h
     hsGeometry3.h
     hsHashTable.h
+    hsLockGuard.h
     hsMatrix44.h
     hsMemory.h
     hsPoint2.h
     hsQuat.h
     hsRefCnt.h
-    hsSafeRefCnt.h
     hsSTLStream.h
     hsStream.h
     hsStringTokenizer.h
@@ -99,19 +75,19 @@ set(CoreLib_HEADERS
     hsWide.h
     hsWindows.h
     pcSmallRect.h
+    plCmdParser.h
     plFileSystem.h
     plGeneric.h
     plLoadMask.h
     plProduct.h
     plQuality.h
-    plString.h
+    plRenderLevel.h
     plTweak.h
     plViewTransform.h
 )
 
 use_precompiled_header(_CoreLibPch.h Pch.cpp CoreLib_HEADERS CoreLib_SOURCES)
 add_library(CoreLib STATIC ${CoreLib_SOURCES} ${CoreLib_HEADERS})
-target_link_libraries(CoreLib ${PCRE_LIBRARY})
 
 if(UNIX)
     target_link_libraries(CoreLib pthread)

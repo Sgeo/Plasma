@@ -45,6 +45,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "HeadSpin.h"
 #include "hsMemory.h"
 #include "plFileSystem.h"
+#include <string_theory/format>
 
 
 // Define this for use of Streams with Logging (commonly used w/ a packet sniffer)
@@ -55,7 +56,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #define hsReadOnlyLoggingStream hsReadOnlyStream
 #define LogRead(byteCount, buffer, desc) Read(byteCount, buffer)
 #define LogReadSafeString() ReadSafeString()
-#define LogReadSafeString_TEMP() ReadSafeString_TEMP()
 #define LogReadSafeStringLong() ReadSafeStringLong();
 #define LogSkip(deltaByteCount, desc) Skip(deltaByteCount)
 #define LogReadLE(value, desc) ReadLE(value)
@@ -120,24 +120,20 @@ public:
     virtual void      CopyToMem(void* mem);
     virtual bool      IsCompressed() { return false; }
 
-    uint32_t        WriteString(const plString & string) { return Write(string.GetSize(), string.c_str()); }
-    uint32_t        WriteFmt(const char * fmt, ...);
-    uint32_t        WriteFmtV(const char * fmt, va_list av);
+    uint32_t        WriteString(const ST::string & string) { return Write(string.size(), string.c_str()); }
 
-    uint32_t        WriteSafeStringLong(const plString &string);    // uses 4 bytes for length
-    uint32_t        WriteSafeWStringLong(const plString &string);
-    char *          ReadSafeStringLong();
-    wchar_t *       ReadSafeWStringLong();
+    template        <typename... _Args>
+    uint32_t        WriteFmt(const char * fmt, _Args ... args) { return WriteString(ST::format(fmt, args...)); }
 
-    uint32_t        WriteSafeString(const plString &string);        // uses 2 bytes for length
-    uint32_t        WriteSafeWString(const plString &string);
-    char *          ReadSafeString();
-    wchar_t *       ReadSafeWString();
+    uint32_t        WriteSafeStringLong(const ST::string &string);  // uses 4 bytes for length
+    uint32_t        WriteSafeWStringLong(const ST::string &string);
+    ST::string      ReadSafeStringLong();
+    ST::string      ReadSafeWStringLong();
 
-    plString        ReadSafeStringLong_TEMP();
-    plString        ReadSafeWStringLong_TEMP();
-    plString        ReadSafeString_TEMP();
-    plString        ReadSafeWString_TEMP();
+    uint32_t        WriteSafeString(const ST::string &string);      // uses 2 bytes for length
+    uint32_t        WriteSafeWString(const ST::string &string);
+    ST::string      ReadSafeString();
+    ST::string      ReadSafeWString();
 
     bool            GetToken(char *s, uint32_t maxLen=uint32_t(-1), const char beginComment=kComment, const char endComment=kEolnCode);
     bool            ReadLn(char* s, uint32_t maxLen=uint32_t(-1), const char beginComment=kComment, const char endComment=kEolnCode);
@@ -350,7 +346,7 @@ public:
     virtual     ~hsRAMStream();
 
     virtual bool  Open(const plFileName &, const char *) { hsAssert(0, "hsRAMStream::Open  NotImplemented"); return false; }
-    virtual bool  Close()             { hsAssert(0, "hsRAMStream::Close  NotImplemented"); return false; }
+    virtual bool  Close() { return false; }
 
     
     virtual bool      AtEnd();

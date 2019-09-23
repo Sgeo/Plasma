@@ -43,6 +43,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plBufferedSocketWriter.h"
 #include "plTcpSocket.h"
 
+#include <algorithm>
+
 plBufferedSocketWriter::plBufferedSocketWriter(int size, int bytesPerFlush, bool blockOnSend, int flushPoint)
 :   plRingBuffer(size)
 ,   fFlushPoint(flushPoint)
@@ -79,7 +81,7 @@ int plBufferedSocketWriter::Flush(plTcpSocket & sck)    // this is where things 
 {
     int ans = kSuccessNoDataSent;
 
-    int writeSize = MIN(FastAmountBuffered(),fBytesPerFlush);
+    int writeSize = std::min(FastAmountBuffered(), fBytesPerFlush);
     
     if(writeSize > 0)
     {

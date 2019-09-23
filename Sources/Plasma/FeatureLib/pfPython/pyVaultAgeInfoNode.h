@@ -61,13 +61,6 @@ class plUUID;
 
 class pyVaultAgeInfoNode : public pyVaultNode
 {
-private:
-    mutable std::string fAgeFilename;
-    mutable std::string fAgeInstName;
-    mutable std::string fAgeUserName;
-    mutable std::string fAgeDispName;
-    mutable std::string fAgeDescription;
-
 protected:
     // should only be created from C++ side
     pyVaultAgeInfoNode(RelVaultNode* vaultNode);
@@ -96,35 +89,35 @@ public:
 
     PyObject * GetParentAgeLink () const;   // returns pyVaultAgeLinkNode, or None if not a child age.
 
-    const char * GetAgeFilename() const;
-    void    SetAgeFilename( const char * v );
+    ST::string GetAgeFilename() const;
+    void     SetAgeFilename(const ST::string& v);
 
-    const char * GetAgeInstanceName() const;
-    void    SetAgeInstanceName( const char * v );
+    ST::string GetAgeInstanceName() const;
+    void     SetAgeInstanceName(const ST::string& v);
 
-    const char * GetAgeUserDefinedName() const;
-    void    SetAgeUserDefinedName( const char * v );
+    ST::string GetAgeUserDefinedName() const;
+    void     SetAgeUserDefinedName(const ST::string& v);
 
     plUUID  GetAgeInstanceGuid() const;
     void    SetAgeInstanceGuid( const char * guid );
 
-    const char * GetAgeDescription() const;
-    void    SetAgeDescription( const char * v );
+    ST::string GetAgeDescription() const;
+    void     SetAgeDescription(const ST::string& v);
 
-    int32_t   GetSequenceNumber() const;
-    void    SetSequenceNumber( int32_t v );
-    
-    int32_t   GetAgeLanguage() const;
-    void    SetAgeLanguage( int32_t v );
+    int32_t  GetSequenceNumber() const;
+    void     SetSequenceNumber( int32_t v );
 
-    uint32_t  GetAgeID() const;
-    void    SetAgeID( uint32_t v );
+    int32_t  GetAgeLanguage() const;
+    void     SetAgeLanguage( int32_t v );
 
-    uint32_t  GetCzarID() const;
+    uint32_t GetAgeID() const;
+    void     SetAgeID( uint32_t v );
 
-    bool    IsPublic() const;
+    uint32_t GetCzarID() const;
 
-    const char * GetDisplayName() const;
+    bool     IsPublic() const;
+
+    ST::string GetDisplayName() const;
 
     PyObject * AsAgeInfoStruct() const; // returns pyAgeInfoStruct
 };

@@ -63,11 +63,11 @@ struct plKeySeed
     // NOTE: The following fields are broken out to make adding to the fixed key list easier.
     // However, what they really are, are just the fields of plUoid (including plLocation)
     uint16_t    fType;
-    plString    fObj;
+    ST::string  fObj;
    
     bool Match( plKeySeed *p ) 
     {  
-        if( ( fType == p->fType ) && p->fObj.Compare( fObj, plString::kCaseInsensitive ) == 0 )
+        if( ( fType == p->fType ) && p->fObj.compare( fObj, ST::case_insensitive ) == 0 )
         {
             return true;
         }
@@ -118,11 +118,12 @@ plKeySeed SeedList[] = {
     { kJournalBookMgr_KEY,              CLASS_INDEX_SCOPED( pfJournalBook ),            "kJournalBookMgr_KEY",          },
     { kAgeLoader_KEY,                   CLASS_INDEX_SCOPED( plAgeLoader),               "kAgeLoader_KEY",               },
     { kBuiltIn3rdPersonCamera_KEY,      CLASS_INDEX_SCOPED( plCameraModifier1 ),        "kBuiltIn3rdPersonCamera_KEY",  },
-    { kSecurePreloader_KEY,             CLASS_INDEX_SCOPED( pfSecurePreloader ),        "kSecurePreloader_KEY",         },
+
 #ifdef BUILD_RIFT_SUPPORT
     { kRiftCamera_KEY,					CLASS_INDEX_SCOPED( plRiftCamera ),				"kRiftCamera_KEY",				},
 	{ kPostProcessingMgr_KEY,			CLASS_INDEX_SCOPED( plPostPipeline ),			"kPostProcessingMgr_KEY",		},
 #endif
+
     { kLast_Fixed_KEY,                  CLASS_INDEX_SCOPED( plSceneObject ),            "kLast_Fixed_KEY",              }
 };
 #undef _TCFL

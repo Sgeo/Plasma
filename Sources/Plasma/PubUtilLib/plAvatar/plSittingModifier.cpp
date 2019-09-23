@@ -156,30 +156,32 @@ bool plSittingModifier::MsgReceive(plMessage *msg)
                 // own notify messages -- 
                 plKey avatarKey = notifyMsg->GetAvatarKey();
                 plSceneObject * obj = plSceneObject::ConvertNoRef(avatarKey->ObjectIsLoaded());
-                const plArmatureMod * avMod = (plArmatureMod*)obj->GetModifierByType(plArmatureMod::Index());
-                plAvBrainHuman *brain = (avMod ? plAvBrainHuman::ConvertNoRef(avMod->GetCurrentBrain()) : nil);
-                if (brain && !brain->IsRunningTask())
-                {
-                    plNotifyMsg *notifyEnter = new plNotifyMsg();   // a message to send back when the brain starts
-                    notifyEnter->fState = 1.0f;                     // it's an "on" event
-                    ISetupNotify(notifyEnter, notifyMsg);           // copy events and address to sender
-            
-                    plNotifyMsg *notifyExit = nil;
-                    if (avatarKey == plNetClientApp::GetInstance()->GetLocalPlayerKey())
+                if (obj) {
+                    const plArmatureMod * avMod = (plArmatureMod*)obj->GetModifierByType(plArmatureMod::Index());
+                    plAvBrainHuman *brain = (avMod ? plAvBrainHuman::ConvertNoRef(avMod->GetCurrentBrain()) : nil);
+                    if (brain && !brain->IsRunningTask())
                     {
-                        notifyExit = new plNotifyMsg();         // a new message to send back when the brain's done
-                        notifyExit->fState = 0.0f;              // it's an "off" event
-                        ISetupNotify(notifyExit, notifyMsg);    // copy events and address to sender
-                        notifyExit->AddReceiver(GetKey());      // have this message come back to us as well
+                        plNotifyMsg *notifyEnter = new plNotifyMsg();   // a message to send back when the brain starts
+                        notifyEnter->fState = 1.0f;                     // it's an "on" event
+                        ISetupNotify(notifyEnter, notifyMsg);           // copy events and address to sender
 
-                        // A player may have joined while we're sitting. We can't update them with the exit notify at
-                        // that point (security hole), so instead the local avatar sends the message out to everybody
-                        // when done.
-                        notifyExit->SetBCastFlag(plMessage::kNetStartCascade, false);
-                        notifyExit->SetBCastFlag(plMessage::kNetPropagate, true);
-                        notifyExit->SetBCastFlag(plMessage::kNetForce, true);
+                        plNotifyMsg *notifyExit = nil;
+                        if (avatarKey == plNetClientApp::GetInstance()->GetLocalPlayerKey())
+                        {
+                            notifyExit = new plNotifyMsg();         // a new message to send back when the brain's done
+                            notifyExit->fState = 0.0f;              // it's an "off" event
+                            ISetupNotify(notifyExit, notifyMsg);    // copy events and address to sender
+                            notifyExit->AddReceiver(GetKey());      // have this message come back to us as well
+
+                            // A player may have joined while we're sitting. We can't update them with the exit notify at
+                            // that point (security hole), so instead the local avatar sends the message out to everybody
+                            // when done.
+                            notifyExit->SetBCastFlag(plMessage::kNetStartCascade, false);
+                            notifyExit->SetBCastFlag(plMessage::kNetPropagate, true);
+                            notifyExit->SetBCastFlag(plMessage::kNetForce, true);
+                        }
+                        Trigger(avMod, notifyEnter, notifyExit);
                     }
-                    Trigger(avMod, notifyEnter, notifyExit);
                 }
             }
             // eat the message either way
@@ -196,10 +198,12 @@ bool plSittingModifier::MsgReceive(plMessage *msg)
             {
                 plKey avatarKey = notifyMsg->GetAvatarKey();
                 plSceneObject * obj = plSceneObject::ConvertNoRef(avatarKey->ObjectIsLoaded());
-                plArmatureMod * avMod = (plArmatureMod*)obj->GetModifierByType(plArmatureMod::Index());
+                if (obj) {
+                    plArmatureMod * avMod = (plArmatureMod*)obj->GetModifierByType(plArmatureMod::Index());
 
-                uint32_t flags = kBCastToClients | kUseRelevanceRegions | kForceFullSend;
-                avMod->DirtyPhysicalSynchState(flags);
+                    uint32_t flags = kBCastToClients | kUseRelevanceRegions | kForceFullSend;
+                    avMod->DirtyPhysicalSynchState(flags);
+                }
             }
         }
     }
@@ -290,7 +294,7 @@ bool IIsClosestAnim(const char *animName, hsMatrix44 &sitGoal, float &closestDis
             return true;
         }
     } else {
-        hsAssert(false, plString::Format("Missing sit animation: %s", animName).c_str());
+        hsAssert(false, ST::format("Missing sit animation: {}", animName).c_str());
     }
     return false;
 }
@@ -302,20 +306,19 @@ plAvBrainGeneric *plSittingModifier::IBuildSitBrain(plKey avModKey, plKey seekKe
 {
     plArmatureMod *avatar = plArmatureMod::ConvertNoRef(avModKey->ObjectIsLoaded());
     plSceneObject *seekObj = plSceneObject::ConvertNoRef(seekKey->ObjectIsLoaded());
-    hsMatrix44 animEndToStart;
-    hsMatrix44 sitGoal = seekObj->GetLocalToWorld();
-    hsMatrix44 candidateGoal;
     float closestDist = 0.0f;
     uint8_t closestApproach = 0;
-    hsPoint3 curPosition = avatar->GetTarget(0)->GetLocalToWorld().GetTranslate();
-    const char* sitAnimName = nil;
+    const char* sitAnimName = nullptr;
     const char* standAnimName = "StandUpFront";      // always prefer to stand facing front
 
     bool frontClear = fMiscFlags & kApproachFront;
-    plAvBrainGeneric *brain = nil;
+    plAvBrainGeneric *brain = nullptr;
 
-    if(avatar)
+    if(avatar && seekObj)
     {
+        hsMatrix44 sitGoal = seekObj->GetLocalToWorld();
+        hsPoint3 curPosition = avatar->GetTarget(0)->GetLocalToWorld().GetTranslate();
+
         if(fMiscFlags & kApproachLeft && IIsClosestAnim("SitLeft", sitGoal, closestDist, curPosition, avatar))
         {
             closestApproach = kApproachLeft;
@@ -323,6 +326,7 @@ plAvBrainGeneric *plSittingModifier::IBuildSitBrain(plKey avModKey, plKey seekKe
             if(!frontClear)
                 standAnimName = "StandUpLeft";
         }
+
         if(fMiscFlags & kApproachRight && IIsClosestAnim("SitRight", sitGoal, closestDist, curPosition, avatar))
         {
             closestApproach = kApproachRight;
@@ -330,6 +334,7 @@ plAvBrainGeneric *plSittingModifier::IBuildSitBrain(plKey avModKey, plKey seekKe
             if(!frontClear)
                 standAnimName = "StandUpRight";
         }
+
         if(frontClear && IIsClosestAnim("SitFront", sitGoal, closestDist, curPosition, avatar))
         {
             sitAnimName = "SitFront";

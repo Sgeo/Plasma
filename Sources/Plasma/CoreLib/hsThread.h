@@ -43,6 +43,11 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #define hsThread_Defined
 
 #include "HeadSpin.h"
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+#include "hsLockGuard.h"
 
 typedef uint32_t hsMilliseconds;
 
@@ -58,92 +63,83 @@ typedef uint32_t hsMilliseconds;
 //  #define PSEUDO_EVENT
 #endif
 
-class hsThread 
+class hsThread
 {
-public:
-#if HS_BUILD_FOR_WIN32
-    typedef uint32_t ThreadId;
-#elif HS_BUILD_FOR_UNIX
-    typedef pthread_t ThreadId;
-#endif
-private:
-    bool        fQuit;
-    uint32_t    fStackSize;
-#if HS_BUILD_FOR_WIN32
-    ThreadId    fThreadId;
-    HANDLE      fThreadH;
-    HANDLE      fQuitSemaH;
-#elif HS_BUILD_FOR_UNIX
-    ThreadId    fPThread;
-    bool        fIsValid;
-    pthread_mutex_t fMutex;
-#endif
+    std::atomic<bool>   fQuit;
+    std::thread         fThread;
+
 protected:
     bool        GetQuit() const { return fQuit; }
     void        SetQuit(bool value) { fQuit = value; }
+
 public:
-    hsThread(uint32_t stackSize = 0);
-    virtual     ~hsThread();    // calls Stop()
-#if HS_BUILD_FOR_WIN32
-    ThreadId        GetThreadId() { return fThreadId; }
-    static ThreadId GetMyThreadId();
-#elif HS_BUILD_FOR_UNIX
-    ThreadId            GetThreadId() { return fPThread; }
-    static ThreadId     GetMyThreadId() { return pthread_self(); }
-    pthread_mutex_t* GetStartupMutex() { return &fMutex;  }
-#endif
-                
-    virtual hsError Run() = 0;      // override this to do your work
+    hsThread() : fQuit(false) { }
+
+    virtual ~hsThread()
+    {
+        this->Stop();
+    }
+
+    // Disable copying
+    hsThread(const hsThread &) = delete;
+    void operator=(const hsThread &) = delete;
+
+    virtual void    Run() = 0;      // override this to do your work
     virtual void    Start();        // initializes stuff and calls your Run() method
-    virtual void    Stop();     // sets fQuit = true and the waits for the thread to stop
-                
-    //  Static functions
-    static void*    Alloc(size_t size); // does not call operator::new(), may return nil
-    static void Free(void* p);      // does not call operator::delete()
-    static void ThreadYield();
-};
+    virtual void    Stop();         // sets fQuit = true and the waits for the thread to stop
+    virtual void    OnQuit() { }
 
-//////////////////////////////////////////////////////////////////////////////
+    // Start the thread in a detached state, so it will continue running
+    // in the background, and doesn't need to be joined.  NOTE: The thread
+    // must be able to manage itself -- destroying the hsThread object
+    // WILL NOT stop a detached thread!
+    void StartDetached();
 
-class hsMutex {
-#if HS_BUILD_FOR_WIN32
-    HANDLE  fMutexH;
-#elif HS_BUILD_FOR_UNIX
-    pthread_mutex_t fPMutex;
-#endif
-public:
-    hsMutex();
-    virtual ~hsMutex();
-
-#ifdef HS_BUILD_FOR_WIN32
-    HANDLE GetHandle() const { return fMutexH; }
-#endif
-
-    void        Lock();
-    bool        TryLock();
-    void        Unlock();
-};
-
-class hsTempMutexLock {
-    hsMutex*    fMutex;
-public:
-    hsTempMutexLock(hsMutex* mutex) : fMutex(mutex)
+    static inline size_t ThisThreadHash()
     {
-        fMutex->Lock();
-    }
-    hsTempMutexLock(hsMutex& mutex) : fMutex(&mutex)
-    {
-        fMutex->Lock();
-    }
-    ~hsTempMutexLock()
-    {
-        fMutex->Unlock();
+        return std::hash<std::thread::id>()(std::this_thread::get_id());
     }
 };
 
 //////////////////////////////////////////////////////////////////////////////
+class hsSemaphore
+{
+    std::mutex fMutex;
+    std::condition_variable fCondition;
+    unsigned fValue;
 
-class hsSemaphore {
+public:
+    hsSemaphore(unsigned initial = 0) : fValue(initial) { }
+
+    inline void Wait()
+    {
+        std::unique_lock<std::mutex> lock(fMutex);
+        fCondition.wait(lock, [this]() { return fValue > 0; });
+        --fValue;
+    }
+
+    template <class _Rep, class _Period>
+    inline bool Wait(const std::chrono::duration<_Rep, _Period> &duration)
+    {
+        std::unique_lock<std::mutex> lock(fMutex);
+
+        bool result = fCondition.wait_for(lock, duration, [this]() { return fValue > 0; });
+        if (result)
+            --fValue;
+
+        return result;
+    }
+
+    inline void Signal()
+    {
+        std::unique_lock<std::mutex> lock(fMutex);
+        ++fValue;
+        fCondition.notify_one();
+    }
+};
+
+//////////////////////////////////////////////////////////////////////////////
+class hsGlobalSemaphore {
 #if HS_BUILD_FOR_WIN32
     HANDLE  fSemaH;
 #elif HS_BUILD_FOR_UNIX
@@ -153,56 +149,56 @@ class hsSemaphore {
 #else
     pthread_mutex_t fPMutex;
     pthread_cond_t  fPCond;
-    int32_t       fCounter;
+    int32_t         fCounter;
 #endif
 #endif
 public:
-    hsSemaphore(int initialValue=0, const char* name=nil);
-    ~hsSemaphore();
+    hsGlobalSemaphore(int initialValue = 0, const char* name = nullptr);
+    ~hsGlobalSemaphore();
 
 #ifdef HS_BUILD_FOR_WIN32
     HANDLE GetHandle() const { return fSemaH; }
 #endif
 
-    bool        TryWait();
-    bool        Wait(hsMilliseconds timeToWait = kPosInfinity32);
-    void        Signal();
+    bool Wait(hsMilliseconds timeToWait = kPosInfinity32);
+    void Signal();
 };
 
 //////////////////////////////////////////////////////////////////////////////
 class hsEvent
 {
-#if HS_BUILD_FOR_UNIX
-#ifndef PSEUDO_EVENT
-    pthread_mutex_t fMutex;
-    pthread_cond_t  fCond;
-    bool  fTriggered;
-#else
-    enum { kRead, kWrite };
-    int     fFds[2];
-    hsMutex fWaitLock;
-    hsMutex fSignalLock;
-#endif // PSEUDO_EVENT
-#elif HS_BUILD_FOR_WIN32
-    HANDLE fEvent;
-#endif
+    std::mutex fMutex;
+    std::condition_variable fCondition;
+    bool fEvent;
+
 public:
-    hsEvent();
-    ~hsEvent();
+    hsEvent() : fEvent(false) { }
 
-#ifdef HS_BUILD_FOR_WIN32
-    HANDLE GetHandle() const { return fEvent; }
-#endif
+    inline void Wait()
+    {
+        std::unique_lock<std::mutex> lock(fMutex);
+        fCondition.wait(lock, [this]() { return fEvent; });
+        fEvent = false;
+    }
 
-    bool  Wait(hsMilliseconds timeToWait = kPosInfinity32);
-    void  Signal();
-};
+    template <class _Rep, class _Period>
+    inline bool Wait(const std::chrono::duration<_Rep, _Period> &duration)
+    {
+        std::unique_lock<std::mutex> lock(fMutex);
 
-//////////////////////////////////////////////////////////////////////////////
-class hsSleep
-{
-public:
-    static void Sleep(uint32_t millis);
+        bool result = fCondition.wait_for(lock, duration, [this]() { return fEvent; });
+        if (result)
+            fEvent = false;
+
+        return result;
+    }
+
+    inline void Signal()
+    {
+        std::unique_lock<std::mutex> lock(fMutex);
+        fEvent = true;
+        fCondition.notify_one();
+    }
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -211,69 +207,81 @@ public:
 class hsReaderWriterLock
 {
 public:
-    struct Callback
-    {
-        virtual void OnLockingForRead( hsReaderWriterLock * lock ) {}
-        virtual void OnLockedForRead( hsReaderWriterLock * lock ) {}
-        virtual void OnUnlockingForRead( hsReaderWriterLock * lock ) {}
-        virtual void OnUnlockedForRead( hsReaderWriterLock * lock ) {}
-        virtual void OnLockingForWrite( hsReaderWriterLock * lock ) {}
-        virtual void OnLockedForWrite( hsReaderWriterLock * lock ) {}
-        virtual void OnUnlockingForWrite( hsReaderWriterLock * lock ) {}
-        virtual void OnUnlockedForWrite( hsReaderWriterLock * lock ) {}
-    };
-    hsReaderWriterLock( const char * name="<unnamed>", Callback * cb=nil );
-    ~hsReaderWriterLock();
-    void LockForReading();
-    void UnlockForReading();
-    void LockForWriting();
-    void UnlockForWriting();
-    const char * GetName() const { return fName; }
+    hsReaderWriterLock() : fReaderCount(0), fWriterSem(1) { }
 
 private:
-    int     fReaderCount;
-    hsMutex fReaderCountLock;
-    hsMutex fReaderLock;
-    hsSemaphore fWriterSema;
-    Callback *  fCallback;
-    char *  fName;
+    void LockForReading()
+    {
+        // Don't allow us to start reading if there's still an active writer
+        hsLockGuard(fReaderLock);
+
+        fReaderCount++;
+        if (fReaderCount == 1) {
+            // Block writers from starting (wait is a misnomer here)
+            fWriterSem.Wait();
+        }
+    }
+
+    void UnlockForReading()
+    {
+        fReaderCount--;
+        if (fReaderCount == 0)
+            fWriterSem.Signal();
+    }
+
+    void LockForWriting()
+    {
+        // Blocks new readers from starting
+        fReaderLock.lock();
+
+        // Wait until all readers are done
+        fWriterSem.Wait();
+    }
+
+    void UnlockForWriting()
+    {
+        fWriterSem.Signal();
+        fReaderLock.unlock();
+    }
+
+    std::atomic<int>    fReaderCount;
+    std::mutex          fReaderLock;
+    hsSemaphore         fWriterSem;
+
+    friend class hsLockForReading;
+    friend class hsLockForWriting;
 };
 
 class hsLockForReading
 {
-    hsReaderWriterLock * fLock;
+    hsReaderWriterLock& fLock;
+
 public:
-    hsLockForReading( hsReaderWriterLock & lock ): fLock( &lock )
+    hsLockForReading(hsReaderWriterLock& lock) : fLock(lock)
     {
-        fLock->LockForReading();
+        fLock.LockForReading();
     }
-    hsLockForReading( hsReaderWriterLock * lock ): fLock( lock )
-    {
-        fLock->LockForReading();
-    }
+
     ~hsLockForReading()
     {
-        fLock->UnlockForReading();
+        fLock.UnlockForReading();
     }
 };
 
 class hsLockForWriting
 {
-    hsReaderWriterLock * fLock;
+    hsReaderWriterLock& fLock;
+
 public:
-    hsLockForWriting( hsReaderWriterLock & lock ): fLock( &lock )
+    hsLockForWriting(hsReaderWriterLock& lock) : fLock(lock)
     {
-        fLock->LockForWriting();
+        fLock.LockForWriting();
     }
-    hsLockForWriting( hsReaderWriterLock * lock ): fLock( lock )
-    {
-        fLock->LockForWriting();
-    }
+
     ~hsLockForWriting()
     {
-        fLock->UnlockForWriting();
+        fLock.UnlockForWriting();
     }
 };
 
 #endif
-

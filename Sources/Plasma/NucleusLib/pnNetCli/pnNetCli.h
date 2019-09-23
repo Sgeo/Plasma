@@ -193,7 +193,7 @@ How to create a message sender/receiver:
     static void SendPing (NetCli player) {
         const uintptr_t msgPing[] = {
             kMsgPing,
-            TimeGetMs(),
+            hsTimer::GetMilliSeconds<uint32_t>(),
         };
         NetCliSend(player, msgPing, arrsize(msgPing));
     }
@@ -311,10 +311,10 @@ struct NetCliQueue;
 ***/
 
 struct NetMsgInitSend {
-    NetMsg  msg;
+    const NetMsg  *msg;
 };
 struct NetMsgInitRecv {
-    NetMsg  msg;
+    const NetMsg  *msg;
     bool (* recv)(const uint8_t msg[], unsigned bytes, void * param);
 };
 

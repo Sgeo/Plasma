@@ -46,6 +46,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #ifdef EAX_SDK_AVAILABLE
 #include <eax.h>
 #endif
+#include <memory>
 
 #include "hsTimer.h"
 #include "hsGeometry3.h"
@@ -166,6 +167,7 @@ int32_t   plAudioSystem::fMaxNumSounds = 16;
 int32_t   plAudioSystem::fNumSoundsSlop = 8;
 
 plAudioSystem::plAudioSystem() :
+fCaptureFrequency(8000),
 fStartTime(0),
 fListenerInit(false),
 fSoftRegionSounds(nil),
@@ -264,7 +266,7 @@ void plAudioSystem::IEnumerateDevices()
 }
 
 //// Init ////////////////////////////////////////////////////////////////////
-bool    plAudioSystem::Init( hsWindowHndl hWnd )
+bool    plAudioSystem::Init()
 {
     plgAudioSys::fRestarting = false;
     static bool firstTimeInit = true; 
@@ -362,11 +364,6 @@ bool    plAudioSystem::Init( hsWindowHndl hWnd )
         SetMaxNumberOfActiveSounds();
     }
 
-    // setup capture device
-    ALCsizei bufferSize = FREQUENCY * 2 * BUFFER_LEN_SECONDS;   // times 2 for 16-bit format
-    //const char *dev = alcGetString(fDevice, ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER);
-    fCaptureDevice = alcCaptureOpenDevice(nil, FREQUENCY, AL_FORMAT_MONO16, bufferSize);
- 
     fMaxNumSources = caps.GetMaxNumVoices();
 
     // attempt to init the EAX listener. 
@@ -987,16 +984,84 @@ bool plAudioSystem::MsgReceive(plMessage* msg)
     return hsKeyedObject::MsgReceive(msg);
 }
 
+bool plAudioSystem::BeginCapture()
+{
+    if (fCaptureDevice) {
+        if (!EndCapture())
+            return false;
+    }
+
+    ALCsizei bufferSize = fCaptureFrequency * sizeof(int16_t) * BUFFER_LEN_SECONDS;
+    fCaptureDevice = alcCaptureOpenDevice(nullptr, fCaptureFrequency, AL_FORMAT_MONO16, bufferSize);
+    if (fCaptureDevice) {
+        alcCaptureStart(fCaptureDevice);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool plAudioSystem::CaptureSamples(uint32_t samples, int16_t* data) const
+{
+    if (!fCaptureDevice)
+        return false;
+
+    alcCaptureSamples(fCaptureDevice, data, samples);
+    return true;
+}
+
+uint32_t plAudioSystem::GetCaptureSampleCount() const
+{
+    if (!fCaptureDevice)
+        return 0;
+
+    ALCsizei samples;
+    alcGetIntegerv(fCaptureDevice, ALC_CAPTURE_SAMPLES, sizeof(samples), &samples);
+    return samples;
+}
+
+bool plAudioSystem::SetCaptureSampleRate(uint32_t sampleRate)
+{
+    if (fCaptureFrequency != sampleRate) {
+        fCaptureFrequency = sampleRate;
+        if (fCaptureDevice) {
+            if (!EndCapture())
+                return false;
+            return BeginCapture();
+        }
+    }
+    return true;
+}
+
+bool plAudioSystem::EndCapture()
+{
+    if (!fCaptureDevice)
+        return false;
+
+    alcCaptureStop(fCaptureDevice);
+
+    // discard any samples not processed
+    ALCsizei samples;
+    alcGetIntegerv(fCaptureDevice, ALC_CAPTURE_SAMPLES, sizeof(samples), &samples);
+    if (samples) {
+        auto buf = std::make_unique<int16_t[]>(samples);
+        alcCaptureSamples(fCaptureDevice, buf.get(), samples);
+    }
+
+    alcCaptureCloseDevice(fCaptureDevice);
+    fCaptureDevice = nullptr;
+    return true;
+}
+
 // plgAudioSystem //////////////////////////////////////////////////////////////////////
 
-plAudioSystem*  plgAudioSys::fSys = nil;
+plAudioSystem*  plgAudioSys::fSys = nullptr;
 bool            plgAudioSys::fInit = false;
 bool            plgAudioSys::fActive = false;
 bool            plgAudioSys::fUseHardware = false;
 bool            plgAudioSys::fMuted = true;
 bool            plgAudioSys::fDelayedActivate = false;
 bool            plgAudioSys::fEnableEAX = false;
-hsWindowHndl    plgAudioSys::fWnd = nil;
 float        plgAudioSys::fChannelVolumes[ kNumChannels ] = { 1.f, 1.f, 1.f, 1.f, 1.f, 1.f };
 float        plgAudioSys::f2D3DBias = 0.75f;
 uint32_t          plgAudioSys::fDebugFlags = 0;
@@ -1010,13 +1075,12 @@ std::string     plgAudioSys::fDeviceName;
 bool            plgAudioSys::fRestarting = false;
 bool            plgAudioSys::fMutedStateChange = false;
 
-void plgAudioSys::Init(hsWindowHndl hWnd)
+void plgAudioSys::Init()
 {
     fSys = new plAudioSystem;
     fSys->RegisterAs( kAudioSystem_KEY );
     plgDispatch::Dispatch()->RegisterForExactType( plAudioSysMsg::Index(), fSys->GetKey() );
     plgDispatch::Dispatch()->RegisterForExactType( plRenderMsg::Index(), fSys->GetKey() );
-    fWnd = hWnd;
 
     if(fMuted)
         SetGlobalFadeVolume(0.0f);
@@ -1143,7 +1207,7 @@ void plgAudioSys::Activate(bool b)
     if( b )
     {
         plStatusLog::AddLineS( "audio.log", plStatusLog::kBlue, "ASYS: -- Attempting audio system init --" );
-        if( !fSys->Init( fWnd ) )
+        if( !fSys->Init() )
         {
             // Cannot init audio system. Don't activate
             return; 
@@ -1234,22 +1298,13 @@ const char *plgAudioSys::GetAudioDeviceName(int index)
     return nil;
 }
 
-ALCdevice *plgAudioSys::GetCaptureDevice()
-{
-    if(fSys)
-    {
-        return fSys->fCaptureDevice;
-    }
-    return nil;
-}
-
 bool plgAudioSys::SupportsEAX(const char *deviceName)
 {
     if(fSys)
     {
         return fSys->SupportsEAX(deviceName);
     }
-    return nil;
+    return false;
 }
 
 void plgAudioSys::RegisterSoftSound( const plKey soundKey )

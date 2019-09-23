@@ -54,9 +54,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnMessage/plRefMsg.h"
 #include "pfMessage/pfGameGUIMsg.h"
 #include "plMessage/plAnimCmdMsg.h"
-// #include "plAvatar/plAGModifier.h"
-#include "plAvatar/plAGMasterMod.h"
-#include "plAvatar/plAGAnimInstance.h"
+// #include "plAnimation/plAGModifier.h"
+#include "plAnimation/plAGMasterMod.h"
+#include "plAnimation/plAGAnimInstance.h"
 #include "plSurface/plLayerAnimation.h"
 
 #include "pnSceneObject/plSceneObject.h"
@@ -106,7 +106,7 @@ void    pfGUIKnobCtrl::Read( hsStream *s, hsResMgr *mgr )
     uint32_t i, count = s->ReadLE32();
     for( i = 0; i < count; i++ )
         fAnimationKeys.Append( mgr->ReadKey( s ) );
-    fAnimName = s->ReadSafeString_TEMP();
+    fAnimName = s->ReadSafeString();
 
     fAnimTimesCalced = false;
 
@@ -256,7 +256,7 @@ void    pfGUIKnobCtrl::HandleMouseDrag( hsPoint3 &mousePt, uint8_t modifiers )
 
 //// SetAnimationKeys ////////////////////////////////////////////////////////
 
-void    pfGUIKnobCtrl::SetAnimationKeys( hsTArray<plKey> &keys, const plString &name )
+void    pfGUIKnobCtrl::SetAnimationKeys( hsTArray<plKey> &keys, const ST::string &name )
 {
     fAnimationKeys = keys;
     fAnimName = name;

@@ -80,7 +80,7 @@ class plFontCache;
 class plClientMsg;
 class plLocation;
 class plMovieMsg;
-class plBinkPlayer;
+class plMoviePlayer;
 class plPreloaderMsg;
 class plNetCommAuthMsg;
 class plAgeLoaded2Msg;
@@ -133,8 +133,6 @@ protected:
     pfConsoleEngine*        fConsoleEngine;
     pfConsole*              fConsole;
 
-    pfKI                    *fKIGUIGlue;
-
     bool                    fDone;
     bool                    fWindowActive;
 
@@ -150,8 +148,6 @@ protected:
 	plPostPipeline			*fPostProcessingMgr;
 #endif
 
-    virtual hsG3DDeviceModeRecord ILoadDevMode(const char* devModeFile);
-
     bool                    IUpdate();
     bool                    IDraw();
     bool                    IDrawProgress();
@@ -166,7 +162,7 @@ protected:
     int                     fQuality;
 
     bool                    fQuitIntro;
-    hsTArray<plBinkPlayer*> fMovies;
+    std::vector<plMoviePlayer*> fMovies;
 
     plMessagePumpProc       fMessagePumpProc;
     
@@ -196,8 +192,6 @@ protected:
     void                    ICompleteInit ();
     void                    IOnAsyncInitComplete ();
     void                    IHandlePatcherMsg (plResPatcherMsg * msg);
-    void                    IHandlePreloaderMsg (plPreloaderMsg * msg);
-    void                    IHandleNetCommAuthMsg (plNetCommAuthMsg * msg);
     bool                    IHandleAgeLoaded2Msg (plAgeLoaded2Msg * msg);
 
     bool                    IFlushRenderRequests();
@@ -206,7 +200,7 @@ protected:
     void                    IProcessRenderRequests(hsTArray<plRenderRequest*>& reqs);
     void                    IAddRenderRequest(plRenderRequest* req);
 
-    bool                    IPlayIntroBink(const char* movieName, float endDelay, float posX, float posY, float scaleX, float scaleY, float volume = 1.0);
+    bool                    IPlayIntroMovie(const char* movieName, float endDelay, float posX, float posY, float scaleX, float scaleY, float volume = 1.0);
     bool                    IHandleMovieMsg(plMovieMsg* mov);
     void                    IKillMovies();
     void                    IServiceMovies();
@@ -229,7 +223,9 @@ protected:
     void IRoomLoaded(plSceneNode* node, bool hold);
     void IRoomUnloaded(plSceneNode* node);
     void ISetGraphicsDefaults();
-    
+
+    void IChangeResolution(int width, int height);
+
 public:
 
     plClient();
@@ -306,6 +302,8 @@ public:
     virtual void WindowActivate(bool active);
     virtual bool WindowActive() const { return fWindowActive; }
 
+    bool BeginGame();
+
     void FlashWindow();
     void    SetMessagePumpProc( plMessagePumpProc proc ) { fMessagePumpProc = proc; }
     void ResetDisplayDevice(int Width, int Height, int ColorDepth, bool Windowed, int NumAASamples, int MaxAnisotropicSamples, bool VSync = false);
@@ -314,15 +312,6 @@ public:
     void IWriteDefaultGraphicsSettings(const plFileName& destFile);
 
     plAnimDebugList *fAnimDebugList;
-
-#if 0
-    std::string fUsername;
-    std::string fPasswordDigest;
-    std::string fServer;
-    int         fPlayerID;
-    bool        fRecreatePlayer;
-    bool        fAuthPassed;
-#endif
 };
 
 #endif // plClient_inc

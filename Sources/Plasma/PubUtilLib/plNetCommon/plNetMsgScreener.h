@@ -43,7 +43,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #define plNetMsgScreener_h
 
 #include "pnKeyedObject/plKey.h"
-#include "plStatusLog/plLoggable.h"
+#include "plLoggable.h"
 
 //
 // Class which decides what game messages are allowed to be sent to the server.
@@ -63,7 +63,7 @@ protected:
         kYes
     };
     virtual const char* IGetSenderName(const plNetGameMember* gm) const = 0;
-    virtual const char* IGetAgeName() const = 0;
+    virtual ST::string IGetAgeName() const = 0;
     virtual bool IIsSenderCCR(const plNetGameMember* gm=nil) const = 0;
     virtual bool IIsLocalAvatarKey(plKey key, const plNetGameMember* gm) const = 0;
     virtual bool IIsLocalArmatureModKey(plKey key, const plNetGameMember* gm) const { return true; }

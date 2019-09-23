@@ -58,40 +58,41 @@ void plNetApp::SetInstance(plNetApp* app)
     fInstance = app;
 }
 
-bool plNetApp::StaticErrorMsg(const char* fmt, ...)
+
+bool plNetApp::StaticErrorMsg(const ST::string& msg)
 {
-    if ( !GetInstance() )
+    if (!GetInstance()) {
         return true;
-    va_list args;
-    va_start(args, fmt);
-    return GetInstance()->ErrorMsgV(fmt, args);
+    }
+
+    return GetInstance()->ErrorMsg(msg);
 }
 
-bool plNetApp::StaticDebugMsg(const char* fmt, ...)
+bool plNetApp::StaticWarningMsg(const ST::string& msg)
 {
-    if ( !GetInstance() )
+    if (!GetInstance()) {
         return true;
-    va_list args;
-    va_start(args, fmt);
-    return GetInstance()->DebugMsgV(fmt, args);
+    }
+
+    return GetInstance()->WarningMsg(msg);
 }
 
-bool plNetApp::StaticWarningMsg(const char* fmt, ...)
+bool plNetApp::StaticAppMsg(const ST::string& msg)
 {
-    if ( !GetInstance() )
+    if (!GetInstance()) {
         return true;
-    va_list args;
-    va_start(args, fmt);
-    return GetInstance()->WarningMsgV(fmt, args);
+    }
+
+    return GetInstance()->AppMsg(msg);
 }
 
-bool plNetApp::StaticAppMsg(const char* fmt, ...)
+bool plNetApp::StaticDebugMsg(const ST::string& msg)
 {
-    if ( !GetInstance() )
+    if (!GetInstance()) {
         return true;
-    va_list args;
-    va_start(args, fmt);
-    return GetInstance()->AppMsgV(fmt, args);
+    }
+
+    return GetInstance()->DebugMsg(msg);
 }
 
 

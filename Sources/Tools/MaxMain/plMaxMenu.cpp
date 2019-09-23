@@ -60,7 +60,6 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plMaxCFGFile.h"
 #include "plResCollector.h"
 #include "plAgeDescInterface.h"
-#include "MaxSceneViewer/SceneViewer.h"
 #include "plNodeLock.h"
 #include "plResetXform.h"
 #include "plTextureSearch.h"
@@ -81,7 +80,7 @@ enum
     kActionResCollect,
     kActionAgeDesc,
     kActionCompCopy,
-    kActionSceneViewer,
+    kActionSceneViewer, // DEAD. But I don't dare remove it--don't want to break stuff :/
     kActionLock,
     kActionUnlock,
     kActionTexSearch,
@@ -201,15 +200,6 @@ bool DoAction(int id)
         CopyComponents();
         return true;
 
-    case kActionSceneViewer:
-#ifdef MAXSCENEVIEWER_ENABLED
-        SceneViewer::Instance().Show();
-        return true;
-#else
-        hsMessageBox("The SceneViewer has been disabled in this build", "Disabled", 0);
-        return true;
-#endif
-
     case kActionLock:
         plNodeLock().Lock();
         return true;
@@ -325,7 +315,7 @@ void plCreateMenu()
     bool newlyRegistered = pMenuMan->RegisterMenuBarContext(kMyMenuContextId, kMenuName);
 
     // Is the Max menu version the most recent?
-    bool wrongVersion = GetPrivateProfileIntW(L"Menu", L"Version", 0, plMaxConfig::GetPluginIni().AsString().ToWchar()) < kMenuVersion;
+    bool wrongVersion = GetPrivateProfileIntW(L"Menu", L"Version", 0, plMaxConfig::GetPluginIni().WideString().data()) < kMenuVersion;
     if (wrongVersion)
     {
         // Delete the old version of the menu
@@ -336,7 +326,7 @@ void plCreateMenu()
         // Update the menu version
         wchar_t buf[12];
         snwprintf(buf, arrsize(buf), L"%d", kMenuVersion);
-        WritePrivateProfileStringW(L"Menu", L"Version", buf, plMaxConfig::GetPluginIni().AsString().ToWchar());
+        WritePrivateProfileStringW(L"Menu", L"Version", buf, plMaxConfig::GetPluginIni().WideString().data());
     }
     
     if (wrongVersion || newlyRegistered)
@@ -414,18 +404,6 @@ void plCreateMenu()
         pMenuItem = GetIMenuItem();
         pMenuItem->SetActionItem(pActionTable->GetAction(kActionAgeDesc));
         pPlasmaMenu->AddItem(pMenuItem);
-
-        // Add a separator
-        pMenuItem = GetIMenuItem();
-        pMenuItem->ActAsSeparator();
-        pPlasmaMenu->AddItem(pMenuItem);
-
-#ifdef MAXSCENEVIEWER_ENABLED
-        // Add the SceneViewer to the menu
-        pMenuItem = GetIMenuItem();
-        pMenuItem->SetActionItem(pActionTable->GetAction(kActionSceneViewer));
-        pPlasmaMenu->AddItem(pMenuItem);
-#endif
 
         // Add a separator
         pMenuItem = GetIMenuItem();

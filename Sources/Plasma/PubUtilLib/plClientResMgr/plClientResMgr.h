@@ -43,22 +43,22 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #ifndef _plClientResMgr_h
 #define _plClientResMgr_h
 
-#include <map>
-#include <string>
+#include <unordered_map>
 
 class plMipmap;
+class plFileName;
 
 class plClientResMgr {
 protected:
-    std::map<std::string, plMipmap*>* ClientResources;
+    std::unordered_map<ST::string, plMipmap*, ST::hash> ClientResources;
 
 public:
-    plClientResMgr();
+    plClientResMgr() { }
     ~plClientResMgr();
 
-    void ILoadResources(const char* resfile);
+    void ILoadResources(const plFileName& resfile);
 
-    plMipmap* getResource(const char* resname);
+    plMipmap* getResource(const ST::string& resname);
 
     static plClientResMgr& Instance(void);
 };

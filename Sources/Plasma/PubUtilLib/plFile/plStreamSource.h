@@ -43,7 +43,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #define plStreamSource_h_inc
 
 #include <map>
-#include <string>
+#include <mutex>
 #include "hsStream.h"
 
 // A class for holding and accessing file streams. The preloader will insert
@@ -56,14 +56,16 @@ private:
     {
         plFileName      fFilename; // includes path
         plFileName      fDir; // parent directory
-        plString        fExt;
+        ST::string      fExt;
         hsStream*       fStream; // we own this pointer, so clean it up
     };
     std::map<plFileName, fileData, plFileName::less_i> fFileData; // key is filename
+    std::mutex fMutex;
+    uint32_t fServerKey[4];
 
     void ICleanup(); // closes all file pointers and cleans up after itself
 
-    plStreamSource() {}
+    plStreamSource();
 public:
     ~plStreamSource() {ICleanup();}
 
@@ -72,10 +74,13 @@ public:
 
     // File access functions
     hsStream* GetFile(const plFileName& filename); // internal builds will read from disk if it doesn't exist
-    std::vector<plFileName> GetListOfNames(const plFileName& dir, const plString& ext); // internal builds merge from disk
+    std::vector<plFileName> GetListOfNames(const plFileName& dir, const ST::string& ext); // internal builds merge from disk
 
     // For other classes to insert files (takes ownership of the stream if successful)
     bool InsertFile(const plFileName& filename, hsStream* stream);
+
+    /** Gets a pointer to our encryption key */
+    uint32_t* GetEncryptionKey() { return fServerKey; }
 
     // Instance handling
     static plStreamSource* GetInstance();

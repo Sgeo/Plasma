@@ -50,13 +50,13 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plAvBrainGeneric.h"
 #include "plAvBrainSwim.h"
 #include "plArmatureMod.h"
-#include "plAGModifier.h"
-#include "plMatrixChannel.h"
+#include "plAnimation/plAGModifier.h"
+#include "plAnimation/plMatrixChannel.h"
 #include "plAvTask.h"
 #include "plAvTaskBrain.h"
 #include "plAvTaskSeek.h"
-#include "plAGAnim.h"
-#include "plAGAnimInstance.h"
+#include "plAnimation/plAGAnim.h"
+#include "plAnimation/plAGAnimInstance.h"
 #include "plAvatarMgr.h"
 #include "plAnimStage.h"
 #include "plAvatarClothing.h"
@@ -158,14 +158,16 @@ bool plAvBrainHuman::Apply(double timeNow, float elapsed)
         fWalkingStrategy->SetTurnStrength(IGetTurnStrength(timeNow));
         RunStandardBehaviors(timeNow, elapsed);
         fWalkingStrategy->RecalcVelocity(timeNow, elapsed, (fPreconditions & plHBehavior::kBehaviorTypeNeedsRecalcMask));
-        
+
         plArmatureBrain::Apply(timeNow, elapsed);
 #ifndef _DEBUG
-    } catch (...)
-    {
+    } catch (std::exception &e) {
+        plStatusLog *log = plAvatarMgr::GetInstance()->GetLog();
+        log->AddLineF("plAvBrainHuman::Apply - exception caught: %s", e.what());
+    } catch (...) {
         // just catch all the crashes on exit...
         plStatusLog *log = plAvatarMgr::GetInstance()->GetLog();
-        log->AddLine("plAvBrainHuman::Apply - crash caught");
+        log->AddLine("plAvBrainHuman::Apply - exception caught");
     }
 #endif
     
@@ -193,8 +195,10 @@ void plAvBrainHuman::Activate(plArmatureModBase *avMod)
     
     if (fAvMod->GetClothingOutfit() && fAvMod->GetClothingOutfit()->fGroup != plClothingMgr::kClothingBaseNoOptions)
     {
-        if (fAvMod->IsLocalAvatar()) 
-            fAvMod->GetClothingOutfit()->ReadFromVault();
+        if (fAvMod->IsLocalAvatar())
+        {
+            fAvMod->GetClothingOutfit()->ReadClothing();
+        }
         else 
         {
             fAvMod->GetClothingOutfit()->WearDefaultClothing();
@@ -310,7 +314,7 @@ void plAvBrainHuman::IInitBoneMap()
     for(int i = 0; i < numTuples; i++)
     {
         HumanBoneID id = tupleMap[i].fID;
-        plString name = tupleMap[i].fName;
+        ST::string name = tupleMap[i].fName;
         
         const plSceneObject * bone = this->fAvMod->FindBone(name);
         if( bone )
@@ -347,7 +351,7 @@ void plAvBrainHuman::Suspend()
     // Kind of hacky... but this is a rather rare case.
     // If the user lets up on the PushToTalk key in another brain
     // we'll miss the message to take off the animation.
-    plString chatAnimName = fAvMod->MakeAnimationName("Talk");
+    ST::string chatAnimName = fAvMod->MakeAnimationName("Talk");
     plAGAnimInstance *anim = fAvMod->FindAnimInstance(chatAnimName);
     if (anim)
         anim->FadeAndDetach(0, 1);
@@ -703,7 +707,7 @@ void plAvBrainHuman::TurnToPoint(hsPoint3 point)
 
 void plAvBrainHuman::IChatOn()
 {
-    plString chatAnimName = fAvMod->MakeAnimationName("Talk");
+    ST::string chatAnimName = fAvMod->MakeAnimationName("Talk");
 
     // check that we aren't adding this twice...
     if (!fAvMod->FindAnimInstance(chatAnimName))
@@ -721,7 +725,7 @@ void plAvBrainHuman::IChatOn()
 
 void plAvBrainHuman::IChatOff()
 {
-    plString chatAnimName = fAvMod->MakeAnimationName("Talk");
+    ST::string chatAnimName = fAvMod->MakeAnimationName("Talk");
     plKey avKey = fAvMod->GetKey();
     plAvAnimTask *animTask = new plAvAnimTask(chatAnimName, -1.0);
     if (animTask)
@@ -894,28 +898,19 @@ bool plAvBrainHuman::LeaveAge()
     return false;
 }
 
-void plAvBrainHuman::DumpToDebugDisplay(int &x, int &y, int lineHeight, char *strBuf, plDebugText &debugTxt)
+void plAvBrainHuman::DumpToDebugDisplay(int &x, int &y, int lineHeight, plDebugText &debugTxt)
 {
-    sprintf(strBuf, "Brain type: Human");
-    debugTxt.DrawString(x, y, strBuf);
+    debugTxt.DrawString(x, y, "Brain type: Human");
     y += lineHeight;
     
     const char *grounded = fWalkingStrategy->IsOnGround() ? "yes" : "no";
     const char *pushing = (fWalkingStrategy->GetPushingPhysical() ? (fWalkingStrategy->GetFacingPushingPhysical() ? "facing" : "behind") : "none");
-    sprintf(strBuf, "Ground: %3s, AirTime: %5.2f (Peak: %5.2f), PushingPhys: %6s",
-            grounded, fWalkingStrategy->GetAirTime(), fWalkingStrategy->GetImpactTime(), pushing);
-    debugTxt.DrawString(x, y, strBuf);
+    debugTxt.DrawString(x, y, ST::format("Ground: {>3}, AirTime: {5.2f} (Peak: {5.2f}), PushingPhys: {>6}",
+                grounded, fWalkingStrategy->GetAirTime(), fWalkingStrategy->GetImpactTime(), pushing));
     y += lineHeight;
 
-    int i;
-    //strBuf[0] = '\0';
-    //for (i = 0; i < 32; i++)
-    //  strcat(strBuf, fPreconditions & (0x1 << i) ? "1" : "0");
-    //debugTxt.DrawString(x, y, strBuf);
-    //y += lineHeight;  
-
-    for (i = 0; i < fBehaviors.GetCount(); i++)
-        fBehaviors[i]->DumpDebug(x, y, lineHeight, strBuf, debugTxt);
+    for (int i = 0; i < fBehaviors.GetCount(); i++)
+        fBehaviors[i]->DumpDebug(x, y, lineHeight, debugTxt);
 
     debugTxt.DrawString(x, y, "Tasks:");
     y += lineHeight;
@@ -926,7 +921,7 @@ void plAvBrainHuman::DumpToDebugDisplay(int &x, int &y, int lineHeight, char *st
         y += lineHeight;
 
         int indentedX = x + 4;
-        fCurTask->DumpDebug("-", indentedX, y, lineHeight, strBuf, debugTxt);
+        fCurTask->DumpDebug("-", indentedX, y, lineHeight, debugTxt);
     }
     int tasks = fTaskQueue.size();
     if(tasks > 0)
@@ -939,7 +934,7 @@ void plAvBrainHuman::DumpToDebugDisplay(int &x, int &y, int lineHeight, char *st
         for (int i = 0; i < tasks; i++)
         {
             plAvTask *each = fTaskQueue[i];
-            each->DumpDebug("-", indentedX, y, lineHeight, strBuf, debugTxt);
+            each->DumpDebug("-", indentedX, y, lineHeight, debugTxt);
         }
     }
 }
@@ -1365,13 +1360,11 @@ bool PushWalk::PreCondition(double time, float elapsed)
 //
 /////////////////////////////////////////////////////////////////////////////////////////
 
-bool PushSimpleMultiStage(plArmatureMod *avatar, const char *enterAnim, const char *idleAnim, const char *exitAnim,
-                          bool netPropagate, bool autoExit, plAGAnim::BodyUsage bodyUsage, plAvBrainGeneric::BrainType type /* = kGeneric */)
+static bool CanPushGenericBrain(plArmatureMod* avatar, const char** anims, size_t numAnims, plAvBrainGeneric::BrainType type)
 {
     plAvBrainHuman *huBrain = plAvBrainHuman::ConvertNoRef(avatar->FindBrainByClass(plAvBrainHuman::Index()));
-    const char *names[3] = {enterAnim, idleAnim, exitAnim};
     if (!huBrain || !huBrain->fWalkingStrategy->IsOnGround() || !huBrain->fWalkingStrategy->HitGroundInThisAge() || huBrain->IsRunningTask() ||
-        !avatar->IsPhysicsEnabled() || avatar->FindMatchingGenericBrain(names, 3))
+        !avatar->IsPhysicsEnabled() || avatar->FindMatchingGenericBrain(anims, numAnims))
         return false;
 
     // XXX
@@ -1381,6 +1374,17 @@ bool PushSimpleMultiStage(plArmatureMod *avatar, const char *enterAnim, const ch
         if (swimBrain && !swimBrain->IsWalking())
             return false;
     }
+
+    // still here??? W00T!
+    return true;
+}
+
+bool PushSimpleMultiStage(plArmatureMod *avatar, const char *enterAnim, const char *idleAnim, const char *exitAnim,
+                          bool netPropagate, bool autoExit, plAGAnim::BodyUsage bodyUsage, plAvBrainGeneric::BrainType type /* = kGeneric */)
+{
+    const char* names[3] = {enterAnim, idleAnim, exitAnim};
+    if (!CanPushGenericBrain(avatar, names, arrsize(names), type))
+        return false;
 
     // if autoExit is true, then we will immediately exit the idle loop when the user hits a move
     // key. otherwise, we'll loop until someone sends a message telling us explicitly to advance
@@ -1419,10 +1423,37 @@ bool PushSimpleMultiStage(plArmatureMod *avatar, const char *enterAnim, const ch
     return true;
 }
 
+bool PushRepeatEmote(plArmatureMod* avatar, const ST::string& anim)
+{
+    const char* names[1] = { anim.c_str() };
+    if (!CanPushGenericBrain(avatar, names, arrsize(names), plAvBrainGeneric::kGeneric))
+        return false;
+
+     plAnimStageVec* v = new plAnimStageVec;
+     plAnimStage* theStage = new plAnimStage(anim, 0,
+                                             plAnimStage::kForwardAuto, plAnimStage::kBackNone,
+                                             plAnimStage::kAdvanceOnMove, plAnimStage::kRegressNone,
+                                             -1);
+     v->push_back(theStage);
+
+    plAvBrainGeneric* b = new plAvBrainGeneric(v, nullptr, nullptr, nullptr, plAvBrainGeneric::kExitAnyTask | plAvBrainGeneric::kExitNewBrain,
+                                               2.0f, 2.0f, plAvBrainGeneric::kMoveStandstill);
+
+    b->SetBodyUsage(plAGAnim::kBodyFull);
+    b->SetType(plAvBrainGeneric::kGeneric);
+
+    plAvTaskBrain* bt = new plAvTaskBrain(b);
+    plAvTaskMsg* btm = new plAvTaskMsg(plAvatarMgr::GetInstance()->GetKey(), avatar->GetKey(), bt);
+    btm->SetBCastFlag(plMessage::kNetPropagate, true);
+    btm->Send();
+
+    return true;
+}
+
 bool AvatarEmote(plArmatureMod *avatar, const char *emoteName)
 {
     bool result = false;
-    plString fullName = avatar->MakeAnimationName(emoteName);
+    ST::string fullName = avatar->MakeAnimationName(emoteName);
     plAGAnim *anim = plAGAnim::FindAnim(fullName);
     plEmoteAnim *emote = plEmoteAnim::ConvertNoRef(anim);
     bool alreadyActive = avatar->FindAnimInstance(fullName) != nil;

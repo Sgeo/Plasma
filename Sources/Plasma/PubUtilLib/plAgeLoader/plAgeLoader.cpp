@@ -69,14 +69,12 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plResMgr/plRegistryNode.h"
 #include "plResMgr/plResManager.h"
 #include "plFile/plEncryptedStream.h"
+#include "plProgressMgr/plProgressMgr.h"
 
 /// TEMP HACK TO LOAD CONSOLE INIT FILES ON AGE LOAD
 #include "plMessage/plConsoleMsg.h"
 #include "plMessage/plLoadAvatarMsg.h"
 #include "plMessage/plAgeLoadedMsg.h"
-
-
-extern  bool    gDataServerLocal;
 
 // static 
 plAgeLoader* plAgeLoader::fInstance=nil;
@@ -99,9 +97,9 @@ plAgeLoader::~plAgeLoader()
     fInitialAgeState=nil;
 
     if ( PendingAgeFniFiles().size() )
-        plNetClientApp::StaticErrorMsg( "~plAgeLoader(): %d pending age fni files", PendingAgeFniFiles().size() );
+        plNetClientApp::StaticErrorMsg( "~plAgeLoader(): {} pending age fni files", PendingAgeFniFiles().size() );
     if ( PendingPageOuts().size() )
-        plNetClientApp::StaticErrorMsg( "~plAgeLoader(): %d pending page outs", PendingPageOuts().size() );
+        plNetClientApp::StaticErrorMsg( "~plAgeLoader(): {} pending page outs", PendingPageOuts().size() );
 
     ClearPageExcludeList();     // Clear our debugging exclude list, just to be tidy
     
@@ -112,6 +110,8 @@ plAgeLoader::~plAgeLoader()
 void plAgeLoader::Shutdown()
 {
     plResPatcher::GetInstance()->Shutdown();
+    UnRegisterAs(kAgeLoader_KEY);
+    SetInstance(nullptr);
 }
 
 void plAgeLoader::Init()
@@ -119,6 +119,7 @@ void plAgeLoader::Init()
     RegisterAs( kAgeLoader_KEY );
     plgDispatch::Dispatch()->RegisterForExactType(plInitialAgeStateLoadedMsg::Index(), GetKey());
     plgDispatch::Dispatch()->RegisterForExactType(plClientMsg::Index(), GetKey());
+    plgDispatch::Dispatch()->RegisterForExactType(plResPatcherMsg::Index(), GetKey());
 }
 
 //
@@ -156,7 +157,12 @@ bool plAgeLoader::MsgReceive(plMessage* msg)
         return true;
     }
 
-    
+    // sadface thread protection
+    if (plResPatcherMsg::ConvertNoRef(msg)) {
+        delete plResPatcher::GetInstance()->fProgress;
+        plResPatcher::GetInstance()->fProgress = nullptr;
+    }
+
     return plReceiver::MsgReceive(msg);
 }
 
@@ -165,22 +171,15 @@ bool plAgeLoader::MsgReceive(plMessage* msg)
 // return false on error
 //
 //============================================================================
-bool plAgeLoader::LoadAge(const char ageName[])
+bool plAgeLoader::LoadAge(const ST::string& ageName)
 {
     return ILoadAge(ageName);
 }
 
 //============================================================================
-void plAgeLoader::UpdateAge(const char ageName[])
+void plAgeLoader::UpdateAge(const ST::string& ageName)
 {
-    if (gDataServerLocal)
-        // We have to send this msg ourselves since we're not actually updating
-        plgDispatch::Dispatch()->MsgSend(new plResPatcherMsg);
-    else
-    {
-        plResPatcher::GetInstance()->RequestManifest(ageName);
-        plResPatcher::GetInstance()->Start();
-    }
+    plResPatcher::GetInstance()->Update(ageName);
 }
 
 //============================================================================
@@ -200,14 +199,14 @@ void plAgeLoader::NotifyAgeLoaded( bool loaded )
 //// ILoadAge ////////////////////////////////////////////////////////////////
 //  Does the loading-specific stuff for queueing an age to load
 
-bool plAgeLoader::ILoadAge(const char ageName[])
+bool plAgeLoader::ILoadAge(const ST::string& ageName)
 {
     plNetClientApp* nc = plNetClientApp::GetInstance();
     ASSERT(!nc->GetFlagsBit(plNetClientApp::kPlayingGame));
 
-    StrCopy(fAgeName, ageName, arrsize(fAgeName));
-    
-    nc->DebugMsg( "Net: Loading age %s", fAgeName);
+    fAgeName = ageName;
+
+    nc->DebugMsg( "Net: Loading age {}", fAgeName);
 
     if ((fFlags & kLoadMask) != 0)
         ErrorAssert(__LINE__, __FILE__, "Fatal Error:\nAlready loading or unloading an age.\n%s will now exit.",
@@ -228,20 +227,15 @@ bool plAgeLoader::ILoadAge(const char ageName[])
 
     /// Step 2: Load the keys for this age, so we can find sceneNodes for them
     // exec age .fni file when data is done loading
-    char consoleIniName[ 256 ];
-    sprintf( consoleIniName, "dat\\%s.fni", fAgeName);
-    fPendingAgeFniFiles.push_back( consoleIniName );
+    fPendingAgeFniFiles.emplace_back(ST::format("dat\\{}.fni", fAgeName));
+    fPendingAgeCsvFiles.emplace_back(ST::format("dat\\{}.csv", fAgeName));
 
-    char csvName[256];
-    sprintf(csvName, "dat\\%s.csv", fAgeName);
-    fPendingAgeCsvFiles.push_back(csvName);
-    
     plSynchEnabler p( false );  // turn off dirty tracking while in this function   
 
     hsStream* stream=GetAgeDescFileStream(fAgeName);
     if (!stream)
     {
-        nc->ErrorMsg("Failed loading age.  Age desc file %s has nil stream", fAgeName);
+        nc->ErrorMsg("Failed loading age.  Age desc file {} has nil stream", fAgeName);
         fFlags &= ~kLoadingAge;
         return false;
     }
@@ -294,14 +288,14 @@ bool plAgeLoader::ILoadAge(const char ageName[])
     {
         if( IsPageExcluded( page, fAgeName) )
         {
-            nc->DebugMsg("\tExcluding page %s\n", page->GetName().c_str());
+            nc->DebugMsg("\tExcluding page {}\n", page->GetName());
             continue;
         }
 
         nPages++;
 
         pMsg1->AddRoomLoc(ad.CalcPageLocation(page->GetName()));
-        nc->DebugMsg("\tPaging in room %s\n", page->GetName().c_str());
+        nc->DebugMsg("\tPaging in room {}\n", page->GetName());
     }
 
     pMsg1->Send(clientKey);
@@ -330,13 +324,13 @@ class plUnloadAgeCollector : public plRegistryPageIterator
 {
     public:
         hsTArray<plRegistryPageNode *>  fPages;
-        const char                      *fAge;
-        
-        plUnloadAgeCollector( const char *a ) : fAge( a ) {}
+        const ST::string                fAge;
+
+        plUnloadAgeCollector(const ST::string& a) : fAge( a ) {}
 
         virtual bool EatPage( plRegistryPageNode *page )
         {
-            if( fAge && page->GetPageInfo().GetAge().CompareI(fAge) == 0 )
+            if ( !fAge.empty() && page->GetPageInfo().GetAge().compare_i(fAge) == 0 )
             {
                 fPages.Append( page );
             }
@@ -352,7 +346,7 @@ class plUnloadAgeCollector : public plRegistryPageIterator
 bool    plAgeLoader::IUnloadAge()
 {
     plNetClientApp* nc = plNetClientApp::GetInstance();
-    nc->DebugMsg( "Net: Unloading age %s", fAgeName);
+    nc->DebugMsg( "Net: Unloading age {}", fAgeName);
 
     hsAssert( (fFlags & kLoadMask)==0, "already loading or unloading an age?"); 
     fFlags |= kUnLoadingAge;
@@ -363,7 +357,7 @@ bool    plAgeLoader::IUnloadAge()
 
     // Note: instead of going from the .age file, we just want a list of what
     // is REALLY paged in for this age. So ask the resMgr!
-    plUnloadAgeCollector collector( fAgeName);
+    plUnloadAgeCollector collector(fAgeName);
     // WARNING: unsafe cast here, but it's ok, until somebody is mean and makes a non-plResManager resMgr
     ( (plResManager *)hsgResMgr::ResMgr() )->IterateAllPages( &collector );
 
@@ -381,7 +375,7 @@ bool    plAgeLoader::IUnloadAge()
         plKey roomKey = plKeyFinder::Instance().FindSceneNodeKey( page->GetPageInfo().GetLocation() );
         if( roomKey != nil && roomKey->ObjectIsLoaded() )
         {
-            nc->DebugMsg( "\tPaging out room %s\n", page->GetPageInfo().GetPage().c_str() );
+            nc->DebugMsg( "\tPaging out room {}\n", page->GetPageInfo().GetPage() );
             newPageOuts.push_back(roomKey);
         }
     }
@@ -414,7 +408,7 @@ void plAgeLoader::ExecPendingAgeFniFiles()
     int i;
     for (i=0;i<PendingAgeFniFiles().size(); i++)
     {
-        plConsoleMsg    *cMsg = new plConsoleMsg( plConsoleMsg::kExecuteFile, fPendingAgeFniFiles[i].c_str() );
+        plConsoleMsg    *cMsg = new plConsoleMsg( plConsoleMsg::kExecuteFile, fPendingAgeFniFiles[i].AsString().c_str() );
         plgDispatch::MsgSend( cMsg );
     }
     fPendingAgeFniFiles.clear();
@@ -425,7 +419,7 @@ void plAgeLoader::ExecPendingAgeCsvFiles()
     int i;
     for (i=0;i<PendingAgeCsvFiles().size(); i++)
     {
-        hsStream* stream = plEncryptedStream::OpenEncryptedFile(fPendingAgeCsvFiles[i].c_str());
+        hsStream* stream = plEncryptedStream::OpenEncryptedFile(fPendingAgeCsvFiles[i].AsString().c_str());
         if (stream)
         {
             plRelevanceMgr::Instance()->ParseCsvInput(stream);
@@ -440,21 +434,18 @@ void plAgeLoader::ExecPendingAgeCsvFiles()
 // return alloced stream or nil
 // static
 //
-hsStream* plAgeLoader::GetAgeDescFileStream(const char* ageName)
+hsStream* plAgeLoader::GetAgeDescFileStream(const ST::string& ageName)
 {
-    if (!ageName)
-        return nil;
+    if (ageName.empty())
+        return nullptr;
 
-    char ageDescFileName[256];
-    sprintf(ageDescFileName, "dat\\%s.age", ageName);
+    plFileName ageDescFileName = ST::format("dat\\{}.age", ageName);
 
     hsStream* stream = plEncryptedStream::OpenEncryptedFile(ageDescFileName);
     if (!stream)
     {
-        char str[256];
-        sprintf(str, "Can't find age desc file %s", ageDescFileName);
-        hsAssert(false, str);
-        return nil;
+        hsAssert(false, ST::format("Can't find age desc file {}", ageDescFileName).c_str());
+        return nullptr;
     }
 
     return stream;

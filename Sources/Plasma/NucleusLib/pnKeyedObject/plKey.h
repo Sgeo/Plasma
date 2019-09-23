@@ -44,7 +44,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "HeadSpin.h"
 #include "plRefFlags.h"
-#include "plString.h"
+#include <string_theory/string>
 
 class hsKeyedObject;
 class plRefMsg;
@@ -67,8 +67,8 @@ public:
     ~plKey();
     plKey& operator=(const plKey& rhs);
 
-    bool operator==(const plKey& rhs) const;
-    bool operator==(const plKeyData* rhs) const;
+    bool operator==(const plKey& rhs) const { return fKeyData == rhs.fKeyData; }
+    bool operator==(const plKeyData* rhs) const { return fKeyData == rhs; }
     bool operator!=(const plKey& rhs) const { return !(*this == rhs); }
     bool operator!=(const plKeyData* rhs) const { return !(*this == rhs); }
 
@@ -97,7 +97,7 @@ class plKeyData
 {
 public:
     virtual const plUoid&   GetUoid() const=0;
-    virtual const plString& GetName() const=0;
+    virtual ST::string      GetName() const=0;
 
     virtual hsKeyedObject*  GetObjectPtr()=0;
     virtual hsKeyedObject*  ObjectIsLoaded() const=0;
@@ -131,7 +131,7 @@ protected:
 
 #ifdef HS_DEBUGGING
     // Debugging info fields
-    plString    fIDName;
+    ST::string  fIDName;
     const char* fClassType;
 #endif
 

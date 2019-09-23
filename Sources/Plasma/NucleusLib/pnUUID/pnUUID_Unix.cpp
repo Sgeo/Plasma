@@ -78,9 +78,14 @@ bool plUUID::IsNull() const
     return ( uuid_is_null( g )!=0 );
 }
 
-void plUUID::CopyFrom( const plUUID * v )
+void plUUID::CopyFrom(const plUUID* v)
 {
-    memcpy( (void*)fData, (const void*)v->fData, sizeof(fData) );
+    memcpy((void*)fData, (const void*)v->fData, sizeof(fData));
+}
+
+void plUUID::CopyFrom(const plUUID& v)
+{
+    memcpy((void*)fData, (const void*)v.fData, sizeof(fData));
 }
 
 int plUUID::CompareTo( const plUUID * v ) const
@@ -113,7 +118,7 @@ bool plUUID::FromString( const char * str )
     return true;
 }
 
-bool plUUID::ToString( plString & out ) const
+bool plUUID::ToString( ST::string & out ) const
 {
     uuid_t g;
     plUUIDHelper::CopyToNative( g, this );

@@ -46,7 +46,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plNetCommon.h"
 #include "plVault/plVault.h"
 
-#define SAFE(s) ((s)?(s):"(nil)")
+#define SAFE(s) ((s).empty() ? "(nil)" : (s))
 #define kComma  ","
 #define kEmpty  ""
 #define kSemicolon  ";"
@@ -119,17 +119,31 @@ bool plAgeInfoStruct::IsEqualTo( const plAgeInfoStruct * other ) const
     // otherwise compare everything.
     bool match = true;
     if (match && HasAgeFilename() && other->HasAgeFilename())
-        match = match && ( stricmp( GetAgeFilename(), other->GetAgeFilename() )==0 );
+        match = match && ( GetAgeFilename().compare_i( other->GetAgeFilename() )==0 );
     if (match && HasAgeInstanceName() && other->HasAgeInstanceName())
-        match = match && ( stricmp( GetAgeInstanceName(), other->GetAgeInstanceName() )==0 );
+        match = match && ( GetAgeInstanceName().compare_i( other->GetAgeInstanceName() )==0 );
     if (match && HasAgeUserDefinedName() && other->HasAgeUserDefinedName())
-        match = match && ( stricmp( GetAgeUserDefinedName(), other->GetAgeUserDefinedName() )==0 );
+        match = match && ( GetAgeUserDefinedName().compare_i( other->GetAgeUserDefinedName() )==0 );
     if (match && HasAgeSequenceNumber() && other->HasAgeSequenceNumber())
         match = match && fAgeSequenceNumber==other->GetAgeSequenceNumber();
     if (match && HasAgeLanguage() && other->HasAgeLanguage())
         match = match && fAgeLanguage==other->GetAgeLanguage();
     // don't compare description fields
     return match;
+}
+
+void plAgeInfoStruct::CopyFrom(const plAgeInfoStruct * other)
+{
+    hsAssert(other, "CopyFrom called with null struct");
+
+    fFlags = other->fFlags;
+    fAgeFilename = other->fAgeFilename;
+    fAgeInstanceName = other->fAgeInstanceName;
+    fAgeInstanceGuid = other->fAgeInstanceGuid;
+    fAgeUserDefinedName = other->fAgeUserDefinedName;
+    fAgeDescription = other->fAgeDescription;
+    fAgeSequenceNumber = other->fAgeSequenceNumber;
+    fAgeLanguage = other->fAgeLanguage;
 }
 
 void plAgeInfoStruct::CopyFrom( const plVaultAgeInfoNode * node )
@@ -153,20 +167,14 @@ void plAgeInfoStruct::CopyFrom( const plVaultAgeInfoNode * node )
 
 //============================================================================
 void plAgeInfoStruct::CopyFrom(const NetAgeInfo & info) {
-    char tmp[MAX_PATH];
-
-    // Filename 
-    StrToAnsi(tmp, info.ageFilename, arrsize(tmp));
-    SetAgeFilename(tmp);
-    // InstanceName 
-    StrToAnsi(tmp, info.ageInstName, arrsize(tmp));
-    SetAgeInstanceName(tmp);
-    // UserDefinedName  
-    StrToAnsi(tmp, info.ageUserName, arrsize(tmp));
-    SetAgeUserDefinedName(tmp);
-    // Description  
-    StrToAnsi(tmp, info.ageDesc, arrsize(tmp));
-    SetAgeDescription(tmp);
+    // Filename
+    SetAgeFilename(ST::string::from_wchar(info.ageFilename));
+    // InstanceName
+    SetAgeInstanceName(ST::string::from_wchar(info.ageInstName));
+    // UserDefinedName
+    SetAgeUserDefinedName(ST::string::from_wchar(info.ageUserName));
+    // Description
+    SetAgeDescription(ST::string::from_wchar(info.ageDesc));
 
     plUUID inst(info.ageInstId);
     SetAgeInstanceGuid(&inst);
@@ -175,11 +183,11 @@ void plAgeInfoStruct::CopyFrom(const NetAgeInfo & info) {
 }
 
 //============================================================================
-plString plAgeInfoStruct::AsString() const
+ST::string plAgeInfoStruct::AsString() const
 {
     const char * spacer = kEmpty;
 
-    plStringStream ss;
+    ST::string_stream ss;
 
     ss << "[";
 
@@ -234,13 +242,13 @@ plString plAgeInfoStruct::AsString() const
     }
     ss  << "]";
 
-    return ss.GetString();
+    return ss.to_string();
 }
 
 
-void plAgeInfoStruct::SetAgeFilename( const char * v )
+void plAgeInfoStruct::SetAgeFilename( const ST::string & v )
 {
-    if ( v && v[0])
+    if (!v.empty())
     {
         SetFlag( kHasAgeFilename );
         fAgeFilename=v;
@@ -251,9 +259,9 @@ void plAgeInfoStruct::SetAgeFilename( const char * v )
     }
 }
 
-void plAgeInfoStruct::SetAgeInstanceName( const char * v )
+void plAgeInfoStruct::SetAgeInstanceName( const ST::string & v )
 {
-    if ( v && v[0])
+    if (!v.empty())
     {
         SetFlag( kHasAgeInstanceName );
         fAgeInstanceName=v;
@@ -278,9 +286,9 @@ void plAgeInfoStruct::SetAgeInstanceGuid( const plUUID * v )
     }
 }
 
-void plAgeInfoStruct::SetAgeUserDefinedName( const char * v )
+void plAgeInfoStruct::SetAgeUserDefinedName( const ST::string & v )
 {
-    if ( v && v[0])
+    if (!v.empty())
     {
         SetFlag( kHasAgeUserDefinedName );
         fAgeUserDefinedName=v;
@@ -304,9 +312,9 @@ void plAgeInfoStruct::SetAgeSequenceNumber( uint32_t v )
     }
 }
 
-void plAgeInfoStruct::SetAgeDescription( const char * v )
+void plAgeInfoStruct::SetAgeDescription( const ST::string & v )
 {
-    if ( v && v[0])
+    if (!v.empty())
     {
         SetFlag( kHasAgeDescription );
         fAgeDescription=v;
@@ -332,12 +340,12 @@ void plAgeInfoStruct::SetAgeLanguage( uint32_t v )
 
 void plAgeInfoStruct::UpdateFlags() const
 {
-    SetFlag( kHasAgeFilename, fAgeFilename.size()!=0 );
-    SetFlag( kHasAgeInstanceName, fAgeInstanceName.size()!=0 );
-    SetFlag( kHasAgeUserDefinedName, fAgeUserDefinedName.size()!=0 );
+    SetFlag( kHasAgeFilename, !fAgeFilename.empty() );
+    SetFlag( kHasAgeInstanceName, !fAgeInstanceName.empty() );
+    SetFlag( kHasAgeUserDefinedName, !fAgeUserDefinedName.empty() );
     SetFlag( kHasAgeInstanceGuid, fAgeInstanceGuid.IsSet() );
     SetFlag( kHasAgeSequenceNumber, fAgeSequenceNumber!=0 );
-    SetFlag( kHasAgeDescription, fAgeDescription.size()!=0 );
+    SetFlag( kHasAgeDescription, !fAgeDescription.empty() );
     SetFlag( kHasAgeLanguage, fAgeLanguage>=0 );
 }
 
@@ -376,7 +384,7 @@ void plAgeLinkStruct::Read( hsStream * s, hsResMgr* m)
         s->LogReadLE( &fLinkingRules ,"LinkingRules");
     if ( IsFlagSet( kHasSpawnPt_DEAD ) )
     {
-        plString str;
+        ST::string str;
         s->LogSubStreamPushDesc("SpawnPt_DEAD");
         plMsgStdStringHelper::Peek(str,s);
         fSpawnPoint.SetName( str );
@@ -441,7 +449,12 @@ void plAgeLinkStruct::CopyFrom( const plAgeLinkStruct * other )
 {
     if ( other )
     {
-        *this=*other;
+        fFlags = other->fFlags;
+        fAgeInfo.CopyFrom(&other->fAgeInfo);
+        fLinkingRules = other->fLinkingRules;
+        fSpawnPoint = other->fSpawnPoint;
+        fAmCCR = other->fAmCCR;
+        fParentAgeFilename = other->fParentAgeFilename;
     }
     else
     {
@@ -483,11 +496,11 @@ void plAgeLinkStruct::Clear()
     fAmCCR = false;
 }
 
-plString plAgeLinkStruct::AsString() const
+ST::string plAgeLinkStruct::AsString() const
 {
     const char * spacer = kEmpty;
 
-    plStringStream ss;
+    ST::string_stream ss;
 
     ss << "[";
 
@@ -521,7 +534,7 @@ plString plAgeLinkStruct::AsString() const
     }
     ss  << "]";
 
-    return ss.GetString();
+    return ss.to_string();
 }
 
 
@@ -603,11 +616,11 @@ void plNetServerSessionInfo::CopyFrom(const plNetServerSessionInfo * other)
     }
 }
 
-plString plNetServerSessionInfo::AsString() const
+ST::string plNetServerSessionInfo::AsString() const
 {
     const char * spacer = kEmpty;
 
-    plStringStream ss;
+    ST::string_stream ss;
 
     ss << "[";
 
@@ -622,7 +635,7 @@ plString plNetServerSessionInfo::AsString() const
     {
         ss  << spacer
             << "N:"
-            << SAFE(fServerName.c_str());
+            << SAFE(fServerName);
         spacer = kComma;
     }
     if (HasServerGuid())
@@ -636,7 +649,7 @@ plString plNetServerSessionInfo::AsString() const
     {
         ss  << spacer
             << "A:["
-            << SAFE(fServerAddr.c_str())
+            << SAFE(fServerAddr)
             << ":"
             << fServerPort
             << "]";
@@ -644,15 +657,15 @@ plString plNetServerSessionInfo::AsString() const
     }
     ss  << "]";
 
-    return ss.GetString();
+    return ss.to_string();
 }
 
-plString plNetServerSessionInfo::AsLogString() const
+ST::string plNetServerSessionInfo::AsLogString() const
 {
     const char* spacer = kSemicolon;
 
-    plStringStream ss;
-    plString typeName;
+    ST::string_stream ss;
+    ST::string typeName;
 
     if (HasServerType())
     {
@@ -662,14 +675,14 @@ plString plNetServerSessionInfo::AsLogString() const
     if (HasServerName())
     {
         ss << typeName << "Name" << "=";
-        ss << fServerName.c_str();
+        ss << fServerName;
         ss << spacer;
     }
 
     if (HasServerAddr())
     {
         ss << typeName << "Addr" << "=";
-        ss << fServerAddr.c_str();
+        ss << fServerAddr;
         ss << spacer;
     }
 
@@ -687,7 +700,7 @@ plString plNetServerSessionInfo::AsLogString() const
         ss << spacer;
     }
 
-    return ss.GetString();
+    return ss.to_string();
 }
 
 bool plNetServerSessionInfo::IsEqualTo(const plNetServerSessionInfo * other) const
@@ -696,27 +709,26 @@ bool plNetServerSessionInfo::IsEqualTo(const plNetServerSessionInfo * other) con
     if (match && IsFlagSet(kHasServerGuid) && other->IsFlagSet(kHasServerGuid))
         match = match && fServerGuid.IsEqualTo(other->GetServerGuid());
     if (match && IsFlagSet(kHasServerName) && other->IsFlagSet(kHasServerName))
-        match = match && (stricmp(fServerName.c_str(),other->fServerName.c_str())==0);
+        match = match && (fServerName.compare_i(other->fServerName)==0);
     if (match && IsFlagSet(kHasServerType) && other->IsFlagSet(kHasServerType))
         match = match && fServerType==other->fServerType;
     if (match && IsFlagSet(kHasServerAddr) && other->IsFlagSet(kHasServerAddr))
-        match = match && (stricmp(fServerAddr.c_str(),other->fServerAddr.c_str())==0);
+        match = match && (fServerAddr.compare_i(other->fServerAddr)==0);
     if (match && IsFlagSet(kHasServerPort) && other->IsFlagSet(kHasServerPort))
         match = match && fServerPort==other->fServerPort;
     return match;
 }
 
 
-void plNetServerSessionInfo::SetServerName(const char * val)
+void plNetServerSessionInfo::SetServerName(const ST::string & val)
 {
-    if (val)
+    fServerName = val;
+    if (!val.empty())
     {
-        fServerName=val;
         SetFlag(kHasServerName);
     }
     else
     {
-        fServerName="";
         ClearFlag(kHasServerName);
     }
 }
@@ -735,16 +747,15 @@ void plNetServerSessionInfo::SetServerType(uint8_t val)
     }
 }
 
-void plNetServerSessionInfo::SetServerAddr(const char * val)
+void plNetServerSessionInfo::SetServerAddr(const ST::string & val)
 {
-    if (val)
+    fServerAddr = val;
+    if (!val.empty())
     {
-        fServerAddr = val;
         SetFlag(kHasServerAddr);
     }
     else
     {
-        fServerAddr = "";
         ClearFlag(kHasServerAddr);
     }
 }

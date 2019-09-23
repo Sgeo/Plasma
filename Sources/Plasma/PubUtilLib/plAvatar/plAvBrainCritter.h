@@ -100,7 +100,7 @@ public:
     bool RunningBehavior(const std::string& behaviorName) const;
 
     std::string BehaviorName(int behavior) const;
-    plString AnimationName(int behavior) const;
+    ST::string AnimationName(int behavior) const;
     int CurBehavior() const {return fCurMode;}
     int NextBehavior() const {return fNextMode;}
 
@@ -133,7 +133,7 @@ public:
     void AddReceiver(const plKey key);
     void RemoveReceiver(const plKey key);
 
-    virtual void DumpToDebugDisplay(int& x, int& y, int lineHeight, char* strBuf, plDebugText& debugTxt);
+    virtual void DumpToDebugDisplay(int& x, int& y, int lineHeight, plDebugText& debugTxt);
 
     // For the console
     static bool fDrawDebug;

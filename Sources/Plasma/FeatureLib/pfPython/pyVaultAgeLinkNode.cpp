@@ -82,10 +82,8 @@ PyObject* pyVaultAgeLinkNode::GetAgeInfo() const
         PYTHON_RETURN_NONE;
 
     PyObject * result = nil;        
-    if (RelVaultNode * rvn = fNode->GetChildNodeIncRef(plVault::kNodeType_AgeInfo, 1)) {
+    if (hsRef<RelVaultNode> rvn = fNode->GetChildNode(plVault::kNodeType_AgeInfo, 1))
         result = pyVaultAgeInfoNode::New(rvn);
-        rvn->DecRef();
-    }
     
     if (result)
         return result;
@@ -166,7 +164,7 @@ void pyVaultAgeLinkNode::RemoveSpawnPointRef( pySpawnPointInfoRef & point )
     access.RemoveSpawnPoint(point.GetName());
 }
 
-void pyVaultAgeLinkNode::RemoveSpawnPointByName( const plString & spawnPtName )
+void pyVaultAgeLinkNode::RemoveSpawnPointByName( const ST::string & spawnPtName )
 {
     if (!fNode)
         return;
@@ -175,7 +173,7 @@ void pyVaultAgeLinkNode::RemoveSpawnPointByName( const plString & spawnPtName )
     access.RemoveSpawnPoint(spawnPtName);
 }
 
-bool pyVaultAgeLinkNode::HasSpawnPoint( const plString & spawnPtName ) const
+bool pyVaultAgeLinkNode::HasSpawnPoint( const ST::string & spawnPtName ) const
 {
     if (!fNode)
         return false;

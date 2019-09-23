@@ -52,6 +52,8 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 
 #include "pnNetCommon/plNetAddress.h"
 
+class plUUID;
+
 /*****************************************************************************
 *
 *   Client auth functions
@@ -62,7 +64,7 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 // Connect
 //============================================================================
 void NetCliAuthStartConnect (
-    const char*     authAddrList[],
+    const ST::string  authAddrList[],
     uint32_t        authAddrCount
 );
 bool NetCliAuthQueryConnected ();
@@ -74,6 +76,11 @@ void NetCliAuthSetConnectCallback (
     FNetCliAuthConnectCallback callback
 );
 
+
+//============================================================================
+// Server Capabilities
+//============================================================================
+bool NetCliAuthCheckCap(uint32_t cap);
 
 //============================================================================
 // Disconnect
@@ -119,8 +126,8 @@ void NetCliAuthAccountExistsRequest (
 //============================================================================
 struct NetCliAuthPlayerInfo {
     unsigned    playerInt;
-    wchar_t       playerName[kMaxPlayerNameLength];
-    wchar_t       avatarShape[kMaxVaultNodeStringLength];
+    ST::string  playerName;
+    ST::string  avatarShape;
     unsigned    playerFlags;
     unsigned    explorer;
 };
@@ -135,7 +142,7 @@ typedef void (*FNetCliAuthLoginRequestCallback)(
     unsigned                    playerCount
 );
 void NetCliAuthLoginRequest (
-    const wchar_t                   accountName[],  // nil --> reuse previous acct name
+    const ST::string&               accountName,  // nil --> reuse previous acct name
     const ShaDigest *               accountNamePassHash,  // nil --> reuse previous acct pass
     const wchar_t                   authToken[],  // nil --> reuse previous auth token
     const wchar_t                   os[],  // nil --> reuse previous os
@@ -200,9 +207,9 @@ typedef void (*FNetCliAuthPlayerCreateRequestCallback)(
     const NetCliAuthPlayerInfo &    playerInfo
 );
 void NetCliAuthPlayerCreateRequest (
-    const wchar_t                             playerName[],
-    const wchar_t                             avatarShape[],
-    const wchar_t                             friendInvite[],
+    const ST::string&                       playerName,
+    const ST::string&                       avatarShape,
+    const ST::string&                       friendInvite,
     FNetCliAuthPlayerCreateRequestCallback  callback,
     void *                                  param
 );
@@ -258,7 +265,7 @@ typedef void (*FNetCliAuthGetPublicAgeListCallback)(
     const ARRAY(NetAgeInfo) &   ages
 );
 void NetCliAuthGetPublicAgeList (
-    const wchar_t                         ageName[],
+    const ST::string&                   ageName,
     FNetCliAuthGetPublicAgeListCallback callback,
     void *                              param
 );
@@ -271,8 +278,8 @@ typedef void (*FNetCliAuthAccountChangePasswordRequestCallback)(
     void *                          param
 );
 void NetCliAuthAccountChangePasswordRequest (
-    const wchar_t                                     accountName[],
-    const wchar_t                                     accountPass[],
+    const ST::string&                               accountName,
+    const ST::string&                               accountPass,
     FNetCliAuthAccountChangePasswordRequestCallback callback,
     void *                                          param
 );
@@ -330,7 +337,7 @@ typedef void (*FNetCliAuthAgeRequestCallback)(
     plNetAddress    gameAddr
 );
 void NetCliAuthAgeRequest (
-    const wchar_t                         ageName[],      // L"Teledahn"
+    const ST::string&                   ageName,      // "Teledahn"
     const plUUID&                       ageInstId,
     FNetCliAuthAgeRequestCallback       callback,
     void *                              param
@@ -383,7 +390,7 @@ void NetCliAuthFileRequest (
 //============================================================================
 // Vault Operations
 //============================================================================
-struct NetVaultNode;
+class NetVaultNode;
 struct NetVaultNodeRef;
 
 // VaultNodeChanged
@@ -521,10 +528,10 @@ typedef void (*FNetCliAuthAgeInitCallback) (
 void NetCliAuthVaultInitAge (
     const plUUID&               ageInstId,          // optional. is used in match
     const plUUID&               parentAgeInstId,    // optional. is used in match
-    const wchar_t                 ageFilename[],      // optional. is used in match
-    const wchar_t                 ageInstName[],      // optional. not used in match
-    const wchar_t                 ageUserName[],      // optional. not used in match
-    const wchar_t                 ageDesc[],          // optional. not used in match
+    const ST::string&           ageFilename,        // optional. is used in match
+    const ST::string&           ageInstName,        // optional. not used in match
+    const ST::string&           ageUserName,        // optional. not used in match
+    const ST::string&           ageDesc,            // optional. not used in match
     unsigned                    ageSequenceNumber,  // optional. not used in match
     unsigned                    ageLanguage,        // optional. not used in match
     FNetCliAuthAgeInitCallback  callback,           // optional
@@ -575,7 +582,7 @@ void NetCliAuthChangePlayerNameRequest (
 // CCRPetition
 //============================================================================
 void NetCliAuthSendCCRPetition (
-    const wchar_t *       petitionText
+    const ST::string&     petitionText
 );
 
 //============================================================================
@@ -587,9 +594,9 @@ typedef void (*FNetCliAuthSendFriendInviteCallback)(
 );
 
 void NetCliAuthSendFriendInvite (
-    const wchar_t                         emailAddress[],
-    const wchar_t                         toName[],
-    const plUUID&                         inviteUuid,
+    const ST::string&                   emailAddress,
+    const ST::string&                   toName,
+    const plUUID&                       inviteUuid,
     FNetCliAuthSendFriendInviteCallback callback,
     void *                              param
 );
@@ -629,18 +636,18 @@ typedef void (*FNetCliAuthScoreUpdateCallback)(
 
 //============================================================================
 typedef void (*FNetCliAuthCreateScoreCallback)(
-    ENetError   result,
-    void *      param,
-    unsigned    scoreId,
-    uint32_t      createdTime,
-    unsigned    ownerId,
-    const char* gameName,
-    unsigned    gameType,
-    int         value
+    ENetError       result,
+    void *          param,
+    unsigned        scoreId,
+    uint32_t        createdTime,
+    unsigned        ownerId,
+    const ST::string& gameName,
+    unsigned        gameType,
+    int             value
 );
 void NetCliAuthScoreCreate(
     unsigned                        ownerId,
-    const char*                     gameName,
+    const ST::string&               gameName,
     unsigned                        gameType,
     int                             value,
     FNetCliAuthCreateScoreCallback  callback,
@@ -664,7 +671,7 @@ typedef void (*FNetCliAuthGetScoresCallback)(
 
 void NetCliAuthScoreGetScores(
     unsigned                        ownerId,
-    const char*                     gameName,
+    const ST::string&               gameName,
     FNetCliAuthGetScoresCallback    callback,
     void *                          param
 );
@@ -707,11 +714,20 @@ void NetCliAuthScoreGetRankList(
     unsigned                    ownerId,
     unsigned                    scoreGroup,
     unsigned                    parentFolderId,
-    const char *                gameName,
+    const ST::string&           gameName,
     unsigned                    timePeriod,
     unsigned                    numResults,
     unsigned                    pageNumber,
     bool                        sortDesc,
     FNetCliAuthGetRanksCallback callback,
     void *                      param
+);
+
+//============================================================================
+void NetCliAuthScoreGetHighScores(
+    unsigned                        ageId,
+    unsigned                        maxScores,
+    const ST::string&               gameName,
+    FNetCliAuthGetScoresCallback    callback,
+    void *                          param
 );

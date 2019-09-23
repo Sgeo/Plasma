@@ -46,10 +46,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "pnSceneObject/plSceneObject.h"
 #include "pnMessage/plSDLModifierMsg.h"
 
+#include "plNetCommon/plNetObjectDebugger.h"
 #include "plNetMessage/plNetMessage.h"
 #include "plSDL/plSDL.h"
-#include "plNetClient/plNetClientMgr.h"
-#include "plNetClient/plNetObjectDebugger.h"
 
 plSDLModifier::plSDLModifier() : fStateCache(nil), fSentOrRecvdState(false)
 {
@@ -92,15 +91,40 @@ void plSDLModifier::ISendNetMsg(plStateDataRecord*& state, plKey senderKey, uint
     bool dirtyOnly = (sendFlags & plSynchedObject::kForceFullSend) == 0;
     bool broadcast = (sendFlags & plSynchedObject::kBCastToClients) != 0;
     int writeOptions=0;
+
 //  if (dirtyOnly)
         writeOptions |= plSDL::kDirtyOnly;
     if (broadcast)
         writeOptions |= plSDL::kBroadcast;
-        
+
     writeOptions |= plSDL::kTimeStampOnRead;
-    
-    plNetClientMgr::GetInstance()->StoreSDLState(state, senderKey->GetUoid(), sendFlags, writeOptions);
-        
+
+
+    // send to server
+    plNetMsgSDLState* msg = state->PrepNetMsg(0, writeOptions);
+    msg->SetNetProtocol(kNetProtocolCli2Game);
+    msg->ObjectInfo()->SetUoid(senderKey->GetUoid());
+
+    if (sendFlags & plSynchedObject::kNewState)
+        msg->SetBit(plNetMessage::kNewSDLState);
+
+    if (sendFlags & plSynchedObject::kUseRelevanceRegions)
+        msg->SetBit(plNetMessage::kUseRelevanceRegions);
+
+    if (sendFlags & plSynchedObject::kDontPersistOnServer)
+        msg->SetPersistOnServer(false);
+
+    if (sendFlags & plSynchedObject::kIsAvatarState)
+        msg->SetIsAvatarState(true);
+
+    if (broadcast && plNetClientApp::GetInstance())
+    {
+        msg->SetPlayerID(plNetClientApp::GetInstance()->GetPlayerID());
+    }
+
+    plNetClientApp::GetInstance()->SendMsg(msg);
+    msg->UnRef();
+
     fSentOrRecvdState = true;
 }
 
@@ -110,7 +134,7 @@ void plSDLModifier::ISendNetMsg(plStateDataRecord*& state, plKey senderKey, uint
 bool plSDLModifier::MsgReceive(plMessage* msg)
 {
     plSDLModifierMsg* sdlMsg = plSDLModifierMsg::ConvertNoRef(msg);
-    if (sdlMsg && !sdlMsg->GetSDLName().CompareI(GetSDLName()))
+    if (sdlMsg && !sdlMsg->GetSDLName().compare_i(GetSDLName()))
     {       
         uint32_t sendFlags = IApplyModFlags(sdlMsg->GetFlags());
 
@@ -178,8 +202,8 @@ void plSDLModifier::SendState(uint32_t sendFlags)
         {
             gMooseDump=true;
             plNetObjectDebugger::GetInstance()->SetDebugging(true);
-            curState->DumpToObjectDebugger(plString::Format("Object %s SENDS SDL state",
-                GetStateOwnerKey()->GetName().c_str(), dirtyOnly).c_str());
+            curState->DumpToObjectDebugger(ST::format("Object {} SENDS SDL state",
+                GetStateOwnerKey()->GetName()).c_str(), dirtyOnly);
             gMooseDump=false;
         }
 
@@ -203,8 +227,8 @@ void plSDLModifier::ReceiveState(const plStateDataRecord* srcState)
     {
         gMooseDump=true;
         plNetObjectDebugger::GetInstance()->SetDebugging(true);
-        srcState->DumpToObjectDebugger(plString::Format("Object %s RECVS SDL state",
-            GetStateOwnerKey()->GetName().c_str()).c_str());
+        srcState->DumpToObjectDebugger(ST::format("Object {} RECVS SDL state",
+                                       GetStateOwnerKey()->GetName()).c_str());
         gMooseDump=false;
     }
 
@@ -221,15 +245,15 @@ void plSDLModifier::ReceiveState(const plStateDataRecord* srcState)
     }
     else
     {
-        plNetClientApp::GetInstance()->DebugMsg("\tReceiving and ignoring unused SDL state msg: type %s, object %s",
-            GetSDLName(), GetStateOwnerKey()->GetName().c_str());
+        plNetClientApp::GetInstance()->DebugMsg("\tReceiving and ignoring unused SDL state msg: type {}, object {}",
+            GetSDLName(), GetStateOwnerKey()->GetName());
     }
 
     if (plNetObjectDebugger::GetInstance())
         plNetObjectDebugger::GetInstance()->SetDebugging(false);
 }
 
-void plSDLModifier::AddNotifyForVar(plKey key, const plString& varName, float tolerance) const
+void plSDLModifier::AddNotifyForVar(plKey key, const ST::string& varName, float tolerance) const
 {
     // create a SDL notifier object
     plStateChangeNotifier notifier(tolerance, key);

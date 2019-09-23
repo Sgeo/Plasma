@@ -53,6 +53,9 @@ You can contact Cyan Worlds, Inc. by email legal@cyan.com
 #include "plStatusLog/plStatusLog.h"
 #include "hsTimer.h"
 
+#include <thread>
+#include <chrono>
+
 static plFileName GetFullPath(const plFileName &filename)
 {
     if (filename.StripFileName().IsValid())
@@ -84,18 +87,19 @@ static plAudioFileReader *CreateReader( bool fullpath, const plFileName &filenam
     return reader;
 }
 
-hsError plSoundPreloader::Run()
+void plSoundPreloader::Run()
 {
     hsTArray<plSoundBuffer*> templist;
 
     while (fRunning)
     {
-        fCritSect.Lock();
-        while (fBuffers.GetCount())
         {
-            templist.Append(fBuffers.Pop());
+            hsLockGuard(fCritSect);
+            while (fBuffers.GetCount())
+            {
+                templist.Append(fBuffers.Pop());
+            }
         }
-        fCritSect.Unlock();
 
         if (templist.GetCount() == 0)
         {
@@ -130,16 +134,15 @@ hsError plSoundPreloader::Run()
     }
 
     // we need to be sure that all buffers are removed from our load list when shutting this thread down or we will hang,
-    // since the sound buffer will wait to be destroyed until it is marked as loaded 
-    fCritSect.Lock();
-    while (fBuffers.GetCount())
+    // since the sound buffer will wait to be destroyed until it is marked as loaded
     {
-        plSoundBuffer* buf = fBuffers.Pop();
-        buf->SetLoaded(true);
+        hsLockGuard(fCritSect);
+        while (fBuffers.GetCount())
+        {
+            plSoundBuffer* buf = fBuffers.Pop();
+            buf->SetLoaded(true);
+        }
     }
-    fCritSect.Unlock();
-
-    return hsOK;
 }
 
 static plSoundPreloader gLoaderThread;
@@ -177,7 +180,7 @@ plSoundBuffer::~plSoundBuffer()
     {
         while(!fLoaded)
         {
-            hsSleep::Sleep(10);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }
 
@@ -219,7 +222,7 @@ void    plSoundBuffer::Read( hsStream *s, hsResMgr *mgr )
 
     s->ReadLE( &fFlags );
     s->ReadLE( &fDataLength );
-    fFileName = s->ReadSafeString_TEMP();
+    fFileName = s->ReadSafeString();
 
     s->ReadLE( &fHeader.fFormatTag );
     s->ReadLE( &fHeader.fNumChannels );

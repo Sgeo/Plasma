@@ -55,19 +55,18 @@ class hsResMgr;
 class plLoadAgeMsg : public plMessage
 {
 protected:
-    char* fAgeFilename;             // the age to load/unload
+    ST::string fAgeFilename;           // the age to load/unload
     plUUID fAgeGuid;
     bool fUnload;         // true if we want to unload the age
     int fPlayerID;
 public:
-    plLoadAgeMsg() : fAgeFilename(nil), fUnload(false), fPlayerID(-1){ }
-    virtual ~plLoadAgeMsg() { delete [] fAgeFilename;  }
+    plLoadAgeMsg() : fUnload(false), fPlayerID(-1) { }
 
     CLASSNAME_REGISTER( plLoadAgeMsg );
     GETINTERFACE_ANY( plLoadAgeMsg, plMessage );
 
-    void SetAgeFilename(const char* a) { delete [] fAgeFilename; fAgeFilename=a?hsStrcpy(a):nil; }
-    char* GetAgeFilename() const { return fAgeFilename; }
+    void SetAgeFilename(const ST::string& a) { fAgeFilename = a; }
+    ST::string GetAgeFilename() const { return fAgeFilename; }
 
     void SetAgeGuid( const plUUID * v ) { fAgeGuid.CopyFrom( v ); }
     const plUUID * GetAgeGuid() const { return &fAgeGuid; }
